@@ -1,0 +1,960 @@
+{
+  "retrieved": "2026-09-06",
+  "path_base": "assets/",
+  "sources": [
+    {
+      "id": "4colour-cards",
+      "author": "VerzatileDev",
+      "url": "https://verzatiledev.itch.io/4colour",
+      "license": "CC0-1.0 (publisher page)",
+      "archive": "4ColourCardsByVerzatileDev.zip",
+      "bytes": 7275311,
+      "sha256": "ee20da4f717ef44be9ee6f9c48561f169aebb672222d39aea2c254603be5d337"
+    },
+    {
+      "id": "casino-audio",
+      "author": "Kenney",
+      "url": "https://kenney.nl/assets/casino-audio",
+      "license": "CC0-1.0 (included License.txt)",
+      "archive": "kenney_casino-audio.zip",
+      "bytes": 876839,
+      "sha256": "f36250766ac5bc378c13708ddf12a23a8e54a3251f8d482c7536e51b5dbafa18"
+    },
+    {
+      "id": "ui-pack",
+      "author": "Kenney",
+      "url": "https://kenney.nl/assets/ui-pack",
+      "license": "CC0-1.0 (included License.txt)",
+      "archive": "kenney_ui-pack.zip",
+      "bytes": 1229750,
+      "sha256": "a8a14a234911eb648c062622915c93e79e94e97cb7f9f375a70f6617f1174318"
+    },
+    {
+      "id": "board-game-icons",
+      "author": "Kenney",
+      "url": "https://kenney.nl/assets/board-game-icons",
+      "license": "CC0-1.0 (included License.txt)",
+      "archive": "kenney_board-game-icons.zip",
+      "bytes": 1039954,
+      "sha256": "05f4358381d8b16b303b2f056393b76ce3f6a58228599e88caa2eab11d4c2946"
+    },
+    {
+      "id": "playing-cards-pack",
+      "author": "Kenney",
+      "url": "https://kenney.nl/assets/playing-cards-pack",
+      "license": "CC0-1.0 (included License.txt)",
+      "archive": "kenney_playing-cards-pack.zip",
+      "bytes": 191985,
+      "sha256": "b93b0313818e9c8f6acc24b008efdec1d8a6360b13afe953beed23881588be3c"
+    }
+  ],
+  "counts": {
+    "card": 54,
+    "back": 1,
+    "audio": 23,
+    "ui": 4,
+    "icon": 6
+  },
+  "deck_size": 108,
+  "assets": [
+    {
+      "id": "red-0",
+      "path": "ready/cards/red-0.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1069.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "0",
+      "copies": 1,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "red-1",
+      "path": "ready/cards/red-1.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1078.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "1",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "red-2",
+      "path": "ready/cards/red-2.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1077.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "2",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "red-3",
+      "path": "ready/cards/red-3.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1076.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "3",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "red-4",
+      "path": "ready/cards/red-4.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1075.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "4",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "red-5",
+      "path": "ready/cards/red-5.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1074.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "5",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "red-6",
+      "path": "ready/cards/red-6.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1073.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "6",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "red-7",
+      "path": "ready/cards/red-7.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1072.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "7",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "red-8",
+      "path": "ready/cards/red-8.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1071.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "8",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "red-9",
+      "path": "ready/cards/red-9.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1070.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "9",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "red-draw-two",
+      "path": "ready/cards/red-draw-two.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g14.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "draw-two",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "red-reverse",
+      "path": "ready/cards/red-reverse.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g13.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "reverse",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "red-skip",
+      "path": "ready/cards/red-skip.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g12.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "red",
+      "face": "skip",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-0",
+      "path": "ready/cards/yellow-0.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1068.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "0",
+      "copies": 1,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-1",
+      "path": "ready/cards/yellow-1.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1059.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "1",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-2",
+      "path": "ready/cards/yellow-2.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1060.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "2",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-3",
+      "path": "ready/cards/yellow-3.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1061.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "3",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-4",
+      "path": "ready/cards/yellow-4.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1062.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "4",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-5",
+      "path": "ready/cards/yellow-5.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1063.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "5",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-6",
+      "path": "ready/cards/yellow-6.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1064.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "6",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-7",
+      "path": "ready/cards/yellow-7.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1065.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "7",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-8",
+      "path": "ready/cards/yellow-8.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1066.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "8",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-9",
+      "path": "ready/cards/yellow-9.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1067.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "9",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-draw-two",
+      "path": "ready/cards/yellow-draw-two.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g1.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "draw-two",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-reverse",
+      "path": "ready/cards/yellow-reverse.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g2.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "reverse",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "yellow-skip",
+      "path": "ready/cards/yellow-skip.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g3.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "yellow",
+      "face": "skip",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-0",
+      "path": "ready/cards/blue-0.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1088.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "0",
+      "copies": 1,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-1",
+      "path": "ready/cards/blue-1.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1079.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "1",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-2",
+      "path": "ready/cards/blue-2.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1080.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "2",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-3",
+      "path": "ready/cards/blue-3.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1081.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "3",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-4",
+      "path": "ready/cards/blue-4.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1082.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "4",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-5",
+      "path": "ready/cards/blue-5.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1083.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "5",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-6",
+      "path": "ready/cards/blue-6.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1084.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "6",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-7",
+      "path": "ready/cards/blue-7.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1085.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "7",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-8",
+      "path": "ready/cards/blue-8.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1086.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "8",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-9",
+      "path": "ready/cards/blue-9.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1087.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "9",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-draw-two",
+      "path": "ready/cards/blue-draw-two.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g15.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "draw-two",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-reverse",
+      "path": "ready/cards/blue-reverse.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g16.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "reverse",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "blue-skip",
+      "path": "ready/cards/blue-skip.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g17.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "blue",
+      "face": "skip",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-0",
+      "path": "ready/cards/green-0.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1089.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "0",
+      "copies": 1,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-1",
+      "path": "ready/cards/green-1.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1098.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "1",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-2",
+      "path": "ready/cards/green-2.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1097.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "2",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-3",
+      "path": "ready/cards/green-3.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1096.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "3",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-4",
+      "path": "ready/cards/green-4.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1095.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "4",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-5",
+      "path": "ready/cards/green-5.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1094.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "5",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-6",
+      "path": "ready/cards/green-6.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1093.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "6",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-7",
+      "path": "ready/cards/green-7.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1092.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "7",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-8",
+      "path": "ready/cards/green-8.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1091.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "8",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-9",
+      "path": "ready/cards/green-9.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Numbered/4ColourCardNumByVerzatileDev_g1090.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "9",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-draw-two",
+      "path": "ready/cards/green-draw-two.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g28.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "draw-two",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-reverse",
+      "path": "ready/cards/green-reverse.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g27.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "reverse",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "green-skip",
+      "path": "ready/cards/green-skip.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g26.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": "green",
+      "face": "skip",
+      "copies": 2,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "wild",
+      "path": "ready/cards/wild.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g33.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": null,
+      "face": "wild",
+      "copies": 4,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "wild-draw-four",
+      "path": "ready/cards/wild-draw-four.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g32.png",
+      "source": "4colour-cards",
+      "kind": "card",
+      "color": null,
+      "face": "wild-draw-four",
+      "copies": 4,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "back",
+      "path": "ready/cards/back.png",
+      "original": "vendor/4colour-cards/4ColourCardsByVerzatileDev/Individual/Special/4ColourCardSpecialByVerzatileDev_g36.png",
+      "source": "4colour-cards",
+      "kind": "back",
+      "color": null,
+      "face": "back",
+      "copies": 0,
+      "width": 320,
+      "height": 500
+    },
+    {
+      "id": "card-fan-1",
+      "path": "ready/audio/card-fan-1.ogg",
+      "original": "vendor/casino-audio/Audio/card-fan-1.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-fan-2",
+      "path": "ready/audio/card-fan-2.ogg",
+      "original": "vendor/casino-audio/Audio/card-fan-2.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-place-1",
+      "path": "ready/audio/card-place-1.ogg",
+      "original": "vendor/casino-audio/Audio/card-place-1.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-place-2",
+      "path": "ready/audio/card-place-2.ogg",
+      "original": "vendor/casino-audio/Audio/card-place-2.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-place-3",
+      "path": "ready/audio/card-place-3.ogg",
+      "original": "vendor/casino-audio/Audio/card-place-3.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-place-4",
+      "path": "ready/audio/card-place-4.ogg",
+      "original": "vendor/casino-audio/Audio/card-place-4.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-shove-1",
+      "path": "ready/audio/card-shove-1.ogg",
+      "original": "vendor/casino-audio/Audio/card-shove-1.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-shove-2",
+      "path": "ready/audio/card-shove-2.ogg",
+      "original": "vendor/casino-audio/Audio/card-shove-2.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-shove-3",
+      "path": "ready/audio/card-shove-3.ogg",
+      "original": "vendor/casino-audio/Audio/card-shove-3.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-shove-4",
+      "path": "ready/audio/card-shove-4.ogg",
+      "original": "vendor/casino-audio/Audio/card-shove-4.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-shuffle",
+      "path": "ready/audio/card-shuffle.ogg",
+      "original": "vendor/casino-audio/Audio/card-shuffle.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-slide-1",
+      "path": "ready/audio/card-slide-1.ogg",
+      "original": "vendor/casino-audio/Audio/card-slide-1.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-slide-2",
+      "path": "ready/audio/card-slide-2.ogg",
+      "original": "vendor/casino-audio/Audio/card-slide-2.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-slide-3",
+      "path": "ready/audio/card-slide-3.ogg",
+      "original": "vendor/casino-audio/Audio/card-slide-3.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-slide-4",
+      "path": "ready/audio/card-slide-4.ogg",
+      "original": "vendor/casino-audio/Audio/card-slide-4.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-slide-5",
+      "path": "ready/audio/card-slide-5.ogg",
+      "original": "vendor/casino-audio/Audio/card-slide-5.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-slide-6",
+      "path": "ready/audio/card-slide-6.ogg",
+      "original": "vendor/casino-audio/Audio/card-slide-6.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-slide-7",
+      "path": "ready/audio/card-slide-7.ogg",
+      "original": "vendor/casino-audio/Audio/card-slide-7.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "card-slide-8",
+      "path": "ready/audio/card-slide-8.ogg",
+      "original": "vendor/casino-audio/Audio/card-slide-8.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "cards-pack-open-1",
+      "path": "ready/audio/cards-pack-open-1.ogg",
+      "original": "vendor/casino-audio/Audio/cards-pack-open-1.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "cards-pack-open-2",
+      "path": "ready/audio/cards-pack-open-2.ogg",
+      "original": "vendor/casino-audio/Audio/cards-pack-open-2.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "cards-pack-take-out-1",
+      "path": "ready/audio/cards-pack-take-out-1.ogg",
+      "original": "vendor/casino-audio/Audio/cards-pack-take-out-1.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "cards-pack-take-out-2",
+      "path": "ready/audio/cards-pack-take-out-2.ogg",
+      "original": "vendor/casino-audio/Audio/cards-pack-take-out-2.ogg",
+      "source": "casino-audio",
+      "kind": "audio"
+    },
+    {
+      "id": "button-blue",
+      "path": "ready/ui/button-blue.png",
+      "original": "vendor/ui-pack/PNG/Blue/Default/button_rectangle_depth_gloss.png",
+      "source": "ui-pack",
+      "kind": "ui",
+      "width": 192,
+      "height": 64
+    },
+    {
+      "id": "button-red",
+      "path": "ready/ui/button-red.png",
+      "original": "vendor/ui-pack/PNG/Red/Default/button_rectangle_depth_gloss.png",
+      "source": "ui-pack",
+      "kind": "ui",
+      "width": 192,
+      "height": 64
+    },
+    {
+      "id": "button-green",
+      "path": "ready/ui/button-green.png",
+      "original": "vendor/ui-pack/PNG/Green/Default/button_rectangle_depth_gloss.png",
+      "source": "ui-pack",
+      "kind": "ui",
+      "width": 192,
+      "height": 64
+    },
+    {
+      "id": "button-yellow",
+      "path": "ready/ui/button-yellow.png",
+      "original": "vendor/ui-pack/PNG/Yellow/Default/button_rectangle_depth_gloss.png",
+      "source": "ui-pack",
+      "kind": "ui",
+      "width": 192,
+      "height": 64
+    },
+    {
+      "id": "arrow_clockwise",
+      "path": "ready/icons/arrow_clockwise.svg",
+      "original": "vendor/board-game-icons/Vector/Icons/arrow_clockwise.svg",
+      "source": "board-game-icons",
+      "kind": "icon"
+    },
+    {
+      "id": "arrow_counterclockwise",
+      "path": "ready/icons/arrow_counterclockwise.svg",
+      "original": "vendor/board-game-icons/Vector/Icons/arrow_counterclockwise.svg",
+      "source": "board-game-icons",
+      "kind": "icon"
+    },
+    {
+      "id": "card_add",
+      "path": "ready/icons/card_add.svg",
+      "original": "vendor/board-game-icons/Vector/Icons/card_add.svg",
+      "source": "board-game-icons",
+      "kind": "icon"
+    },
+    {
+      "id": "card_place",
+      "path": "ready/icons/card_place.svg",
+      "original": "vendor/board-game-icons/Vector/Icons/card_place.svg",
+      "source": "board-game-icons",
+      "kind": "icon"
+    },
+    {
+      "id": "card_flip",
+      "path": "ready/icons/card_flip.svg",
+      "original": "vendor/board-game-icons/Vector/Icons/card_flip.svg",
+      "source": "board-game-icons",
+      "kind": "icon"
+    },
+    {
+      "id": "award",
+      "path": "ready/icons/award.svg",
+      "original": "vendor/board-game-icons/Vector/Icons/award.svg",
+      "source": "board-game-icons",
+      "kind": "icon"
+    }
+  ]
+}

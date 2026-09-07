@@ -1,0 +1,36 @@
+server:
+  port: ${SERVER_PORT:8082}
+spring:
+  application:
+    name: uno-game-service
+  datasource:
+    url: ${GAME_DB_URL}
+    username: ${GAME_DB_USER:uno_game}
+    password: ${GAME_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 3000
+      validation-timeout: 1000
+  sql:
+    init:
+      mode: never
+  flyway:
+    clean-disabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState

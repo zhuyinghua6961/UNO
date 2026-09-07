@@ -1,0 +1,56 @@
+# Docker 开发部署
+
+这些配置用于本地骨架验证，不是公网生产配置，也不意味着完整游戏或语音已经实现。
+
+## 启动主栈
+
+在仓库根目录执行：
+
+```sh
+node tools/init-local-env.mjs
+docker compose --env-file deploy/.env -f deploy/compose.yaml config --quiet
+docker compose --env-file deploy/.env -f deploy/compose.yaml up --build -d
+```
+
+Web 默认 `http://localhost:8088`，Gateway 默认 `http://localhost:28080`；Java 内部进程不发布宿主端口。端口已被占用时修改 deploy/.env，不要终止其他项目的进程。
+
+构建需要拉取基础镜像和 Maven/npm 依赖。网络代理应按本机 Docker/包管理器配置，不把个人代理地址硬编码进镜像或仓库。
+
+```sh
+docker compose --env-file deploy/.env -f deploy/compose.yaml logs --tail=100
+docker compose --env-file deploy/.env -f deploy/compose.yaml down
+```
+
+不要随意增加 `-v`，以免删除启用基础设施后创建的数据库卷。启动完成仍要检查 bootstrap/auth 状态；depends_on 不保证 Java 服务已经就绪。
+
+## 数据库与可选基础设施
+
+PostgreSQL 17 现在是默认必需服务；identity/game 使用不同的库、非超级用户角色和随机密码，启动依赖数据库健康。空卷通过 `postgres/10-create-service-databases.sql` 初始化，后续应用启动执行 Flyway。
+
+`node tools/init-local-env.mjs` 会保留已有秘密，仅补缺失的服务密码等设置。已有数据卷不会自动重跑初始化，环境变量也不会自动修改库内密码。**禁止为解决初始化问题删除数据卷**；升级、原生 Java 连接、备份恢复及权限说明见 [数据库指南](../docs/persistence.md)。
+
+只启动本机数据库并开放回环端口：
+
+```sh
+docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.local.yaml up -d --wait postgres
+```
+
+```sh
+docker compose --env-file deploy/.env -f deploy/compose.yaml --profile infrastructure up -d
+docker compose --env-file deploy/.env -f deploy/compose.yaml --profile voice up -d
+```
+
+infrastructure 额外提供 Redis 7.4，当前 Java 进程还没有使用它。voice 提供 LiveKit 1.13.6，凭证来自本地 .env；当前没有令牌签发与客户端 SDK，启动容器后也不能直接在应用里语音通话。
+
+本地 LiveKit 广告媒体 IP 固定 127.0.0.1，端口 7880（信令）、7881/TCP、7882/UDP，仅用于同一台机器验证。容器内连接、手机模拟器或实机不应直接照搬这个广告地址。
+
+## 生产上线前必须另行完成
+
+- 域名、HTTPS/WSS、Cookie/CSRF/Origin 校验，账号和业务对象授权。
+- LiveKit 的公网或内网可达地址、TLS、媒体端口、防火墙、TURN/TLS 中继与跨网测试。
+- 权限最小化、密钥管理与轮换；任何真实 .env 不入 Git、不进 release。
+- 数据库迁移、备份、Redis 安全策略、健康就绪探针、资源限制和日志脱敏。
+- 媒体成员退出/封禁后的撤销与代次迁移；不能仅凭 JWT 有效期控制已连接用户。
+- 镜像仓库、不可变 digest、漏洞扫描、灰度与回滚。
+
+不要用 Java WebSocket 转发音频二进制，也不要认为 Nginx 配好了 WebSocket 就解决了 WebRTC 连通问题。两条通道独立部署与验证。

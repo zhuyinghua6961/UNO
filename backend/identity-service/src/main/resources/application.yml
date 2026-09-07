@@ -1,0 +1,36 @@
+server:
+  port: ${SERVER_PORT:8081}
+spring:
+  application:
+    name: uno-identity-service
+  datasource:
+    url: ${IDENTITY_DB_URL}
+    username: ${IDENTITY_DB_USER:uno_identity}
+    password: ${IDENTITY_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 3000
+      validation-timeout: 1000
+  sql:
+    init:
+      mode: never
+  flyway:
+    clean-disabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState

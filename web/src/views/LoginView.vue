@@ -1,0 +1,3 @@
+<template>
+  <section class="auth-layout"><div><p class="eyebrow">YOUR SEAT IS WAITING</p><h1>先认识你，<br />再一起玩。</h1><p class="muted">账号模块骨架已建立，注册、登录与找回密码尚未开放。</p><RouterLink to="/">← 返回大厅</RouterLink></div><form class="auth-panel" @submit.prevent><span class="pill">功能未接入</span><h2>登录你的账号</h2><label>邮箱<input type="email" name="email" autocomplete="email" placeholder="you@example.com" disabled /></label><label>密码<input type="password" name="password" autocomplete="current-password" placeholder="请输入密码" disabled /></label><button class="button dark" disabled>登录接口建设中</button><p class="muted">此预览不会收集或保存账号密码，也不会模拟登录成功。</p></form></section>
+</template>

@@ -1,0 +1,33 @@
+server:
+  port: ${SERVER_PORT:8080}
+spring:
+  application:
+    name: uno-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: identity
+              uri: ${IDENTITY_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/auth/**,/api/users/**
+            - id: game
+              uri: ${GAME_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/system/**,/api/rooms/**,/api/matches/**,/api/voice/**
+            - id: realtime
+              uri: ${GAME_WS_URL:ws://localhost:8082}
+              predicates:
+                - Path=/ws/**
+          httpclient:
+            connect-timeout: 3000
+            response-timeout: 10s
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

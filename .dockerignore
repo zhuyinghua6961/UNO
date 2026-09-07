@@ -1,0 +1,14 @@
+.git
+**/node_modules
+**/target
+**/dist
+**/.dart_tool
+**/build
+release
+assets/downloads
+assets/vendor/playing-cards-pack
+flutter
+.env
+deploy/.env
+deploy/secrets
+**/*.log
