@@ -94,6 +94,13 @@ public class AuthController {
         return user(identity);
     }
 
+    @PostMapping("/api/users/me/profile")
+    Map<String, Object> updateProfile(@AuthenticationPrincipal SessionIdentity identity,
+            @Valid @RequestBody ProfileInput input) {
+        String nickname = auth.updateNickname(identity, input.nickname());
+        return Map.of("id", identity.userId(), "email", identity.email(), "nickname", nickname);
+    }
+
     @PostMapping("/api/auth/logout")
     ResponseEntity<Void> logout(@AuthenticationPrincipal SessionIdentity identity, HttpServletRequest request, HttpServletResponse response) {
         auth.logout(identity);
@@ -136,6 +143,7 @@ public class AuthController {
         @Override public String toString() { return "LoginInput[redacted]"; }
     }
     public record EmailInput(@NotBlank @Email @Size(max = 254) String email) { }
+    public record ProfileInput(@NotBlank String nickname) { }
     public record TokenInput(@NotBlank @Size(min = 43, max = 43) String token) {
         @Override public String toString() { return "TokenInput[redacted]"; }
     }

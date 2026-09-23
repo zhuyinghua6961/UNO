@@ -162,6 +162,10 @@ class AuthApi {
   Future<AuthUser> me(String accessToken) async =>
       AuthUser.fromJson(await _request('/api/users/me', bearer: accessToken));
 
+  Future<AuthUser> updateProfile(String accessToken, String nickname) async =>
+      AuthUser.fromJson(await _request('/api/users/me/profile',
+          body: {'nickname': nickname}, bearer: accessToken));
+
   Future<AppGrant> login(String email, String password) async =>
       AppGrant.fromJson(
         await _request(

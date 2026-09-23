@@ -6,7 +6,7 @@
 
 | 方法 | 路径 | 行为 |
 | --- | --- | --- |
-| GET | /api/system/bootstrap | stage=scaffold、protocolVersion=1；authentication和rooms反映GAME_AUTH_ENABLED，gameplay等仍为false |
+| GET | /api/system/bootstrap | stage=scaffold、protocolVersion=1；authentication、rooms、gameplay、roomText反映GAME_AUTH_ENABLED；团队文字与语音仍为false |
 | GET | /api/system/session | game侧已验证的userId/sessionId/nickname/clientType/expiresAt；需要真实Web或App会话 |
 | GET | /api/auth/status | 返回backend-auth状态，loginAvailable/registrationAvailable取决于AUTH_ENABLED，默认false |
 | GET | /actuator/health | 各 Java 进程的基础健康检查；网关不聚合下游就绪情况 |
@@ -15,13 +15,13 @@
 
 未登录访问受保护路径默认 401/403；没有开放示例账号或语音令牌。`/ws/game` 已由 game-service 处理，其余 `/ws/**` 没有业务 handler。
 
-2026-09-07新增可关闭的identity认证后端及game会话校验，见 [账号与会话](../authentication.md) 和 [跨服务身份](../service-authentication.md)。bootstrap仍是scaffold，不因为身份可验证就宣称游戏可玩。
+identity 认证、game 会话校验与经典对局已接入，见 [账号与会话](../authentication.md) 和 [跨服务身份](../service-authentication.md)。bootstrap 的 `stage` 字段仍保留 scaffold 历史值，实际可用性应看逐项功能标识和验收记录。
 
 ## 账号HTTP（已实现，默认关闭）
 
-GET /api/auth/csrf；POST /api/auth/register、/api/auth/login、/api/auth/refresh、/api/auth/logout、/api/auth/verification/request、/api/auth/verify-email、/api/auth/password/forgot、/api/auth/password/reset；GET /api/users/me。
+GET /api/auth/csrf；POST /api/auth/register、/api/auth/login、/api/auth/refresh、/api/auth/logout、/api/auth/verification/request、/api/auth/verify-email、/api/auth/password/forgot、/api/auth/password/reset；GET /api/users/me；POST /api/users/me/profile，请求 `{nickname}` 并返回更新后的本人资料。昵称去首尾空白后为 1–40 个 Unicode 码点，不能含控制字符；其他已登录设备下次读取资料可见。房间成员昵称是入房时快照，更新资料不改当前房间或历史战绩昵称。
 
-AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: APP，Web须Cookie/Origin/CSRF。game另需GAME_AUTH_ENABLED和内部服务凭证；客户端UI与外网邮件尚未交付。
+AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: APP，Web须Cookie/Origin/CSRF。game另需GAME_AUTH_ENABLED和内部服务凭证；外网邮件尚未交付。
 
 内部`POST /internal/auth/introspect`只允许专用game服务凭证，不是玩家接口；gateway没有此路由，不能使用用户Bearer调用。具体请求/响应和TLS要求见跨服务身份说明。
 

@@ -9,8 +9,21 @@ const auth = useAuthStore()
 const router = useRouter()
 const checkingGame = ref(false)
 const gameMessage = ref('')
+const nickname = ref('')
+const profileMessage = ref('')
 let checkVersion = 0
 watch(() => auth.user?.id, () => { checkVersion++; checkingGame.value = false; gameMessage.value = '' })
+watch(() => auth.user?.nickname, value => { nickname.value = value ?? '' }, { immediate: true })
+
+async function saveNickname() {
+  const chosen = nickname.value.trim()
+  profileMessage.value = ''
+  if (!chosen || [...chosen].length > 40 || /[\u0000-\u001f\u007f]/u.test(chosen)) {
+    profileMessage.value = '昵称需为 1–40 个字符且不能含控制字符。'
+    return
+  }
+  if (await auth.updateNickname(chosen)) profileMessage.value = '昵称已保存，其他设备重新读取账号后可见。'
+}
 
 async function logout() {
   gameMessage.value = ''
@@ -41,7 +54,10 @@ async function checkGame() {
     <div v-if="auth.user" class="auth-panel account-panel">
       <h2>{{ auth.user.nickname }}</h2>
       <dl><dt>已验证邮箱</dt><dd>{{ auth.user.email }}</dd><dt>账号 ID</dt><dd>{{ auth.user.id }}</dd></dl>
-      <p class="muted">修改资料和跨端偏好同步仍在建设中。</p>
+      <label>修改昵称 <input v-model="nickname" maxlength="80" :disabled="auth.busy" /></label>
+      <button type="button" class="button secondary small" :disabled="auth.busy || nickname.trim() === auth.user.nickname" @click="saveNickname">保存昵称</button>
+      <p v-if="profileMessage" role="status">{{ profileMessage }}</p>
+      <p class="muted">房间中的旧昵称保持本次入房时的显示，下一次入房会使用新昵称。头像和音量的跨端同步仍在建设中。</p>
       <div class="account-actions"><button type="button" class="button secondary" :disabled="checkingGame || auth.busy" @click="checkGame">{{ checkingGame ? '正在核对…' : '核对游戏服务身份' }}</button><button type="button" class="button dark" :disabled="auth.busy" @click="logout">{{ auth.busy ? '正在退出…' : '退出登录' }}</button></div>
       <p v-if="gameMessage" role="status">{{ gameMessage }}</p>
       <p v-if="auth.error" class="auth-error" role="alert">{{ auth.error }}</p>

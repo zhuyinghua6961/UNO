@@ -96,6 +96,29 @@ class AuthIT {
     }
 
     @Test
+    void nicknameUpdateUsesCurrentIdentityAndIsVisibleAcrossExistingSessions() throws Exception {
+        createVerified("profile@example.test");
+        createVerified("other@example.test");
+        JsonNode first = login("profile@example.test");
+        JsonNode second = login("profile@example.test");
+        JsonNode other = login("other@example.test");
+        String firstToken = first.path("accessToken").asText();
+        var changed = app("POST", "/api/users/me/profile", Map.of("nickname", "  新昵称  "), firstToken);
+        assertEquals(200, changed.statusCode(), changed.body());
+        assertEquals("新昵称", json(changed).path("nickname").asText());
+        assertEquals(first.path("user").path("id"), json(changed).path("id"));
+        assertEquals("新昵称", json(app("GET", "/api/users/me", null,
+                second.path("accessToken").asText())).path("nickname").asText());
+        assertEquals("玩家", json(app("GET", "/api/users/me", null,
+                other.path("accessToken").asText())).path("nickname").asText());
+        assertEquals(400, app("POST", "/api/users/me/profile", Map.of("nickname", " "), firstToken).statusCode());
+        assertEquals(400, app("POST", "/api/users/me/profile", Map.of("nickname", "x".repeat(41)), firstToken).statusCode());
+        assertEquals(400, app("POST", "/api/users/me/profile", Map.of("nickname", "line\nbreak"), firstToken).statusCode());
+        assertEquals(401, app("POST", "/api/users/me/profile", Map.of("nickname", "偷改"), null).statusCode());
+        assertEquals("新昵称", json(app("GET", "/api/users/me", null, firstToken)).path("nickname").asText());
+    }
+
+    @Test
     void pendingDuplicateCannotActivateAnOldPasswordOrRevealExistingAccount() throws Exception {
         String email = "pending@example.test";
         var first = register(email, PASSWORD);
@@ -234,6 +257,14 @@ class AuthIT {
         assertFalse(cookieHeader.contains("Domain="));
         String cookieToken = cookies.getCookieStore().getCookies().stream().filter(cookie -> cookie.getName().equals("UNO_SESSION_DEV")).findFirst().orElseThrow().getValue();
         assertEquals(200, browser.send(request("GET", "/api/users/me", null).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        assertEquals(403, browser.send(request("POST", "/api/users/me/profile", Map.of("nickname", "浏览器"))
+                .header("Origin", ORIGIN).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        String profileCsrf = json(browser.send(request("GET", "/api/auth/csrf", null).build(),
+                HttpResponse.BodyHandlers.ofString())).path("token").asText();
+        var updated = browser.send(request("POST", "/api/users/me/profile", Map.of("nickname", "浏览器"))
+                .header("Origin", ORIGIN).header("X-CSRF-TOKEN", profileCsrf).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, updated.statusCode(), updated.body());
+        assertEquals("浏览器", json(updated).path("nickname").asText());
         assertEquals(401, app("GET", "/api/users/me", null, cookieToken).statusCode());
         assertEquals(403, browser.send(request("POST", "/api/auth/logout", null).header("Origin", ORIGIN).header("X-UNO-Client", "APP").build(), HttpResponse.BodyHandlers.ofString()).statusCode());
         String rotated = json(browser.send(request("GET", "/api/auth/csrf", null).build(), HttpResponse.BodyHandlers.ofString())).path("token").asText();

@@ -72,6 +72,7 @@ export function createAuthApi(fetcher: typeof fetch = (...args) => fetch(...args
       return { loginAvailable: result.loginAvailable, registrationAvailable: result.registrationAvailable }
     },
     async me() { return user(await request('/api/users/me')) },
+    async updateProfile(nickname: string) { return user(await mutate('/api/users/me/profile', { nickname })) },
     async login(email: string, password: string) {
       const result = await mutate('/api/auth/login', { email, password })
       return user(record(result) ? result.user : null)

@@ -71,6 +71,12 @@ void main() {
           case '/api/users/me':
             expect(request.headers['authorization'], 'Bearer access-1');
             return jsonResponse(200, grant('a', 'b')['user']!);
+          case '/api/users/me/profile':
+            expect(request.headers['authorization'], 'Bearer access-1');
+            expect(jsonDecode(request.body)['nickname'], 'New Alice');
+            return jsonResponse(200, {
+              'id': 'same-user-id', 'email': 'a@example.com', 'nickname': 'New Alice',
+            });
           case '/api/auth/logout':
             expect(request.headers['authorization'], 'Bearer access-1');
             return http.Response('', 204);
@@ -89,6 +95,9 @@ void main() {
       expect(store.tokens?.refreshToken, 'refresh-1');
       expect(store.writes, 1);
       expect((await session.withAccess(api.me)).id, 'same-user-id');
+      await session.updateNickname('New Alice');
+      expect(session.user?.nickname, 'New Alice');
+      expect(store.tokens?.accessToken, 'access-1');
       await session.logout();
       expect(session.state, SessionState.guest);
       expect(store.tokens, isNull);

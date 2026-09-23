@@ -275,6 +275,15 @@ class AuthSession extends ChangeNotifier {
     await _clear();
   });
 
+  Future<void> updateNickname(String nickname) => _run(() async {
+    final updated = await withAccess((token) => api.updateProfile(token, nickname));
+    if (updated.id != user?.id) {
+      throw const AuthFailure(502, 'INVALID_RESPONSE', '账号身份不一致，请重新登录。');
+    }
+    user = updated;
+    notifyListeners();
+  });
+
   Future<void> register(String email, String password, String nickname) =>
       _run(() async {
         await api.register(email, password, nickname);

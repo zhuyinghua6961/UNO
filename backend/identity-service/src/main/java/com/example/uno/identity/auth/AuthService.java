@@ -36,19 +36,18 @@ public class AuthService {
     public void register(String email, String password, String nickname) {
         String normalized = normalizeEmail(email);
         validatePassword(password);
-        if (nickname == null || nickname.isBlank() || nickname.codePointCount(0, nickname.length()) > 40
-                || nickname.codePoints().anyMatch(Character::isISOControl)) throw invalidInput();
+        String chosenNickname = validatedNickname(nickname);
         String encoded = passwords.encode(password);
         transaction.executeWithoutResult(status -> {
             Instant now = clock.instant();
             jdbc.update("""
                     INSERT INTO accounts (id, email, password_hash, nickname, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (email) DO NOTHING
-                    """, UUID.randomUUID(), normalized, encoded, nickname.strip(), timestamp(now), timestamp(now));
+                    """, UUID.randomUUID(), normalized, encoded, chosenNickname, timestamp(now), timestamp(now));
             AccountRow account = accountByEmail(normalized).orElseThrow();
             if (!account.status().equals("PENDING")) return;
             jdbc.update("UPDATE accounts SET password_hash = ?, nickname = ?, updated_at = GREATEST(created_at, ?) WHERE id = ?",
-                    encoded, nickname.strip(), timestamp(now), account.id());
+                    encoded, chosenNickname, timestamp(now), account.id());
             issueAccountToken(account, "VERIFY_EMAIL", Duration.ofHours(24));
         });
     }
@@ -177,6 +176,17 @@ public class AuthService {
         });
     }
 
+    public String updateNickname(SessionIdentity identity, String nickname) {
+        String chosen = validatedNickname(nickname);
+        transaction.executeWithoutResult(status -> {
+            AccountRow account = lockAccount(identity.userId());
+            if (!account.status().equals("ACTIVE")) throw AuthFailure.invalidCredentials();
+            jdbc.update("UPDATE accounts SET nickname = ?, updated_at = GREATEST(created_at, ?) WHERE id = ?",
+                    chosen, timestamp(clock.instant()), identity.userId());
+        });
+        return chosen;
+    }
+
     public void disableAccount(UUID userId) {
         transaction.executeWithoutResult(status -> {
             lockAccount(userId);
@@ -197,6 +207,14 @@ public class AuthService {
     private static void validatePassword(String password) {
         if (password == null || password.codePointCount(0, password.length()) < 15
                 || password.codePointCount(0, password.length()) > 128 || password.indexOf('\0') >= 0) throw invalidInput();
+    }
+
+    private static String validatedNickname(String nickname) {
+        if (nickname == null) throw invalidInput();
+        String chosen = nickname.strip();
+        if (chosen.isBlank() || chosen.codePointCount(0, chosen.length()) > 40
+                || chosen.codePoints().anyMatch(Character::isISOControl)) throw invalidInput();
+        return chosen;
     }
 
     private static AuthFailure invalidInput() {

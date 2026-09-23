@@ -60,6 +60,13 @@ async function account(label) {
 
 const host = await account('Smoke Host')
 const guest = await account('Smoke Guest')
+const renamed = await request('/api/users/me/profile', {
+  method: 'POST', token: host, body: { nickname: 'Smoke Host Renamed' },
+})
+assert.equal(renamed.status, 200, 'authenticated profile update')
+assert.equal(renamed.body.nickname, 'Smoke Host Renamed')
+assert.equal((await request('/api/users/me', { token: host })).body.nickname,
+  'Smoke Host Renamed', 'same App session sees updated profile')
 const newHistory = await request('/api/matches/history', { token: host })
 assert.equal(newHistory.status, 200, 'authenticated personal history')
 assert.deepEqual(newHistory.body.items, [])
@@ -69,6 +76,7 @@ const created = await request('/api/rooms', {
 assert.equal(created.status, 201, 'room creation')
 const room = created.body
 assert.ok(room.id && room.code)
+assert.equal(room.members[0].nickname, 'Smoke Host Renamed')
 const joined = await request('/api/rooms/join', {
   method: 'POST', token: guest, body: { code: room.code },
 })
@@ -171,4 +179,4 @@ assert.equal(left.status, 204, 'guest leave')
 const afterLeave = await request(`/api/rooms/${room.id}/messages`, { token: guest })
 assert.equal(afterLeave.status, 404, 'former member must lose chat access')
 
-console.log('PASS: containerized registration, Mailpit verification, App login, empty personal history, room join, bidirectional text, idempotency, and leave access.')
+console.log('PASS: containerized registration, Mailpit verification, App login, profile update, empty personal history, room join, bidirectional text, idempotency, and leave access.')

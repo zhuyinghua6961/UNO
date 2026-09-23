@@ -72,5 +72,13 @@ export const useAuthStore = defineStore('auth', () => {
     return perform(async () => { await authApi.reset(token, password); clearUser() })
   }
 
-  return { user, state, capabilities, busy, error, loadCapabilities, restore, perform, login, logout, reset }
+  function updateNickname(nickname: string) {
+    return perform(async () => {
+      const updated = await authApi.updateProfile(nickname)
+      if (updated.id !== user.value?.id) throw new AuthError(502, 'INVALID_RESPONSE', '账号身份不一致，请重新登录。')
+      user.value = updated
+    })
+  }
+
+  return { user, state, capabilities, busy, error, loadCapabilities, restore, perform, login, logout, reset, updateNickname }
 })

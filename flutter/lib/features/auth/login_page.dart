@@ -46,6 +46,34 @@ class _LoginPageState extends State<LoginPage> {
     _AuthMode.reset => '设置新密码',
   };
 
+  Future<void> _editNickname(AuthUser user) async {
+    final controller = TextEditingController(text: user.nickname);
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('修改昵称'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 40,
+          decoration: const InputDecoration(labelText: '昵称'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+              child: const Text('保存')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (chosen == null || !mounted) return;
+    try {
+      await widget.session.updateNickname(chosen);
+    } on AuthFailure {
+      // Shown by the session below.
+    }
+  }
+
   Future<void> _submit() async {
     if (widget.session.busy || !_formKey.currentState!.validate()) return;
     try {
@@ -110,7 +138,10 @@ class _LoginPageState extends State<LoginPage> {
             Text('邮箱：${user.email}'),
             Text('用户 ID：${user.id}'),
             const SizedBox(height: 18),
-            const Text('经典房间、对局和房间文字已接入；2v2 与队伍通信仍在建设中。', style: TextStyle(color: Colors.black54)),
+            OutlinedButton(onPressed: session.busy ? null : () => _editNickname(user),
+                child: const Text('修改昵称')),
+            const Text('房间中的旧昵称保持本次入房时的显示；下一次入房会使用新昵称。',
+                style: TextStyle(color: Colors.black54)),
             const SizedBox(height: 18),
             MatchHistoryPanel(key: ValueKey(user.id), session: session),
             const SizedBox(height: 18),

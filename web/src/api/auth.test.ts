@@ -33,6 +33,18 @@ describe('Web account transport', () => {
     expect(transport).toHaveBeenCalledTimes(1)
   })
 
+  it('updates only the current profile with a fresh CSRF token', async () => {
+    const changed = { ...profile, nickname: '新昵称' }
+    const transport = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(json({ headerName: 'X-CSRF-TOKEN', token: 'csrf' }))
+      .mockResolvedValueOnce(json(changed))
+    expect(await createAuthApi(transport).updateProfile('新昵称')).toEqual(changed)
+    expect(transport.mock.calls[1]).toMatchObject(['/api/users/me/profile', {
+      method: 'POST', body: JSON.stringify({ nickname: '新昵称' }), credentials: 'same-origin',
+      headers: { 'X-CSRF-TOKEN': 'csrf' },
+    }])
+  })
+
   it.each([400, 401, 403, 429, 503])('maps HTTP %s without echoing backend data or retrying', async status => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(json({ code: 'ERROR', message: 'secret server details' }, status))
     await expect(createAuthApi(transport).me()).rejects.toMatchObject({ status, message: expect.not.stringContaining('secret') })

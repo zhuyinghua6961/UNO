@@ -1,6 +1,6 @@
 # stage3：后端账号与会话
 
-更新：2026-09-07。邮箱＋密码为**可关闭的本地开发方案**，不是已经获得确认的公开注册策略。Web账号UI已接入，Flutter待做。默认 `AUTH_ENABLED=false`，只有显式配置后才接受账号操作。
+更新：2026-09-23。邮箱＋密码为**可关闭的本地开发方案**，不是已经获得确认的公开注册策略。Web 与 Flutter 账号 UI 已接入。默认 `AUTH_ENABLED=false`，只有显式配置后才接受账号操作。
 
 ## 数据与凭证
 
@@ -32,8 +32,11 @@
 | POST /api/auth/logout | 当前有效会话，无需body | 204；Web同时清除会话与CSRF Cookie |
 | POST /api/auth/password/forgot | email | 202通用文案 |
 | POST /api/auth/password/reset | token,password | 204，旧会话全部撤销 |
+| POST /api/users/me/profile | nickname | 仅当前登录用户；返回更新后的 id,email,nickname，其他有效会话重新读取后可见 |
 
 Web在登录前先GET csrf，将返回的token放入`X-CSRF-TOKEN`；登录成功会清除旧CSRF Cookie，应再次GET csrf获取新token，再进行退出等写操作。不能只取Cookie内容代替接口返回的token。前端不得将长期身份凭证放localStorage。
+
+昵称更新沿用注册时的校验：首尾空白剔除后为 1–40 个 Unicode 码点，不能含控制字符；不修改邮箱、密码或会话凭证。房间成员昵称与历史战绩昵称保留当时的快照，下一次入房才使用新昵称。
 
 App Bearer仅接受APP会话；Web Cookie仅接受WEB会话。`X-UNO-Client`只选择传输方式，不证明身份，也不授予权限。浏览器伪装为App时仍因Origin/Fetch Metadata/Cookie组合而拒绝；没有启用宽泛CORS。
 

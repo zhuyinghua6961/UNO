@@ -39,6 +39,7 @@ class SecurityConfiguration {
                 .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login", "/api/auth/refresh",
                         "/api/auth/verification/request", "/api/auth/verify-email", "/api/auth/password/forgot", "/api/auth/password/reset").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/users/me/profile").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                 .anyRequest().denyAll())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
