@@ -22,6 +22,10 @@ export type MatchReceipt = MatchSnapshot & {
   commandId: string; duplicate: boolean; appliedVersion: number; event: string
   challengeOutcome: string; cardsDrawnBySeat: Record<string, number>; privateChallengeEvidence: Card[]
 }
+export type HistoryPlayer = { userId: string; seat: number; nickname: string | null; score: number }
+export type HistoryItem = { matchId: string; mode: 'CLASSIC'; endedAt: string; rounds: number;
+  winnerUserId: string; result: 'WIN' | 'LOSS'; players: HistoryPlayer[] }
+export type HistoryPage = { items: HistoryItem[]; nextCursor: string | null }
 
 export class MatchError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); this.name = 'MatchError' }
@@ -81,6 +85,25 @@ export function parseMatchReceipt(value: unknown): MatchReceipt {
     privateChallengeEvidence: value.privateChallengeEvidence.map(parseCard) }
 }
 
+export function parseHistoryPage(value: unknown): HistoryPage {
+  if (!record(value) || !Array.isArray(value.items)
+    || !(value.nextCursor === null || typeof value.nextCursor === 'string')) throw invalid()
+  const items = value.items.map(item => {
+    if (!record(item) || !uuid.test(String(item.matchId)) || item.mode !== 'CLASSIC'
+      || typeof item.endedAt !== 'string' || !Number.isFinite(Date.parse(item.endedAt))
+      || !integer(item.rounds) || !uuid.test(String(item.winnerUserId))
+      || !['WIN', 'LOSS'].includes(String(item.result)) || !Array.isArray(item.players)) throw invalid()
+    const players = item.players.map(player => {
+      if (!record(player) || !uuid.test(String(player.userId)) || !integer(player.seat)
+        || !(player.nickname === null || typeof player.nickname === 'string')
+        || !integer(player.score)) throw invalid()
+      return player as HistoryPlayer
+    })
+    return { ...item, players } as HistoryItem
+  })
+  return { items, nextCursor: value.nextCursor as string | null }
+}
+
 export function matchErrorMessage(error: unknown): string {
   if (!(error instanceof MatchError)) return '对局连接失败，请检查网络后重试。'
   if (error.code === 'TURN_EXPIRED') return '操作窗口已结束，正在同步服务器裁决。'
@@ -128,6 +151,10 @@ export function createMatchApi(fetcher: typeof fetch = (...args) => fetch(...arg
     },
     async state(matchId: string): Promise<MatchSnapshot> {
       return parseMatchSnapshot(await request(`/api/matches/${matchId}/state`))
+    },
+    async history(cursor?: string): Promise<HistoryPage> {
+      const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+      return parseHistoryPage(await request(`/api/matches/history${query}`))
     },
   }
 }

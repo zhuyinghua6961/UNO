@@ -56,8 +56,8 @@ public class MatchService {
         if (!"CLASSIC".equals(room.mode()) || !"WAITING".equals(room.state())
                 || room.version() != expectedVersion || !room.expiresAt().isAfter(clock.instant()))
             throw MatchFailure.conflict();
-        List<Member> members = jdbc.query("SELECT user_id, seat, ready FROM game.room_members WHERE room_id = ? ORDER BY seat",
-                (rs, row) -> new Member(rs.getObject("user_id", UUID.class), rs.getBoolean("ready")),
+        List<Member> members = jdbc.query("SELECT user_id, nickname, seat, ready FROM game.room_members WHERE room_id = ? ORDER BY seat",
+                (rs, row) -> new Member(rs.getObject("user_id", UUID.class), rs.getString("nickname"), rs.getBoolean("ready")),
                 roomId);
         if (members.size() < 2 || members.size() > 6 || members.stream().anyMatch(member -> !member.ready()))
             throw MatchFailure.conflict();
@@ -74,8 +74,8 @@ public class MatchService {
                 matchId, roomId, ClassicUno.RULES_VERSION, initial.version(),
                 json.writeValueAsString(initial.snapshot()), timestamp(deadline));
         for (int seat = 0; seat < members.size(); seat++) jdbc.update(
-                "INSERT INTO game.match_players(match_id, user_id, seat) VALUES (?, ?, ?)",
-                matchId, members.get(seat).userId(), seat);
+                "INSERT INTO game.match_players(match_id, user_id, seat, nickname_snapshot) VALUES (?, ?, ?, ?)",
+                matchId, members.get(seat).userId(), seat, members.get(seat).nickname());
         jdbc.update("UPDATE game.rooms SET state = 'PLAYING', version = version + 1, expires_at = ? WHERE id = ?",
                 Timestamp.from(clock.instant().plus(ROOM_LIFETIME)), roomId);
         return new MatchStart(matchId, rules.view(initial, identity.userId()), room.version() + 1, deadline);
@@ -321,7 +321,7 @@ public class MatchService {
             List<UnoCard> privateChallengeEvidence, Instant deadlineAt) { }
     public record TimeoutResult(UUID matchId, long appliedVersion, String event) { }
     private record Room(String mode, String state, long version, UUID hostUserId, java.time.Instant expiresAt) { }
-    private record Member(UUID userId, boolean ready) { }
+    private record Member(UUID userId, String nickname, boolean ready) { }
     private record MatchRow(UUID roomId, String state, long version, String snapshot, Instant deadlineAt) { }
     private record StateRow(String snapshot, Instant deadlineAt) { }
     private record StoredReceipt(String requestPayload, long appliedVersion, String event, String outcome,

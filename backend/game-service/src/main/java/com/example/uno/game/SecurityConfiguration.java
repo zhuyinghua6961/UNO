@@ -27,6 +27,7 @@ class SecurityConfiguration {
                         "/actuator/health/liveness", "/api/system/bootstrap").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/system/session").hasAuthority("PLAYER")
                 .requestMatchers("/api/rooms", "/api/rooms/**").hasAuthority("PLAYER")
+                .requestMatchers(HttpMethod.GET, "/api/matches/history").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.GET, "/api/matches/*/state").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.POST, "/api/matches/*/commands").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.GET, "/ws/game").permitAll()

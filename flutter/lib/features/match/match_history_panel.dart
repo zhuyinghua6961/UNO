@@ -1,0 +1,95 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../auth/auth_session.dart';
+import 'match_api.dart';
+import 'match_history_models.dart';
+
+class MatchHistoryPanel extends StatefulWidget {
+  const MatchHistoryPanel({super.key, required this.session});
+  final AuthSession session;
+
+  @override
+  State<MatchHistoryPanel> createState() => _MatchHistoryPanelState();
+}
+
+class _MatchHistoryPanelState extends State<MatchHistoryPanel> {
+  late final MatchApi api;
+  List<MatchHistoryItem> items = const [];
+  String? cursor;
+  bool loading = false;
+  bool loaded = false;
+  String error = '';
+  int revision = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    api = MatchApi(session: widget.session);
+    unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    revision++;
+    api.close();
+    super.dispose();
+  }
+
+  Future<void> _load({bool refresh = false}) async {
+    if (loading) return;
+    final current = ++revision;
+    setState(() {
+      if (refresh) { items = const []; cursor = null; loaded = false; }
+      loading = true;
+      error = '';
+    });
+    try {
+      final page = await api.history(cursor);
+      if (!mounted || current != revision) return;
+      setState(() {
+        items = [...items, ...page.items];
+        cursor = page.nextCursor;
+        loaded = true;
+      });
+    } catch (failure) {
+      if (mounted && current == revision) setState(() => error = '$failure');
+    } finally {
+      if (mounted && current == revision) setState(() => loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(child: Text('经典对局战绩', style: Theme.of(context).textTheme.titleLarge)),
+            TextButton(onPressed: loading ? null : () => _load(refresh: true), child: const Text('刷新')),
+          ]),
+          if (error.isNotEmpty) ...[
+            Text(error, style: const TextStyle(color: Colors.red)),
+            TextButton(onPressed: loading ? null : _load, child: const Text('重试')),
+          ],
+          if (loaded && items.isEmpty) const Text('还没有已完成的经典对局。'),
+          for (final item in items)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(item.result == 'WIN' ? '胜利' : '未获胜'),
+              subtitle: Text('${item.endedAt.toString().substring(0, 16)} · ${item.rounds} 轮\n'
+                  '${item.players.map((player) => '${player.nickname ?? '玩家 ${player.userId.substring(0, 6)}'} ${player.score} 分').join(' · ')}'),
+              isThreeLine: true,
+            ),
+          if (cursor != null)
+            OutlinedButton(onPressed: loading ? null : _load,
+                child: Text(loading ? '读取中…' : '加载更多')),
+          if (loading && items.isEmpty) const CircularProgressIndicator(),
+        ],
+      ),
+    ),
+  );
+}

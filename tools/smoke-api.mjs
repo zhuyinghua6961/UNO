@@ -21,7 +21,8 @@ const authAvailable = process.env.EXPECT_AUTH_AVAILABLE === 'true'
 assert.equal(identity.loginAvailable, authAvailable)
 assert.equal(identity.registrationAvailable, authAvailable)
 
-for (const path of ['/api/users/me', '/api/system/session', '/api/rooms/unknown', '/api/voice/token']) {
+for (const path of ['/api/users/me', '/api/system/session', '/api/rooms/unknown',
+  '/api/matches/history', '/api/voice/token']) {
   const response = await fetch(`${base}${path}`)
   assert.ok([401, 403].includes(response.status), `${path} must reject unauthenticated access`)
 }

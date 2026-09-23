@@ -62,6 +62,15 @@ void main() {
       if (request.url.path == '/api/rooms/$roomId/match') {
         return http.Response('', 204);
       }
+      if (request.url.path == '/api/matches/history') {
+        return http.Response(jsonEncode({
+          'items': [{
+            'matchId': matchId, 'mode': 'CLASSIC', 'endedAt': '2026-09-23T08:00:00Z',
+            'rounds': 3, 'winnerUserId': userId, 'result': 'WIN',
+            'players': [{'userId': userId, 'seat': 0, 'nickname': 'Alice', 'score': 500}],
+          }], 'nextCursor': null,
+        }), 200);
+      }
       return http.Response(jsonEncode(matchSnapshot()), 200);
     });
     final session = AuthSession(
@@ -80,6 +89,10 @@ void main() {
     expect(started.state.view.ownHand.map((card) => card.id), [2, 104]);
     expect(await api.current(roomId), isNull);
     expect((await api.state(matchId)).view.version, 4);
+    expect((await api.history('next|page')).items.single.result, 'WIN');
+    final history = requests.firstWhere((r) => r.url.path.endsWith('/history'));
+    expect(history.url.queryParameters['cursor'], 'next|page');
+    expect(history.headers['authorization'], 'Bearer access');
     final start = requests.firstWhere((r) => r.url.path.endsWith('/start'));
     expect(jsonDecode(start.body)['expectedVersion'], 7);
     expect(start.headers['authorization'], 'Bearer access');

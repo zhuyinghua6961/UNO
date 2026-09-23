@@ -55,6 +55,10 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 房间不能启动对局。进行中的房间暂不能离开，避免席位与权威状态脱节。Web 与 Flutter 已接入经典牌桌；Android/Web 混合整局已验收，iOS 对局待验收。
 
+## 个人经典战绩 HTTP（已实现初始切片）
+
+`GET /api/matches/history?cursor=...&limit=20` 仅按当前认证身份返回自己参与且 `state=ENDED` 的经典对局，默认 20 条、最多 50 条；`nextCursor` 为不透明的稳定分页位置，末页为 `null`。每项包含 `matchId,mode,endedAt,rounds,winnerUserId,result,players`，`result` 为当前用户的 `WIN` 或 `LOSS`；玩家列表含开局时保存的昵称、座位和最终积分，不返回牌库或私有手牌。旧对局若没有昵称快照，`nickname` 为 `null`，客户端显示匿名席位。进行中和中断局不计入正常完赛历史；团队结果与统计仍待实现。Web/App 账号页均已接入，设备上的新 UI 尚未验收。
+
 ## 房间文字 HTTP（已实现）
 
 `POST /api/rooms/{roomId}/messages` 请求 `{clientMessageId,content}`；`GET /api/rooms/{roomId}/messages?after=0&limit=50` 按递增频道序号分页，`latest=true` 取最近 50 条并返回后续补取游标。响应只含 `ROOM` 频道、服务器生成的消息 ID、发送者 ID/昵称、时间、序号和原样纯文本。请求不得指定发送者或收件人；每次发送和读取都要求有效会话及当前房间成员资格，重新加入后无法读取这次加入前的历史。同一发送者在同一房间重试相同 `clientMessageId` 与正文返回原消息，换正文返回 409。服务端每秒至多接受两条新消息，每条最多 500 个 Unicode 码点；默认 30 天后删除。Web 使用 Cookie/CSRF，App 使用 Bearer。当前双端用 2 秒游标补取；队伍文字及 WebSocket 消息事件待实现。

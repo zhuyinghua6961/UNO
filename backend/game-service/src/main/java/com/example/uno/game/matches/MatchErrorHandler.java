@@ -9,7 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(assignableTypes = MatchController.class)
+@RestControllerAdvice(assignableTypes = {MatchController.class, MatchHistoryController.class})
 class MatchErrorHandler {
     @ExceptionHandler(MatchFailure.class)
     ResponseEntity<Map<String, Object>> match(MatchFailure failure, HttpServletResponse response) {

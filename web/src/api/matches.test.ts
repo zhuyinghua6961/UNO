@@ -27,4 +27,14 @@ describe('match HTTP contract', () => {
     expect(() => parseMatchSnapshot({ ...snapshot, view: { ...snapshot.view, players: [{ userId: 'forged' }] } })).toThrow(MatchError)
     expect(parseMatchSnapshot(snapshot).view.ownHand[0]?.id).toBe(2)
   })
+
+  it('loads only the authenticated history page with an opaque cursor', async () => {
+    const page = { items: [{ matchId, mode: 'CLASSIC', endedAt: '2026-09-23T08:00:00Z',
+      rounds: 3, winnerUserId: matchId, result: 'WIN',
+      players: [{ userId: matchId, seat: 0, nickname: 'Alice', score: 500 }] }], nextCursor: null }
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(page), { status: 200 }))
+    expect((await createMatchApi(fetcher).history('next|page')).items[0]?.result).toBe('WIN')
+    expect(fetcher.mock.calls[0]).toMatchObject(['/api/matches/history?cursor=next%7Cpage',
+      { credentials: 'same-origin', cache: 'no-store' }])
+  })
 })

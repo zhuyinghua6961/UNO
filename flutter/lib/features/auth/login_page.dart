@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'auth_api.dart';
 import 'auth_session.dart';
+import '../match/match_history_panel.dart';
 
 enum _AuthMode { login, register, verify, resend, forgot, reset }
 
@@ -110,6 +111,8 @@ class _LoginPageState extends State<LoginPage> {
             Text('用户 ID：${user.id}'),
             const SizedBox(height: 18),
             const Text('经典房间、对局和房间文字已接入；2v2 与队伍通信仍在建设中。', style: TextStyle(color: Colors.black54)),
+            const SizedBox(height: 18),
+            MatchHistoryPanel(key: ValueKey(user.id), session: session),
             const SizedBox(height: 18),
             FilledButton(
               onPressed: session.busy

@@ -147,6 +147,63 @@ class MatchServiceIT {
     }
 
     @Test
+    void completedHistoryIsPrivateStableAndPagedFromSavedMatchData() {
+        GameIdentity host = player("Original Host");
+        GameIdentity guest = player("Original Guest");
+        GameIdentity outsider = player("Outsider");
+        UUID firstId = startMatch(host, guest).matchId();
+        JsonMapper json = new JsonMapper();
+        UnoSnapshot original = json.readValue(jdbc.queryForObject(
+                "SELECT snapshot::text FROM game.matches WHERE id = ?", String.class, firstId), UnoSnapshot.class);
+        int hostSeat = original.players().indexOf(host.userId());
+        int guestSeat = original.players().indexOf(guest.userId());
+        List<List<Integer>> hands = new ArrayList<>();
+        original.hands().forEach(hand -> hands.add(new ArrayList<>(hand)));
+        List<Integer> pile = new ArrayList<>(original.drawPile());
+        pile.addAll(hands.get(hostSeat));
+        hands.get(hostSeat).clear();
+        List<Integer> scores = new ArrayList<>(original.scores());
+        scores.set(hostSeat, 500);
+        UnoSnapshot finalState = new UnoSnapshot(original.players(), hands, pile,
+                original.discardPile(), scores, original.dealerSeat(), hostSeat,
+                original.direction(), original.roundNumber(), 2, UnoState.Phase.MATCH_OVER,
+                original.activeColor(), null, null, null, hostSeat, 45);
+        Instant firstEnd = Instant.parse("2026-09-23T08:00:00Z");
+        jdbc.update("UPDATE game.matches SET snapshot = CAST(? AS jsonb), state = 'ENDED', "
+                        + "version = 2, ended_at = ? WHERE id = ?",
+                json.writeValueAsString(finalState), Timestamp.from(firstEnd), firstId);
+        UUID secondId = UUID.randomUUID();
+        UnoSnapshot guestWon = new UnoSnapshot(finalState.players(), finalState.hands(), finalState.drawPile(),
+                finalState.discardPile(), finalState.scores(), finalState.dealerSeat(), guestSeat,
+                finalState.direction(), finalState.roundNumber(), 2, UnoState.Phase.MATCH_OVER,
+                finalState.activeColor(), null, null, null, guestSeat, 36);
+        jdbc.update("INSERT INTO game.matches(id, mode, state, rules_version, version, snapshot, ended_at) "
+                        + "VALUES (?, 'CLASSIC', 'ENDED', 1, 2, CAST(? AS jsonb), ?)",
+                secondId, json.writeValueAsString(guestWon), Timestamp.from(firstEnd.plusSeconds(1)));
+        jdbc.update("INSERT INTO game.match_players(match_id, user_id, seat, nickname_snapshot) VALUES (?, ?, ?, ?)",
+                secondId, host.userId(), hostSeat, host.nickname());
+        jdbc.update("INSERT INTO game.match_players(match_id, user_id, seat, nickname_snapshot) VALUES (?, ?, ?, ?)",
+                secondId, guest.userId(), guestSeat, guest.nickname());
+
+        MatchHistoryService history = application.getBean(MatchHistoryService.class);
+        var firstPage = history.history(host, null, 1);
+        assertEquals(1, firstPage.items().size());
+        assertEquals(secondId, firstPage.items().get(0).matchId());
+        assertEquals("LOSS", firstPage.items().get(0).result());
+        assertEquals("Original Host", firstPage.items().get(0).players().get(hostSeat).nickname());
+        assertNotNull(firstPage.nextCursor());
+        var secondPage = history.history(host, firstPage.nextCursor(), 1);
+        assertEquals(firstId, secondPage.items().get(0).matchId());
+        assertEquals("WIN", secondPage.items().get(0).result());
+        assertNull(secondPage.nextCursor());
+        assertEquals("WIN", history.history(guest, null, 1).items().get(0).result());
+        assertTrue(history.history(outsider, null, 20).items().isEmpty());
+        assertEquals("INVALID_MATCH_INPUT", assertThrows(MatchFailure.class,
+                () -> history.history(host, "invalid-cursor", 20)).code());
+        assertFalse(json.writeValueAsString(firstPage).contains("ownHand"));
+    }
+
+    @Test
     void expiredTurnDrawsOnceAndEndsEvenWhenTheCardCouldBePlayed() throws Exception {
         GameIdentity host = player("Host");
         GameIdentity guest = player("Guest");

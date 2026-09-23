@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { AuthError, authApi, errorMessage } from '../api/auth'
 import { useAuthStore } from '../stores/auth'
+import MatchHistory from '../components/MatchHistory.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -25,7 +26,7 @@ async function checkGame() {
   try {
     const session = await authApi.gameSession()
     if (version !== checkVersion) return
-    gameMessage.value = session.userId === userId ? '游戏服务已确认同一账号身份；对局功能尚未开放。' : '两端身份不一致，请退出后重新登录。'
+    gameMessage.value = session.userId === userId ? '游戏服务已确认同一账号身份。' : '两端身份不一致，请退出后重新登录。'
   } catch (failure) {
     if (version !== checkVersion) return
     gameMessage.value = errorMessage(failure)
@@ -40,10 +41,11 @@ async function checkGame() {
     <div v-if="auth.user" class="auth-panel account-panel">
       <h2>{{ auth.user.nickname }}</h2>
       <dl><dt>已验证邮箱</dt><dd>{{ auth.user.email }}</dd><dt>账号 ID</dt><dd>{{ auth.user.id }}</dd></dl>
-      <p class="muted">当前支持查看账号与退出登录。修改资料、真实房间及个人战绩尚未实现。</p>
+      <p class="muted">修改资料和跨端偏好同步仍在建设中。</p>
       <div class="account-actions"><button type="button" class="button secondary" :disabled="checkingGame || auth.busy" @click="checkGame">{{ checkingGame ? '正在核对…' : '核对游戏服务身份' }}</button><button type="button" class="button dark" :disabled="auth.busy" @click="logout">{{ auth.busy ? '正在退出…' : '退出登录' }}</button></div>
       <p v-if="gameMessage" role="status">{{ gameMessage }}</p>
       <p v-if="auth.error" class="auth-error" role="alert">{{ auth.error }}</p>
+      <MatchHistory :key="auth.user.id" />
     </div>
     <div v-else class="auth-panel">
       <p role="status">{{ auth.state === 'unavailable' ? '暂时无法确认登录状态，账号信息已隐藏。请检查网络后重试。' : auth.state === 'guest' ? '会话已失效，请重新登录。' : '正在恢复登录状态…' }}</p>

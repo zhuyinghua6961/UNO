@@ -7,6 +7,7 @@ import '../../core/api_config.dart';
 import '../auth/auth_api.dart';
 import '../auth/auth_session.dart';
 import 'match_models.dart';
+import 'match_history_models.dart';
 
 class MatchApi {
   MatchApi({required this.session, http.Client? client, String? baseUrl})
@@ -91,6 +92,10 @@ class MatchApi {
 
   Future<MatchState> state(String matchId) async =>
       MatchState.parse(await _request('/api/matches/$matchId/state'));
+
+  Future<MatchHistoryPage> history([String? cursor]) async => MatchHistoryPage.parse(
+    await _request('/api/matches/history${cursor == null ? '' : '?cursor=${Uri.encodeQueryComponent(cursor)}'}'),
+  );
 
   void close() => _client.close();
 }
