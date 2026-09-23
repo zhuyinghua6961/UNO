@@ -1,9 +1,10 @@
 export type ChatItem = {
-  id: string; roomId: string; channel: 'ROOM'; sequence: number
+  id: string; roomId: string; channel: 'ROOM' | 'TEAM_A' | 'TEAM_B'; sequence: number
   senderUserId: string; senderNickname: string; clientMessageId: string
   content: string; createdAt: string
 }
 export type ChatPage = { items: ChatItem[]; nextSequence: number; hasMore: boolean }
+export type ChatScope = 'ROOM' | 'TEAM'
 
 export class ChatError extends Error {
   constructor(public status: number, public code: string, message: string) {
@@ -19,7 +20,8 @@ const invalid = () => new ChatError(502, 'INVALID_RESPONSE', '消息服务返回
 
 function item(value: unknown): ChatItem {
   if (!object(value) || !uuid.test(String(value.id)) || !uuid.test(String(value.roomId))
-    || value.channel !== 'ROOM' || !Number.isSafeInteger(value.sequence) || (value.sequence as number) < 1
+    || !['ROOM', 'TEAM_A', 'TEAM_B'].includes(String(value.channel))
+    || !Number.isSafeInteger(value.sequence) || (value.sequence as number) < 1
     || !uuid.test(String(value.senderUserId)) || !uuid.test(String(value.clientMessageId))
     || typeof value.senderNickname !== 'string' || typeof value.content !== 'string'
     || typeof value.createdAt !== 'string' || !Number.isFinite(Date.parse(value.createdAt))) throw invalid()
@@ -62,18 +64,24 @@ export function createChatApi(fetcher: typeof fetch = (...args) => fetch(...args
   }
 
   return {
-    async history(roomId: string, after = 0, latest = false): Promise<ChatPage> {
+    async history(roomId: string, after = 0, latest = false, scope: ChatScope = 'ROOM'): Promise<ChatPage> {
       const query = new URLSearchParams({ after: String(after), limit: '50', latest: String(latest) })
-      return page(await request(`/api/rooms/${roomId}/messages?${query}`))
+      if (scope === 'TEAM') query.set('channel', 'TEAM')
+      const result = page(await request(`/api/rooms/${roomId}/messages?${query}`))
+      if (result.items.some(message => scope === 'ROOM' ? message.channel !== 'ROOM' : message.channel === 'ROOM'))
+        throw invalid()
+      return result
     },
-    async send(roomId: string, clientMessageId: string, content: string): Promise<ChatItem> {
+    async send(roomId: string, clientMessageId: string, content: string, scope: ChatScope = 'ROOM'): Promise<ChatItem> {
       const csrf = await request('/api/auth/csrf')
       if (!object(csrf) || csrf.headerName !== 'X-CSRF-TOKEN' || typeof csrf.token !== 'string' || !csrf.token)
         throw new ChatError(502, 'INVALID_CSRF', '无法取得安全凭证，请刷新页面重试。')
-      return item(await request(`/api/rooms/${roomId}/messages`, {
+      const saved = item(await request(`/api/rooms/${roomId}/messages`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf.token },
-        body: JSON.stringify({ clientMessageId, content }),
+        body: JSON.stringify({ clientMessageId, content, ...(scope === 'TEAM' ? { channel: 'TEAM' } : {}) }),
       }))
+      if (scope === 'ROOM' ? saved.channel !== 'ROOM' : saved.channel === 'ROOM') throw invalid()
+      return saved
     },
   }
 }

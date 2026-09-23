@@ -69,8 +69,10 @@ public class RoomService {
         List<RoomView.Member> members = members(room);
         if (members.size() >= room.maxPlayers()) throw RoomFailure.full();
         int seat = firstFreeSeat(members, room.maxPlayers(), null);
-        jdbc.update("INSERT INTO game.room_members(room_id, user_id, nickname, seat) VALUES (?, ?, ?, ?)",
-                room.id(), identity.userId(), identity.nickname(), seat);
+        jdbc.update("INSERT INTO game.room_members(room_id, user_id, nickname, seat, team_join_sequence) "
+                        + "VALUES (?, ?, ?, ?, ?)",
+                room.id(), identity.userId(), identity.nickname(), seat,
+                "TEAM_2V2".equals(room.mode()) ? teamSequence(room.id(), seat) : 0);
         changed(room.id());
         return view(requiredRoom(room.id()));
     }
@@ -133,7 +135,9 @@ public class RoomService {
         if (team.equals(self.team())) return view(room);
         int seat = firstFreeSeat(members, 4, team);
         if (seat < 0) throw RoomFailure.full();
-        jdbc.update("UPDATE game.room_members SET seat = ? WHERE room_id = ? AND user_id = ?", seat, id, identity.userId());
+        jdbc.update("UPDATE game.room_members SET seat = ?, team_join_sequence = ? "
+                        + "WHERE room_id = ? AND user_id = ?",
+                seat, teamSequence(id, seat), id, identity.userId());
         changed(id);
         return view(requiredRoom(id));
     }
@@ -163,6 +167,13 @@ public class RoomService {
     private void changed(UUID id) {
         jdbc.update("UPDATE game.room_members SET ready = FALSE WHERE room_id = ?", id);
         incrementVersion(id);
+    }
+
+    private long teamSequence(UUID roomId, int seat) {
+        Long sequence = single(jdbc.query("SELECT last_sequence FROM game.chat_channel_sequences "
+                        + "WHERE room_id = ? AND channel = ?",
+                (rs, row) -> rs.getLong(1), roomId, seat % 2 == 0 ? "TEAM_A" : "TEAM_B"));
+        return sequence == null ? 0 : sequence;
     }
 
     private void incrementVersion(UUID id) {

@@ -34,4 +34,19 @@ describe('room chat HTTP contract', () => {
     await expect(api.history(roomId, 3)).rejects.toBeInstanceOf(ChatError)
     expect(fetcher.mock.calls[1][0]).toContain('after=3')
   })
+
+  it('selects team scope without allowing a forged recipient list', async () => {
+    const team = { ...message, channel: 'TEAM_A' }
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [team], nextSequence: 3, hasMore: false }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ headerName: 'X-CSRF-TOKEN', token: 'csrf' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(team), { status: 200 }))
+    const api = createChatApi(fetcher)
+    expect((await api.history(roomId, 0, true, 'TEAM')).items[0]?.channel).toBe('TEAM_A')
+    expect(fetcher.mock.calls[0][0]).toContain('channel=TEAM')
+    await api.send(roomId, message.clientMessageId, message.content, 'TEAM')
+    expect(fetcher.mock.calls[2][1]?.body).toBe(JSON.stringify({
+      clientMessageId: message.clientMessageId, content: message.content, channel: 'TEAM',
+    }))
+  })
 })

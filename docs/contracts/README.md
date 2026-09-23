@@ -6,7 +6,7 @@
 
 | 方法 | 路径 | 行为 |
 | --- | --- | --- |
-| GET | /api/system/bootstrap | stage=scaffold、protocolVersion=1；authentication、rooms、gameplay、roomText反映GAME_AUTH_ENABLED；团队文字与语音仍为false |
+| GET | /api/system/bootstrap | stage=scaffold、protocolVersion=1；authentication、rooms、gameplay、roomText、teamText 反映 GAME_AUTH_ENABLED；teamVoice 仍为 false |
 | GET | /api/system/session | game侧已验证的userId/sessionId/nickname/clientType/expiresAt；需要真实Web或App会话 |
 | GET | /api/auth/status | 返回backend-auth状态，loginAvailable/registrationAvailable取决于AUTH_ENABLED，默认false |
 | GET | /actuator/health | 各 Java 进程的基础健康检查；网关不聚合下游就绪情况 |
@@ -61,7 +61,9 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 ## 房间文字 HTTP（已实现）
 
-`POST /api/rooms/{roomId}/messages` 请求 `{clientMessageId,content}`；`GET /api/rooms/{roomId}/messages?after=0&limit=50` 按递增频道序号分页，`latest=true` 取最近 50 条并返回后续补取游标。响应只含 `ROOM` 频道、服务器生成的消息 ID、发送者 ID/昵称、时间、序号和原样纯文本。请求不得指定发送者或收件人；每次发送和读取都要求有效会话及当前房间成员资格，重新加入后无法读取这次加入前的历史。同一发送者在同一房间重试相同 `clientMessageId` 与正文返回原消息，换正文返回 409。服务端每秒至多接受两条新消息，每条最多 500 个 Unicode 码点；默认 30 天后删除。Web 使用 Cookie/CSRF，App 使用 Bearer。当前双端用 2 秒游标补取；队伍文字及 WebSocket 消息事件待实现。
+`POST /api/rooms/{roomId}/messages` 请求 `{clientMessageId,content}`；`GET /api/rooms/{roomId}/messages?after=0&limit=50` 按递增频道序号分页，`latest=true` 取最近 50 条并返回后续补取游标。默认 `ROOM` 频道；响应含服务器生成的消息 ID、发送者 ID/昵称、时间、序号和原样纯文本。请求不得指定发送者或收件人；每次发送和读取都要求有效会话及当前房间成员资格，重新加入后无法读取这次加入前的历史。同一发送者在同一房间重试相同 `clientMessageId` 与正文返回原消息，换正文返回 409。服务端每秒至多接受两条新消息，每条最多 500 个 Unicode 码点；默认 30 天后删除。Web 使用 Cookie/CSRF，App 使用 Bearer。当前双端用 2 秒游标补取；WebSocket 消息事件待实现。
+
+2v2 房间可在发送体附 `channel:"TEAM"` 或在历史请求使用 `channel=TEAM`。服务器从当前成员席位推导实际 `TEAM_A` 或 `TEAM_B`，客户端不能指定 A/B、发送者或接收者；经典房间请求团队频道返回 400。房间与队伍各自维护序号和游标，换队/重新加入时的 `team_join_sequence` 阻止读取该队此前消息；同一消息 ID 不能跨频道重用。双端通过频道切换与 2 秒游标补取实现文字收发；WebSocket 消息事件、未读、禁言/举报仍待实现。
 
 ## 计划中的游戏 HTTP
 

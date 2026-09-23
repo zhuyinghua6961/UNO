@@ -57,5 +57,5 @@ function join() {
     </div>
     <p v-else-if="auth.state === 'unavailable'" class="room-alert" role="alert">暂时无法确认登录状态，请刷新后重试。</p>
   </section>
-  <section class="notes-grid"><article><span>01 / 你的账号</span><h3>每次见面，还是你</h3><p>独立身份和经典对局。刷新后可恢复当前牌局。</p></article><article><span>02 / 默契搭档</span><h3>只和队友，说悄悄话</h3><p>队伍文字与队友语音将在后续阶段接入。</p></article><article><span>03 / 轻松组局</span><h3>先来一桌经典局</h3><p>邀请朋友加入好友房，准备后由房主开始对局。</p></article></section>
+  <section class="notes-grid"><article><span>01 / 你的账号</span><h3>每次见面，还是你</h3><p>独立身份和经典对局。刷新后可恢复当前牌局。</p></article><article><span>02 / 默契搭档</span><h3>只和队友，说悄悄话</h3><p>2v2 已支持队伍文字；队友语音仍在建设中。</p></article><article><span>03 / 轻松组局</span><h3>先来一桌经典局</h3><p>邀请朋友加入好友房，准备后由房主开始对局。</p></article></section>
 </template>

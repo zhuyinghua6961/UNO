@@ -240,7 +240,7 @@ onUnmounted(() => { disposed = true; revision++; channel?.close(); clearInterval
           <button class="inline-action sync-button" @click="synchronize()">同步最新状态</button>
         </aside>
       </div>
-      <RoomChat v-if="room" :room-id="room.id" />
+      <RoomChat v-if="room" :room-id="room.id" :team-enabled="room.mode === 'TEAM_2V2'" />
     </template>
   </section>
 </template>

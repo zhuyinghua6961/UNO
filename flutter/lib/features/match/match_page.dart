@@ -678,7 +678,11 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
             onPressed: () => widget.onBackToRoom(false),
             child: const Text('返回等待室'),
           ),
-          RoomChat(roomId: widget.room.id, api: chatApi),
+          RoomChat(
+            roomId: widget.room.id,
+            api: chatApi,
+            teamEnabled: widget.room.mode == 'TEAM_2V2',
+          ),
         ],
       ),
     );

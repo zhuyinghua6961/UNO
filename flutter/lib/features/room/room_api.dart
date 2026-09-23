@@ -105,6 +105,7 @@ class RoomChatMessage {
   RoomChatMessage(
     this.id,
     this.roomId,
+    this.channel,
     this.sequence,
     this.senderUserId,
     this.senderNickname,
@@ -114,6 +115,7 @@ class RoomChatMessage {
   );
   final String id;
   final String roomId;
+  final String channel;
   final int sequence;
   final String senderUserId;
   final String senderNickname;
@@ -122,21 +124,33 @@ class RoomChatMessage {
   final DateTime createdAt;
 
   static RoomChatMessage parse(Object? value) {
-    if (value case {
-      'id': String id,
-      'roomId': String roomId,
-      'channel': 'ROOM',
-      'sequence': int sequence,
-      'senderUserId': String senderUserId,
-      'senderNickname': String senderNickname,
-      'clientMessageId': String clientMessageId,
-      'content': String content,
-      'createdAt': String timestamp,
-    } when sequence > 0) {
+    if (value
+        case {
+          'id': String id,
+          'roomId': String roomId,
+          'channel': String channel,
+          'sequence': int sequence,
+          'senderUserId': String senderUserId,
+          'senderNickname': String senderNickname,
+          'clientMessageId': String clientMessageId,
+          'content': String content,
+          'createdAt': String timestamp,
+        }
+        when sequence > 0 &&
+            const ['ROOM', 'TEAM_A', 'TEAM_B'].contains(channel)) {
       final createdAt = DateTime.tryParse(timestamp);
       if (createdAt != null) {
-        return RoomChatMessage(id, roomId, sequence, senderUserId,
-            senderNickname, clientMessageId, content, createdAt);
+        return RoomChatMessage(
+          id,
+          roomId,
+          channel,
+          sequence,
+          senderUserId,
+          senderNickname,
+          clientMessageId,
+          content,
+          createdAt,
+        );
       }
     }
     throw const AuthFailure(502, 'INVALID_RESPONSE', '消息数据异常，请稍后重试。');
@@ -150,11 +164,13 @@ class RoomChatPage {
   final bool hasMore;
 
   static RoomChatPage parse(Object? value) {
-    if (value case {
-      'items': List<dynamic> raw,
-      'nextSequence': int nextSequence,
-      'hasMore': bool hasMore,
-    } when nextSequence >= 0) {
+    if (value
+        case {
+          'items': List<dynamic> raw,
+          'nextSequence': int nextSequence,
+          'hasMore': bool hasMore,
+        }
+        when nextSequence >= 0) {
       final items = raw.map(RoomChatMessage.parse).toList();
       for (var index = 1; index < items.length; index++) {
         if (items[index].sequence <= items[index - 1].sequence) {
@@ -280,17 +296,51 @@ class RoomApi {
         ),
       );
 
-  Future<RoomChatPage> messages(String roomId, {int after = 0, bool latest = false}) async =>
-      RoomChatPage.parse(await _request(
-        '/api/rooms/$roomId/messages?after=$after&limit=50&latest=$latest',
-      ));
+  Future<RoomChatPage> messages(
+    String roomId, {
+    int after = 0,
+    bool latest = false,
+    String scope = 'ROOM',
+  }) async {
+    final page = RoomChatPage.parse(
+      await _request(
+        '/api/rooms/$roomId/messages?after=$after&limit=50&latest=$latest${scope == 'TEAM' ? '&channel=TEAM' : ''}',
+      ),
+    );
+    if (page.items.any(
+      (message) => scope == 'ROOM'
+          ? message.channel != 'ROOM'
+          : message.channel == 'ROOM',
+    )) {
+      throw const AuthFailure(502, 'INVALID_RESPONSE', '消息频道异常，请稍后重试。');
+    }
+    return page;
+  }
 
-  Future<RoomChatMessage> sendMessage(String roomId, String clientMessageId, String content) async =>
-      RoomChatMessage.parse(await _request(
+  Future<RoomChatMessage> sendMessage(
+    String roomId,
+    String clientMessageId,
+    String content, {
+    String scope = 'ROOM',
+  }) async {
+    final message = RoomChatMessage.parse(
+      await _request(
         '/api/rooms/$roomId/messages',
         post: true,
-        body: {'clientMessageId': clientMessageId, 'content': content},
-      ));
+        body: {
+          'clientMessageId': clientMessageId,
+          'content': content,
+          if (scope == 'TEAM') 'channel': 'TEAM',
+        },
+      ),
+    );
+    if (scope == 'ROOM'
+        ? message.channel != 'ROOM'
+        : message.channel == 'ROOM') {
+      throw const AuthFailure(502, 'INVALID_RESPONSE', '消息频道异常，请稍后重试。');
+    }
+    return message;
+  }
 
   void close() => _client.close();
 }

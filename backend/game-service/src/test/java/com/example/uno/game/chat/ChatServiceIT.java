@@ -6,6 +6,7 @@ import com.example.uno.game.rooms.RoomService;
 import com.example.uno.game.rooms.RoomView;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -106,6 +107,58 @@ class ChatServiceIT {
         assertTrue(chat.history(room.id(), guest, 0, 10).items().isEmpty());
         assertEquals("INVALID_CHAT_INPUT", assertThrows(ChatFailure.class,
                 () -> chat.history(room.id(), host, -1, 10)).code());
+    }
+
+    @Test
+    void teamTextUsesServerSeatAndSwitchingTeamsStartsANewHistoryWindow() {
+        GameIdentity a = player("A");
+        GameIdentity b = player("B");
+        GameIdentity outsider = player("Outsider");
+        RoomView room = rooms.create(a, "TEAM_2V2", 4);
+        room = rooms.join(b, room.code());
+        UUID roomId = room.id();
+        UUID oldAId = UUID.randomUUID();
+        var oldA = chat.send(roomId, a, oldAId, "A old", "TEAM");
+        var oldB = chat.send(roomId, b, UUID.randomUUID(), "B old", "TEAM");
+        assertEquals("TEAM_A", oldA.channel());
+        assertEquals("TEAM_B", oldB.channel());
+        assertEquals(1, oldA.sequence());
+        assertEquals(1, oldB.sequence());
+        assertEquals(List.of(oldA), chat.history(roomId, a, 0, 10, false, "TEAM").items());
+        assertEquals(List.of(oldB), chat.history(roomId, b, 0, 10, false, "TEAM").items());
+        assertEquals("CHAT_ROOM_NOT_FOUND", assertThrows(ChatFailure.class,
+                () -> chat.history(roomId, outsider, 0, 10, false, "TEAM")).code());
+        assertEquals("INVALID_CHAT_INPUT", assertThrows(ChatFailure.class,
+                () -> chat.send(roomId, b, UUID.randomUUID(), "forged", "TEAM_A")).code());
+
+        room = rooms.selectTeam(roomId, b, "A", room.version());
+        assertEquals(2, room.members().stream().filter(member -> member.userId().equals(b.userId()))
+                .findFirst().orElseThrow().seat());
+        assertTrue(chat.history(roomId, b, 0, 10, false, "TEAM").items().isEmpty());
+        assertEquals(1, chat.history(roomId, b, 0, 10, false, "TEAM").nextSequence());
+        assertEquals("CHAT_MESSAGE_CONFLICT", assertThrows(ChatFailure.class,
+                () -> chat.send(roomId, b, oldB.clientMessageId(), "B old", "TEAM")).code());
+        var newA = chat.send(roomId, b, UUID.randomUUID(), "A new", "TEAM");
+        assertEquals(2, newA.sequence());
+        assertEquals(List.of(newA), chat.history(roomId, b, 0, 10, false, "TEAM").items());
+        assertEquals(List.of(oldA, newA), chat.history(roomId, a, 0, 10, false, "TEAM").items());
+
+        room = rooms.selectTeam(roomId, b, "B", room.version());
+        assertTrue(chat.history(roomId, b, 0, 10, false, "TEAM").items().isEmpty());
+        assertEquals(1, chat.history(roomId, b, 0, 10, true, "TEAM").nextSequence());
+        assertEquals(List.of(oldA, newA), chat.history(roomId, a, 0, 10, false, "TEAM").items());
+        assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM game.chat_messages "
+                + "WHERE room_id = ? AND channel = 'TEAM_A'", Integer.class, roomId));
+    }
+
+    @Test
+    void classicRoomHasNoTeamChannel() {
+        GameIdentity host = player("Host");
+        RoomView room = rooms.create(host, "CLASSIC", 2);
+        assertEquals("INVALID_CHAT_INPUT", assertThrows(ChatFailure.class,
+                () -> chat.send(room.id(), host, UUID.randomUUID(), "hidden", "TEAM")).code());
+        assertEquals("INVALID_CHAT_INPUT", assertThrows(ChatFailure.class,
+                () -> chat.history(room.id(), host, 0, 10, false, "TEAM")).code());
     }
 
     @Test

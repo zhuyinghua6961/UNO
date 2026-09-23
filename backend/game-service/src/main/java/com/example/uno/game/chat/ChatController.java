@@ -23,15 +23,17 @@ public class ChatController {
     @PostMapping
     ChatService.ChatItem send(@PathVariable UUID roomId, @AuthenticationPrincipal GameIdentity identity,
             @Valid @RequestBody SendInput input) {
-        return chat.send(roomId, identity, input.clientMessageId(), input.content());
+        return chat.send(roomId, identity, input.clientMessageId(), input.content(),
+                input.channel() == null ? "ROOM" : input.channel());
     }
 
     @GetMapping
     ChatService.ChatPage history(@PathVariable UUID roomId, @AuthenticationPrincipal GameIdentity identity,
             @RequestParam(defaultValue = "0") long after, @RequestParam(defaultValue = "50") int limit,
-            @RequestParam(defaultValue = "false") boolean latest) {
-        return chat.history(roomId, identity, after, limit, latest);
+            @RequestParam(defaultValue = "false") boolean latest,
+            @RequestParam(defaultValue = "ROOM") String channel) {
+        return chat.history(roomId, identity, after, limit, latest, channel);
     }
 
-    public record SendInput(@NotNull UUID clientMessageId, @NotNull String content) { }
+    public record SendInput(@NotNull UUID clientMessageId, @NotNull String content, String channel) { }
 }

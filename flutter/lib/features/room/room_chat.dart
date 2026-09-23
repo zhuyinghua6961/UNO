@@ -6,9 +6,15 @@ import 'package:flutter/material.dart';
 import 'room_api.dart';
 
 class RoomChat extends StatefulWidget {
-  const RoomChat({super.key, required this.roomId, required this.api});
+  const RoomChat({
+    super.key,
+    required this.roomId,
+    required this.api,
+    this.teamEnabled = false,
+  });
   final String roomId;
   final RoomApi api;
+  final bool teamEnabled;
 
   @override
   State<RoomChat> createState() => _RoomChatState();
@@ -19,7 +25,9 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
   final List<RoomChatMessage> messages = [];
   Timer? timer;
   int cursor = 0;
-  bool polling = false;
+  String? pollingScope;
+  String scope = 'ROOM';
+  int generation = 0;
   bool sending = false;
   bool visible = true;
   String? retryId;
@@ -48,25 +56,45 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
   }
 
   Future<void> _refresh({bool latest = false}) async {
-    if (polling || !visible || !mounted) return;
-    polling = true;
+    final requestedScope = scope;
+    final requestedGeneration = generation;
+    if (pollingScope == requestedScope || !visible || !mounted) return;
+    pollingScope = requestedScope;
     try {
       final page = await widget.api.messages(
         widget.roomId,
         after: latest ? 0 : cursor,
         latest: latest,
+        scope: requestedScope,
       );
-      if (!mounted) return;
+      if (!mounted || generation != requestedGeneration) return;
       setState(() {
         _merge(page.items);
         cursor = max(cursor, page.nextSequence);
         error = '';
       });
     } catch (failure) {
-      if (mounted) setState(() => error = '$failure');
+      if (mounted && generation == requestedGeneration) {
+        setState(() => error = '$failure');
+      }
     } finally {
-      polling = false;
+      if (pollingScope == requestedScope) pollingScope = null;
     }
+  }
+
+  void _selectScope(String next) {
+    if (scope == next || sending) return;
+    setState(() {
+      scope = next;
+      generation++;
+      messages.clear();
+      cursor = 0;
+      retryId = null;
+      retryContent = null;
+      draft.clear();
+      error = '';
+    });
+    unawaited(_refresh(latest: true));
   }
 
   String _newId() {
@@ -74,7 +102,9 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
     final bytes = List<int>.generate(16, (_) => random.nextInt(256));
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    final hex = bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+    final hex = bytes
+        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+        .join();
     return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
         '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
@@ -94,7 +124,12 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
       error = '';
     });
     try {
-      final saved = await widget.api.sendMessage(widget.roomId, id, content);
+      final saved = await widget.api.sendMessage(
+        widget.roomId,
+        id,
+        content,
+        scope: scope,
+      );
       if (!mounted) return;
       setState(() {
         _merge([saved]);
@@ -111,6 +146,7 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    generation++;
     timer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     draft.dispose();
@@ -124,8 +160,29 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('房间文字', style: Theme.of(context).textTheme.titleLarge),
-          const Text('房间成员可见 · 纯文字 · 最多 500 字'),
+          if (widget.teamEnabled)
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton(
+                  onPressed: sending ? null : () => _selectScope('ROOM'),
+                  child: const Text('房间文字'),
+                ),
+                OutlinedButton(
+                  onPressed: sending ? null : () => _selectScope('TEAM'),
+                  child: const Text('队伍文字'),
+                ),
+              ],
+            ),
+          Text(
+            scope == 'TEAM' ? '队伍文字' : '房间文字',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          Text(
+            scope == 'TEAM'
+                ? '仅当前队友可见 · 换队后不读取旧队消息 · 最多 500 字'
+                : '房间成员可见 · 纯文字 · 最多 500 字',
+          ),
           const SizedBox(height: 8),
           SizedBox(
             height: 180,
@@ -138,7 +195,8 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
                   title: Text(message.senderNickname),
                   subtitle: Text(message.content),
                   trailing: Text(
-                    TimeOfDay.fromDateTime(message.createdAt.toLocal()).format(context),
+                    TimeOfDay.fromDateTime(message.createdAt.toLocal())
+                        .format(context),
                     style: Theme.of(context).textTheme.labelSmall,
                   ),
                 );
@@ -146,7 +204,10 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
             ),
           ),
           if (error.isNotEmpty)
-            Text(error, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            Text(
+              error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           TextField(
             controller: draft,
             maxLines: 2,
@@ -165,7 +226,13 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
             alignment: Alignment.centerLeft,
             child: FilledButton(
               onPressed: sending ? null : _send,
-              child: Text(sending ? '发送中…' : retryId == null ? '发送' : '重试发送'),
+              child: Text(
+                sending
+                    ? '发送中…'
+                    : retryId == null
+                    ? '发送'
+                    : '重试发送',
+              ),
             ),
           ),
         ],

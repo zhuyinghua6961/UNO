@@ -271,8 +271,13 @@ class _RoomWaitingPageState extends State<RoomWaitingPage>
           onPressed: busy ? null : _leave,
           child: const Text('离开房间'),
         ),
-        RoomChat(roomId: room.id, api: widget.api),
-        const Text('经典局、2v2 对局与房间文字已可使用；队伍文字与语音仍在建设中。'),
+        RoomChat(
+          key: ValueKey('${room.id}:${self?.team ?? 'none'}'),
+          roomId: room.id,
+          api: widget.api,
+          teamEnabled: room.mode == 'TEAM_2V2',
+        ),
+        const Text('经典局、2v2 对局和文字消息已可使用；队友语音仍在建设中。'),
       ],
     );
   }

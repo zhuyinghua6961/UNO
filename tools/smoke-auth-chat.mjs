@@ -200,6 +200,30 @@ if (process.env.SMOKE_TEAM_MATCH === 'true') {
     assert.equal(waiting.status, 200, 'team player join')
   }
   assert.deepEqual(waiting.body.members.map(member => member.team), ['A', 'B', 'A', 'B'])
+  const teamAId = randomUUID()
+  const sentA = await request(`/api/rooms/${teamRoomId}/messages`, {
+    method: 'POST', token: teamTokens[0],
+    body: { clientMessageId: teamAId, channel: 'TEAM', content: 'Only A may read this' },
+  })
+  assert.equal(sentA.status, 200, 'A team message')
+  assert.equal(sentA.body.channel, 'TEAM_A')
+  const sentB = await request(`/api/rooms/${teamRoomId}/messages`, {
+    method: 'POST', token: teamTokens[1],
+    body: { clientMessageId: randomUUID(), channel: 'TEAM', content: 'Only B may read this' },
+  })
+  assert.equal(sentB.status, 200, 'B team message')
+  assert.equal(sentB.body.channel, 'TEAM_B')
+  const teamHistory = await Promise.all(teamTokens.map(token => request(
+    `/api/rooms/${teamRoomId}/messages?channel=TEAM&latest=true`, { token },
+  )))
+  assert.ok(teamHistory.every(result => result.status === 200))
+  assert.deepEqual(teamHistory.map(result => result.body.items.map(item => item.id)),
+    [[sentA.body.id], [sentB.body.id], [sentA.body.id], [sentB.body.id]])
+  const forgedTeam = await request(`/api/rooms/${teamRoomId}/messages`, {
+    method: 'POST', token: teamTokens[1],
+    body: { clientMessageId: randomUUID(), channel: 'TEAM_A', content: 'forged audience' },
+  })
+  assert.equal(forgedTeam.status, 400, 'client cannot name the other team channel')
   for (const token of teamTokens) {
     waiting = await request(`/api/rooms/${teamRoomId}/ready`, {
       method: 'POST', token, body: { ready: true, expectedVersion: waiting.body.version },
@@ -270,5 +294,5 @@ if (process.env.SMOKE_TEAM_MATCH === 'true') {
   assert.equal(returned.status, 200)
   assert.equal(returned.body.state, 'WAITING')
   assert.ok(returned.body.members.every(member => !member.ready))
-  console.log(`PASS: four real accounts finish team match; ${winnerTeam} wins, histories agree, room resets.`)
+  console.log(`PASS: four real accounts have isolated team text and finish match; ${winnerTeam} wins, histories agree, room resets.`)
 }
