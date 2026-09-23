@@ -5,6 +5,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 import com.example.uno.game.GameApplication;
+import com.example.uno.core.rules.UnoCard;
+import com.example.uno.core.rules.UnoSnapshot;
+import com.example.uno.core.rules.UnoState;
 import com.example.uno.game.auth.GameIdentity;
 import com.example.uno.game.auth.HttpSessionVerifier;
 import com.example.uno.game.matches.MatchService;
@@ -17,6 +20,8 @@ import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.time.Instant;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,6 +31,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.Random;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -220,6 +226,199 @@ class GameWebSocketIT {
             webPeer.socket.abort();
             sessions.clear();
         }
+    }
+
+    @Test
+    void finalPlayThroughTwoSocketsPersistsWinnerAndReturnsRoomToWaiting() throws Exception {
+        GameIdentity host = player("FinalHost");
+        GameIdentity guest = player("FinalGuest");
+        sessions.put(HOST_TOKEN, host);
+        sessions.put(GUEST_TOKEN, guest);
+        RoomService rooms = application.getBean(RoomService.class);
+        MatchService matches = application.getBean(MatchService.class);
+        JdbcTemplate jdbc = application.getBean(JdbcTemplate.class);
+        RoomView room = rooms.create(host, "CLASSIC", 2);
+        room = rooms.join(guest, room.code());
+        room = rooms.ready(room.id(), host, true, room.version());
+        room = rooms.ready(room.id(), guest, true, room.version());
+        UUID matchId = matches.start(room.id(), host, room.version()).matchId();
+        UnoSnapshot original = json.readValue(jdbc.queryForObject(
+                "SELECT snapshot::text FROM game.matches WHERE id = ?", String.class, matchId), UnoSnapshot.class);
+        List<List<Integer>> hands = new ArrayList<>();
+        original.hands().forEach(hand -> hands.add(new ArrayList<>(hand)));
+        List<Integer> pile = new ArrayList<>(original.drawPile());
+        UnoCard.Color color = original.activeColor() == null ? UnoCard.Color.RED : original.activeColor();
+        int lastCard = pile.stream().filter(id -> {
+            UnoCard card = UnoCard.of(id);
+            return card.kind() == UnoCard.Kind.NUMBER && card.color() == color;
+        }).findFirst().orElseThrow();
+        pile.remove(Integer.valueOf(lastCard));
+        pile.addAll(hands.get(original.currentSeat()));
+        hands.get(original.currentSeat()).clear();
+        hands.get(original.currentSeat()).add(lastCard);
+        List<Integer> scores = new ArrayList<>(List.of(0, 0));
+        scores.set(original.currentSeat(), 499);
+        UnoSnapshot prepared = new UnoSnapshot(original.players(), hands, pile, original.discardPile(),
+                scores, original.dealerSeat(), original.currentSeat(), original.direction(),
+                original.roundNumber(), 1, UnoState.Phase.TURN, color, null, null, null, null, 0);
+        UnoState.restore(prepared);
+        jdbc.update("UPDATE game.matches SET snapshot = CAST(? AS jsonb) WHERE id = ?",
+                json.writeValueAsString(prepared), matchId);
+
+        Peer hostPeer = connect(HOST_TOKEN);
+        Peer guestPeer = connect(GUEST_TOKEN);
+        try {
+            String subscribe = json.writeValueAsString(Map.of(
+                    "protocolVersion", 1, "type", "SUBSCRIBE", "matchId", matchId));
+            hostPeer.socket.sendText(subscribe, true).join();
+            guestPeer.socket.sendText(subscribe, true).join();
+            assertEquals("MATCH_SNAPSHOT", hostPeer.nextMessage().path("type").asText());
+            assertEquals("MATCH_SNAPSHOT", guestPeer.nextMessage().path("type").asText());
+            Peer actor = prepared.players().get(prepared.currentSeat()).equals(host.userId()) ? hostPeer : guestPeer;
+            Peer other = actor == hostPeer ? guestPeer : hostPeer;
+            UUID commandId = UUID.randomUUID();
+            String command = json.writeValueAsString(Map.of(
+                    "protocolVersion", 1, "type", "COMMAND", "matchId", matchId,
+                    "command", Map.of("protocolVersion", 1, "commandId", commandId,
+                            "expectedVersion", 1, "type", "PLAY", "cardId", lastCard,
+                            "callUno", false)));
+            actor.socket.sendText(command, true).join();
+            JsonNode ack = actor.nextMessage();
+            JsonNode opponent = other.nextMessage();
+            assertEquals("COMMAND_ACK", ack.path("type").asText(), ack.toString());
+            assertEquals("MATCH_OVER", ack.path("result").path("view").path("phase").asText());
+            assertEquals(prepared.currentSeat(), ack.path("result").path("view").path("roundWinnerSeat").asInt());
+            assertTrue(ack.path("result").path("deadlineAt").isNull());
+            assertEquals("MATCH_OVER", opponent.path("view").path("phase").asText());
+            assertTrue(opponent.path("deadlineAt").isNull());
+            assertEquals("ENDED", jdbc.queryForObject("SELECT state FROM game.matches WHERE id = ?", String.class, matchId));
+            assertNotNull(jdbc.queryForObject("SELECT ended_at FROM game.matches WHERE id = ?", Timestamp.class, matchId));
+            assertEquals("WAITING", rooms.get(room.id(), host).state());
+            assertTrue(rooms.get(room.id(), host).members().stream().noneMatch(RoomView.Member::ready));
+            assertNull(matches.current(room.id(), host));
+            actor.socket.sendText(command, true).join();
+            assertTrue(actor.nextMessage().path("result").path("duplicate").asBoolean());
+            assertNull(other.messages.poll(300, TimeUnit.MILLISECONDS));
+            assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM game.match_commands WHERE match_id = ?",
+                    Integer.class, matchId));
+        } finally {
+            hostPeer.socket.abort();
+            guestPeer.socket.abort();
+            sessions.clear();
+        }
+    }
+
+    @Test
+    void twoSocketsPlayAnEntireDealtRoundToServerDecidedWinner() throws Exception {
+        GameIdentity host = player("RoundHost");
+        GameIdentity guest = player("RoundGuest");
+        sessions.put(HOST_TOKEN, host);
+        sessions.put(GUEST_TOKEN, guest);
+        RoomService rooms = application.getBean(RoomService.class);
+        MatchService matches = application.getBean(MatchService.class);
+        JdbcTemplate jdbc = application.getBean(JdbcTemplate.class);
+        RoomView room = rooms.create(host, "CLASSIC", 2);
+        room = rooms.join(guest, room.code());
+        room = rooms.ready(room.id(), host, true, room.version());
+        room = rooms.ready(room.id(), guest, true, room.version());
+        UUID matchId = matches.start(room.id(), host, room.version()).matchId();
+        UnoSnapshot original = json.readValue(jdbc.queryForObject(
+                "SELECT snapshot::text FROM game.matches WHERE id = ?", String.class, matchId), UnoSnapshot.class);
+        UnoState dealt = new com.example.uno.core.rules.ClassicUno().start(original.players(),
+                original.dealerSeat(), new Random(93));
+        UnoSnapshot initial = dealt.snapshot();
+        UnoSnapshot prepared = new UnoSnapshot(initial.players(), initial.hands(), initial.drawPile(),
+                initial.discardPile(), List.of(499, 499), initial.dealerSeat(), initial.currentSeat(),
+                initial.direction(), initial.roundNumber(), initial.version(), initial.phase(),
+                initial.activeColor(), initial.drawnCardId(), initial.pendingDrawFour(),
+                initial.unoVulnerableSeat(), initial.roundWinnerSeat(), initial.roundPoints());
+        UnoState.restore(prepared);
+        jdbc.update("UPDATE game.matches SET snapshot = CAST(? AS jsonb) WHERE id = ?",
+                json.writeValueAsString(prepared), matchId);
+
+        Peer hostPeer = connect(HOST_TOKEN);
+        Peer guestPeer = connect(GUEST_TOKEN);
+        try {
+            String subscribe = json.writeValueAsString(Map.of(
+                    "protocolVersion", 1, "type", "SUBSCRIBE", "matchId", matchId));
+            hostPeer.socket.sendText(subscribe, true).join();
+            guestPeer.socket.sendText(subscribe, true).join();
+            JsonNode hostView = hostPeer.nextMessage().path("view");
+            JsonNode guestView = guestPeer.nextMessage().path("view");
+            int actions = 0;
+            while (!"MATCH_OVER".equals(hostView.path("phase").asText()) && actions++ < 1000) {
+                String currentId = hostView.path("players").get(hostView.path("currentSeat").asInt())
+                        .path("userId").asText();
+                boolean hostActs = currentId.equals(host.userId().toString());
+                Peer actor = hostActs ? hostPeer : guestPeer;
+                Peer other = hostActs ? guestPeer : hostPeer;
+                JsonNode actorView = hostActs ? hostView : guestView;
+                Map<String, Object> action = autoplayAction(actorView);
+                String command = json.writeValueAsString(Map.of(
+                        "protocolVersion", 1, "type", "COMMAND", "matchId", matchId,
+                        "command", action));
+                actor.socket.sendText(command, true).join();
+                JsonNode ack = actor.nextMessage();
+                assertEquals("COMMAND_ACK", ack.path("type").asText(), ack.toString());
+                JsonNode update = other.nextMessage();
+                assertEquals("MATCH_SNAPSHOT", update.path("type").asText());
+                if (hostActs) { hostView = ack.path("result").path("view"); guestView = update.path("view"); }
+                else { guestView = ack.path("result").path("view"); hostView = update.path("view"); }
+                assertEquals(hostView.path("version").asLong(), guestView.path("version").asLong());
+            }
+            assertTrue(actions < 1000, "the network autoplay should finish the dealt round");
+            assertEquals("MATCH_OVER", hostView.path("phase").asText());
+            assertEquals("MATCH_OVER", guestView.path("phase").asText());
+            assertEquals(hostView.path("roundWinnerSeat").asInt(), guestView.path("roundWinnerSeat").asInt());
+            assertEquals("ENDED", jdbc.queryForObject("SELECT state FROM game.matches WHERE id = ?", String.class, matchId));
+            assertEquals("WAITING", rooms.get(room.id(), host).state());
+        } finally {
+            hostPeer.socket.abort();
+            guestPeer.socket.abort();
+            sessions.clear();
+        }
+    }
+
+    private static Map<String, Object> autoplayAction(JsonNode view) {
+        String phase = view.path("phase").asText();
+        java.util.HashMap<String, Object> action = new java.util.HashMap<>();
+        action.put("protocolVersion", 1);
+        action.put("commandId", UUID.randomUUID());
+        action.put("expectedVersion", view.path("version").asLong());
+        if ("INITIAL_WILD_COLOR".equals(phase)) {
+            action.put("type", "CHOOSE_INITIAL_COLOR");
+            action.put("chosenColor", "RED");
+        } else if ("DRAW_FOUR_RESPONSE".equals(phase)) {
+            action.put("type", "ACCEPT_DRAW_FOUR");
+        } else if ("AFTER_DRAW".equals(phase)) {
+            action.put("type", "PLAY");
+            action.put("cardId", view.path("drawnCardId").asInt());
+        } else if ("TURN".equals(phase)) {
+            UnoCard top = UnoCard.of(view.path("topCard").path("id").asInt());
+            UnoCard.Color active = UnoCard.Color.valueOf(view.path("activeColor").asText());
+            Integer playable = null;
+            for (JsonNode candidate : view.path("ownHand")) {
+                UnoCard card = UnoCard.of(candidate.path("id").asInt());
+                if (card.color() == null || card.color() == active ||
+                        (top.color() != null && card.kind() == top.kind()
+                                && (card.kind() != UnoCard.Kind.NUMBER || card.number() == top.number()))) {
+                    playable = card.id();
+                    break;
+                }
+            }
+            if (playable == null) action.put("type", "DRAW");
+            else {
+                action.put("type", "PLAY");
+                action.put("cardId", playable);
+            }
+        } else {
+            throw new AssertionError("Unexpected phase " + phase);
+        }
+        if ("PLAY".equals(action.get("type"))) {
+            if (UnoCard.of((int) action.get("cardId")).color() == null) action.put("chosenColor", "RED");
+            action.put("callUno", view.path("ownHand").size() == 2);
+        }
+        return action;
     }
 
     private static GameIdentity player(String name) {
