@@ -2,7 +2,9 @@ FROM maven:3.9.11-eclipse-temurin-17 AS build
 ARG SERVICE
 WORKDIR /workspace
 COPY backend/ ./
-RUN mvn -B -pl "$SERVICE" -am package -DskipTests && cp "$SERVICE/target/$SERVICE-0.1.0-SNAPSHOT.jar" /app.jar
+RUN --mount=type=cache,id=uno-maven-cache,target=/root/.m2,sharing=locked \
+    mvn -B -pl "$SERVICE" -am package -Dmaven.test.skip=true \
+    && cp "$SERVICE/target/$SERVICE-0.1.0-SNAPSHOT.jar" /app.jar
 
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app

@@ -8,9 +8,9 @@
 
 - 已有可构建的三端骨架、素材、状态接口、通信权限基础、16 个骨架测试和开发归档。
 - GitHub 私有仓库 `zhuyinghua6961/UNO` 已创建并关联 origin；2026-09-07 按用户授权进行首次本地提交（以 git log 为准），未推送，三个分支的名称和用途仍未确认。
-- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9进行中、stage11房间文字基础进行中**；stage10、stage12–stage18未开始。Web 已通过两个真实账号从注册到终局、返回等待室并开始新局的浏览器验收；Android 模拟器与 Web 也已完成混合整局及第二局启动；房间文字跨服务 API 已验收，双端界面已接入但尚未设备实测。iOS 对局、2v2、队伍文字与语音仍待接入或验收。
+- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9进行中、stage11房间文字基础进行中、stage17本地容器增量进行中**；stage10、stage12–stage16、stage18未开始。Web 已通过两个真实账号从注册到终局、返回等待室并开始新局的浏览器验收；Android 模拟器与 Web 也已完成混合整局及第二局启动；房间文字跨服务 API 已验收，双端界面已接入但尚未设备实测。本地 Compose 账号/房间/文字容器栈已真实启动并完成业务链路验收。iOS 对局、2v2、队伍文字与语音仍待接入或验收。
 - stage1 的工程约定和复现指南已补充，产品规则/登录渠道/三个分支仍待确认；stage2 按 [工程基线](engineering-baseline.md) 中的明确依赖例外推进。
-- Docker 完整构建的网络阻碍与 Flutter 分析命令差异见 [骨架验收记录](verification.md)，不能将本机原生联调记作容器联调。
+- Docker Hub 网络阻碍与 Flutter 分析命令差异见 [骨架验收记录](verification.md)；本地容器栈的后续实测见 [stage17 增量验收](verification-stage17-container.md)。
 
 ## 2. 阶段目录
 
@@ -32,7 +32,7 @@
 | [stage14](stages/stage14.md) | Web 队友开麦 | 浏览器主动授权、开麦、静音与退出 | stage8、stage13 | 未开始 |
 | [stage15](stages/stage15.md) | Flutter 队友开麦 | App 队友语音与 Web/App 互通 | stage9、stage13、stage14 | 未开始 |
 | [stage16](stages/stage16.md) | 个人中心与对局记录 | 真实资料、偏好、个人/队伍战绩和历史 | stage10、stage12 | 未开始 |
-| [stage17](stages/stage17.md) | Docker、环境与持续集成 | 可复现的测试部署、TLS/TURN、备份和构建流水线 | stage14、stage15、stage16 | 未开始 |
+| [stage17](stages/stage17.md) | Docker、环境与持续集成 | 可复现的测试部署、TLS/TURN、备份和构建流水线 | stage14、stage15、stage16 | 进行中（本地容器栈已验收） |
 | [stage18](stages/stage18.md) | 综合验收与发布 | 安全、弱网、容量、真机验证和可追溯安装制品 | stage17 | 未开始 |
 
 阶段编号是推荐组织顺序，实际依赖以上表为准。例如 stage6 可在账号开发期间独立推进；stage8/stage9、stage14/stage15 是同一后端能力的不同端交付；stage16 不必等待语音。这不是自动开启并行代理或额外任务的授权。
@@ -111,6 +111,7 @@
 - [stage8 Web 验收](verification-stage8-web.md)：两个真实账号完整经典局、第二局与桌面/窄屏证据。
 - [stage9 Flutter 增量验收](verification-stage9-flutter.md)：App 牌桌、实时协议、双平台构建和设备限制。
 - [stage11 房间文字增量验收](verification-stage11-room-text.md)：消息权限、幂等、游标、双端界面与未验收范围。
+- [stage17 容器栈增量验收](verification-stage17-container.md)：独立 Compose 环境、镜像构建与真实账号/房间/文字流程。
 - [Flutter账号增量验收](verification-stage4-flutter.md)：自动测试、原生构建与未完成的设备/跨端验证。
 - [工程基线与未决事项](engineering-baseline.md)：约定、前置决策、环境差异和复现路径。
 - [数据库、迁移与恢复](persistence.md)：配置、数据关系、集成测试和备份恢复步骤。

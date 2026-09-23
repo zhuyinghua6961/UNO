@@ -1,6 +1,6 @@
 # Docker 开发部署
 
-这些配置用于本地骨架验证，不是公网生产配置，也不意味着完整游戏或语音已经实现。
+这些配置用于本地开发与集成验证，不是公网生产配置。经典对局与房间文字已有可用路径；2v2、队伍文字和语音尚未完成。
 
 ## 启动主栈
 
@@ -14,14 +14,14 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml up --build -d
 
 Web 默认 `http://localhost:8088`，Gateway 默认 `http://localhost:28080`；Java 内部进程不发布宿主端口。端口已被占用时修改 deploy/.env，不要终止其他项目的进程。
 
-构建需要拉取基础镜像和 Maven/npm 依赖。网络代理应按本机 Docker/包管理器配置，不把个人代理地址硬编码进镜像或仓库。
+构建需要拉取基础镜像和 Maven/npm 依赖。后端镜像共享 BuildKit Maven 缓存，加快三个服务的连续构建；镜像内跳过测试，提交前仍须独立运行 Maven 测试。网络代理应按本机 Docker/包管理器配置，不把个人代理地址硬编码进镜像或仓库。若 Docker Hub 令牌服务不可达，可在可信镜像源预取相同官方标签并在本机核对后重新标记；[容器栈增量验收](../docs/verification-stage17-container.md)记录了一次实际构建。
 
 ```sh
 docker compose --env-file deploy/.env -f deploy/compose.yaml logs --tail=100
 docker compose --env-file deploy/.env -f deploy/compose.yaml down
 ```
 
-不要随意增加 `-v`，以免删除启用基础设施后创建的数据库卷。启动完成仍要检查 bootstrap/auth 状态；depends_on 不保证 Java 服务已经就绪。
+不要随意增加 `-v`，以免删除启用基础设施后创建的数据库卷。启动完成仍要检查 bootstrap/auth 状态和真实业务链路。可运行 `EXPECT_AUTH_AVAILABLE=true EXPECT_GAME_AUTH_AVAILABLE=true node tools/smoke-api.mjs`；合并账号覆盖配置并启用 Mailpit 时，再运行 `node tools/smoke-auth-chat.mjs`。Compose 健康检查只证明服务就绪，不能替代业务验收。
 
 ## 数据库与可选基础设施
 
