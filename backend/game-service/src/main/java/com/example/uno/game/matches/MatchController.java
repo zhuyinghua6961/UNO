@@ -1,6 +1,5 @@
 package com.example.uno.game.matches;
 
-import com.example.uno.core.rules.UnoView;
 import com.example.uno.game.auth.GameIdentity;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -28,8 +27,8 @@ public class MatchController {
     }
 
     @GetMapping("/matches/{matchId}/state")
-    UnoView state(@PathVariable UUID matchId, @AuthenticationPrincipal GameIdentity identity) {
-        return matches.state(matchId, identity);
+    MatchService.MatchState state(@PathVariable UUID matchId, @AuthenticationPrincipal GameIdentity identity) {
+        return matches.snapshot(matchId, identity);
     }
 
     @GetMapping("/rooms/{roomId}/match")

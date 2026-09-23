@@ -24,4 +24,4 @@ identity显式启用后开放注册/登录/验证等入口并对me/logout逐请�
 
 game-core 的 CommunicationPolicy 必须只接收服务器构造的可信房间快照。不能把客户端提交的 players/team/generation 直接反序列化后调用它并认为完成授权。经典 UNO 规则引擎另有独立测试；完整 `UnoState` 只能由服务器保存，客户端仅接收各自的 `UnoView`。见 [规则说明](../docs/rules-classic-v1.md)。
 
-已完成账号身份与等待房间成员 API、经典纯规则引擎及 HTTP/WebSocket 对局动作；后续顺序：服务器计时与双端牌桌 → 2v2 规则与文字 → LiveKit 准入与撤销。Spring Cloud 注册中心和配置中心暂不引入；部署用环境变量与 Docker DNS。
+已完成账号身份与等待房间成员 API、经典纯规则引擎、HTTP/WebSocket 对局动作及基本服务器计时；后续顺序：双端牌桌与多人整局验收 → 2v2 规则与文字 → LiveKit 准入与撤销。Spring Cloud 注册中心和配置中心暂不引入；部署用环境变量与 Docker DNS。

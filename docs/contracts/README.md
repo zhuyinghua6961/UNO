@@ -44,14 +44,16 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 | 方法 | 路径 | 行为 |
 | --- | --- | --- |
-| POST | /api/rooms/{roomId}/start | 房主提交 `{expectedVersion}`；仅全员准备的经典房间可启动，返回 `{matchId,view,roomVersion}`；重复启动返回原对局 |
+| POST | /api/rooms/{roomId}/start | 房主提交 `{expectedVersion}`；仅全员准备的经典房间可启动，返回 `{matchId,view,roomVersion,deadlineAt}`；重复启动返回原对局 |
 | GET | /api/rooms/{roomId}/match | 对局成员发现进行中的对局并取回个人视图；没有则 204 |
-| GET | /api/matches/{matchId}/state | 仅对局成员可读；返回当前用户 `UnoView`，其他人只见手牌数量 |
+| GET | /api/matches/{matchId}/state | 仅对局成员可读；返回 `{view,deadlineAt}`，其中 `view` 是当前用户的 `UnoView`，其他人只见手牌数量 |
 | POST | /api/matches/{matchId}/commands | 成员提交 `{protocolVersion:1,commandId,expectedVersion,type,...}`；按规则执行，返回动作版本、事件、当前个人视图与仅本人可见的质疑证据 |
 
-动作 `type` 支持 `PLAY`（`cardId,chosenColor,callUno`）、`DRAW`、`PASS`、`SAY_UNO`、`CATCH_UNO`（`targetUserId`）、`ACCEPT_DRAW_FOUR`、`CHALLENGE_DRAW_FOUR`、`CHOOSE_INITIAL_COLOR`（`chosenColor`）、`NEXT_ROUND`。`actor` 从已验证会话推导，不能由客户端指定。对局行锁串行化动作；版本不符或同一 `commandId` 换内容返回 409，规则拒绝返回 422；同一动作重试返回 `duplicate:true` 且不重放效果。`view` 是响应时的最新个人视图，`appliedVersion` 是此命令首次落地的版本。
+动作 `type` 支持 `PLAY`（`cardId,chosenColor,callUno`）、`DRAW`、`PASS`、`SAY_UNO`、`CATCH_UNO`（`targetUserId`）、`ACCEPT_DRAW_FOUR`、`CHALLENGE_DRAW_FOUR`、`CHOOSE_INITIAL_COLOR`（`chosenColor`）、`NEXT_ROUND`。`actor` 从已验证会话推导，不能由客户端指定。对局行锁串行化动作；版本不符或同一 `commandId` 换内容返回 409，规则拒绝返回 422；同一动作重试返回 `duplicate:true` 且不重放效果。`view` 是响应时的最新个人视图，`appliedVersion` 是此命令首次落地的版本。启动、当前对局、状态、动作回执及 WebSocket 快照均提供 UTC `deadlineAt`；回合结束或整局结束时为 `null`。
 
-牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 房间不能启动对局。进行中的房间暂不能离开，避免席位与权威状态脱节。WebSocket 已提供私有推送；服务器计时和双端牌桌动作界面尚未实现。
+普通回合从开始起计 30 秒；摸到可出的牌进入 `AFTER_DRAW` 时不重置这 30 秒。+4 回应窗口为 8 秒；窗口到期但尚未裁决的玩家新命令返回 409 `TURN_EXPIRED`，已落地的同一命令仍可重试取得回执。服务端在超时后按当前持久化状态执行默认动作：普通回合自动摸 1 张并结束（若规则引擎允许出刚摸的牌，会在同一事务自动 `PASS`，版本因此前进两次）；已摸牌等待选择时自动 `PASS`；+4 回应自动接受；开局万能牌选色默认红色。超时动作写入命令记录并推送个人快照，重复扫描不会重复摸牌或裁决。`SAY_UNO`、`CATCH_UNO` 与摸牌后等待选择不延长原截止时间。
+
+牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 房间不能启动对局。进行中的房间暂不能离开，避免席位与权威状态脱节。WebSocket 已提供私有推送；双端牌桌动作界面尚未实现。
 
 ## 计划中的游戏 HTTP
 
@@ -71,9 +73,9 @@ Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷
 {"protocolVersion":1,"type":"COMMAND","matchId":"server-issued-uuid","command":{"protocolVersion":1,"commandId":"client-generated-uuid","expectedVersion":1,"type":"DRAW"}}
 ```
 
-动作内容与 HTTP `/api/matches/{matchId}/commands` 相同；`callUno` 缺省为 `false`。服务器只向提交者发送 `COMMAND_ACK`（含个人视图和可能的私有质疑证据）或 `COMMAND_REJECTED`（含 `commandId` 与错误代码）；动作成功后向同局其他已订阅连接分别发送各自的 `MATCH_SNAPSHOT`。重复命令只给提交者回执，不重新广播。非法订阅/格式返回 `ERROR`。
+动作内容与 HTTP `/api/matches/{matchId}/commands` 相同；`callUno` 缺省为 `false`。服务器只向提交者发送 `COMMAND_ACK`（含个人视图和可能的私有质疑证据）或 `COMMAND_REJECTED`（含 `commandId` 与错误代码）；动作成功后向同局其他已订阅连接分别发送各自的 `MATCH_SNAPSHOT`。超时裁决后向同局全部已订阅连接推送 `MATCH_SNAPSHOT`，含 `deadlineAt`。重复命令只给提交者回执，不重新广播。非法订阅/格式返回 `ERROR`。
 
-单条文本消息上限 8192 字节，每连接每 10 秒最多 30 条；超限关闭连接。每连接只订阅一局，不能指定其他身份或接收队列。服务端每次推送前重新核验会话；失效或撤销的连接会关闭。当前跨实例广播、服务器计时及断线自动裁决尚未完成。
+单条文本消息上限 8192 字节，每连接每 10 秒最多 30 条；超限关闭连接。每连接只订阅一局，不能指定其他身份或接收队列。服务端每次推送前重新核验会话；失效或撤销的连接会关闭。超时扫描默认约每秒执行一次；当前跨实例广播与完整断线策略尚未完成。
 
 ## 后续聊天协议
 

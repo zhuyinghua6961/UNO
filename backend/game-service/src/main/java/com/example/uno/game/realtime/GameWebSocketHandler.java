@@ -68,9 +68,9 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
         if ("SUBSCRIBE".equals(inbound.type())) {
             if (inbound.command() != null) { send(client, Map.of("type", "ERROR", "code", "BAD_MESSAGE")); return; }
             try {
-                var view = matches.state(inbound.matchId(), client.auth.identity());
+                var snapshot = matches.snapshot(inbound.matchId(), client.auth.identity());
                 client.matchId = inbound.matchId();
-                send(client, Map.of("type", "MATCH_SNAPSHOT", "matchId", inbound.matchId(), "view", view));
+                sendSnapshot(client, inbound.matchId(), snapshot);
             } catch (MatchFailure failure) {
                 send(client, Map.of("type", "ERROR", "code", failure.code()));
             }
@@ -94,19 +94,29 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    public void publish(UUID matchId) { broadcast(matchId, null); }
+
     private void broadcast(UUID matchId, String originSessionId) {
         for (Client recipient : clients.values()) {
             if (!matchId.equals(recipient.matchId) || recipient.session.getId().equals(originSessionId)) continue;
             if (!verify(recipient)) continue;
             try {
-                var view = matches.state(matchId, recipient.auth.identity());
-                send(recipient, Map.of("type", "MATCH_SNAPSHOT", "matchId", matchId, "view", view));
+                sendSnapshot(recipient, matchId, matches.snapshot(matchId, recipient.auth.identity()));
             } catch (MatchFailure failure) {
                 close(recipient, CloseStatus.POLICY_VIOLATION);
             } catch (IOException exception) {
                 close(recipient, CloseStatus.SERVER_ERROR);
             }
         }
+    }
+
+    private void sendSnapshot(Client client, UUID matchId, MatchService.MatchState snapshot) throws IOException {
+        java.util.HashMap<String, Object> payload = new java.util.HashMap<>();
+        payload.put("type", "MATCH_SNAPSHOT");
+        payload.put("matchId", matchId);
+        payload.put("view", snapshot.view());
+        payload.put("deadlineAt", snapshot.deadlineAt());
+        send(client, payload);
     }
 
     /** Revoked or expired sessions stop receiving updates even while idle. */

@@ -8,9 +8,15 @@ import com.example.uno.game.rooms.RoomFailure;
 import com.example.uno.game.rooms.RoomService;
 import com.example.uno.game.rooms.RoomView;
 import com.example.uno.core.rules.UnoCard;
+import com.example.uno.core.rules.UnoSnapshot;
 import com.example.uno.core.rules.UnoState;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +46,8 @@ class MatchServiceIT {
         application = new SpringApplicationBuilder(GameApplication.class).run(
                 "--server.port=0", "--spring.datasource.url=" + database.getJdbcUrl(),
                 "--spring.datasource.username=" + database.getUsername(),
-                "--spring.datasource.password=" + database.getPassword());
+                "--spring.datasource.password=" + database.getPassword(),
+                "--uno.matches.deadline-worker-enabled=false");
         matches = application.getBean(MatchService.class);
         rooms = application.getBean(RoomService.class);
         jdbc = application.getBean(JdbcTemplate.class);
@@ -137,6 +144,155 @@ class MatchServiceIT {
         room = rooms.ready(room.id(), guest, true, room.version());
         var started = matches.start(room.id(), host, room.version());
         assertEquals(1, matches.state(started.matchId(), guest).players().get(1).seat());
+    }
+
+    @Test
+    void expiredTurnDrawsOnceAndEndsEvenWhenTheCardCouldBePlayed() throws Exception {
+        GameIdentity host = player("Host");
+        GameIdentity guest = player("Guest");
+        var started = startMatch(host, guest);
+        UUID matchId = started.matchId();
+        JsonMapper json = new JsonMapper();
+        UnoSnapshot old = json.readValue(jdbc.queryForObject(
+                "SELECT snapshot::text FROM game.matches WHERE id = ?", String.class, matchId), UnoSnapshot.class);
+        List<List<Integer>> hands = new ArrayList<>();
+        old.hands().forEach(hand -> hands.add(new ArrayList<>(hand)));
+        List<Integer> pile = new ArrayList<>(old.drawPile());
+        UnoCard.Color activeColor = old.activeColor() == null ? UnoCard.Color.RED : old.activeColor();
+        int last = pile.size() - 1;
+        int playable = -1;
+        for (int index = 0; index < pile.size(); index++) {
+            UnoCard card = UnoCard.of(pile.get(index));
+            if (card.color() == null || card.color() == activeColor) { playable = index; break; }
+        }
+        assertTrue(playable >= 0);
+        java.util.Collections.swap(pile, playable, last);
+        UnoSnapshot prepared = new UnoSnapshot(old.players(), hands, pile, old.discardPile(), old.scores(),
+                old.dealerSeat(), old.currentSeat(), old.direction(), old.roundNumber(), old.version(),
+                UnoState.Phase.TURN, activeColor, null, null, old.unoVulnerableSeat(), null, 0);
+        UnoState.restore(prepared);
+        jdbc.update("UPDATE game.matches SET snapshot = CAST(? AS jsonb), deadline_at = ? WHERE id = ?",
+                json.writeValueAsString(prepared), Timestamp.from(Instant.now().minusSeconds(1)), matchId);
+        GameIdentity actor = prepared.players().get(prepared.currentSeat()).equals(host.userId()) ? host : guest;
+        MatchCommandInput late = new MatchCommandInput(1, UUID.randomUUID(), 1,
+                MatchCommandInput.Type.DRAW, null, null, null, false);
+        assertEquals("TURN_EXPIRED", assertThrows(MatchFailure.class,
+                () -> matches.command(matchId, actor, late)).code());
+
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            var first = pool.submit(() -> matches.resolveTimeout(matchId));
+            var second = pool.submit(() -> matches.resolveTimeout(matchId));
+            var a = first.get(10, TimeUnit.SECONDS);
+            var b = second.get(10, TimeUnit.SECONDS);
+            assertEquals(1, (a == null ? 0 : 1) + (b == null ? 0 : 1));
+        } finally {
+            pool.shutdownNow();
+        }
+        assertEquals(3, matches.state(matchId, actor).version());
+        assertEquals(UnoState.Phase.TURN, matches.state(matchId, actor).phase());
+        assertEquals("AUTO_DREW_AND_PASSED", jdbc.queryForObject(
+                "SELECT event FROM game.match_commands WHERE match_id = ?", String.class, matchId));
+        assertEquals("1", jdbc.queryForObject("SELECT cards_drawn->> ? FROM game.match_commands WHERE match_id = ?",
+                String.class, Integer.toString(prepared.currentSeat()), matchId));
+        assertNotNull(matches.snapshot(matchId, actor).deadlineAt());
+        assertNull(matches.resolveTimeout(matchId));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM game.match_commands WHERE source = 'TIMEOUT'", Integer.class));
+    }
+
+    @Test
+    void acceptedCommandCanBeRetriedAfterItsDeadline() {
+        GameIdentity host = player("Host");
+        GameIdentity guest = player("Guest");
+        var started = startMatch(host, guest);
+        UUID matchId = started.matchId();
+        GameIdentity actor = started.view().players().get(started.view().currentSeat()).userId().equals(host.userId())
+                ? host : guest;
+        boolean wild = started.view().phase() == UnoState.Phase.INITIAL_WILD_COLOR;
+        MatchCommandInput command = new MatchCommandInput(1, UUID.randomUUID(), 1,
+                wild ? MatchCommandInput.Type.CHOOSE_INITIAL_COLOR : MatchCommandInput.Type.DRAW,
+                null, wild ? UnoCard.Color.RED : null, null, false);
+        var receipt = matches.command(matchId, actor, command);
+        jdbc.update("UPDATE game.matches SET deadline_at = ? WHERE id = ?",
+                Timestamp.from(Instant.now().minusSeconds(1)), matchId);
+        assertTrue(matches.command(matchId, actor, command).duplicate());
+        assertEquals(receipt.appliedVersion(), matches.command(matchId, actor, command).appliedVersion());
+        assertNotNull(matches.resolveTimeout(matchId));
+    }
+
+    @Test
+    void drawFourResponseGetsEightSecondsAndTimeoutAcceptsIt() {
+        GameIdentity host = player("Host");
+        GameIdentity guest = player("Guest");
+        UUID matchId = startMatch(host, guest).matchId();
+        JsonMapper json = new JsonMapper();
+        UnoSnapshot old = json.readValue(jdbc.queryForObject(
+                "SELECT snapshot::text FROM game.matches WHERE id = ?", String.class, matchId), UnoSnapshot.class);
+        List<List<Integer>> hands = new ArrayList<>();
+        old.hands().forEach(hand -> hands.add(new ArrayList<>(hand)));
+        List<Integer> pile = new ArrayList<>(old.drawPile());
+        int current = old.currentSeat();
+        int plusFour = hands.get(current).stream()
+                .filter(id -> UnoCard.of(id).kind() == UnoCard.Kind.WILD_DRAW_FOUR)
+                .findFirst().orElse(-1);
+        if (plusFour < 0) {
+            for (int index = 0; index < pile.size(); index++) {
+                if (UnoCard.of(pile.get(index)).kind() == UnoCard.Kind.WILD_DRAW_FOUR) {
+                    plusFour = pile.get(index);
+                    pile.set(index, hands.get(current).set(0, plusFour));
+                    break;
+                }
+            }
+        }
+        if (plusFour < 0) {
+            for (int seat = 0; seat < hands.size() && plusFour < 0; seat++) {
+                if (seat == current) continue;
+                for (int index = 0; index < hands.get(seat).size(); index++) {
+                    if (UnoCard.of(hands.get(seat).get(index)).kind() == UnoCard.Kind.WILD_DRAW_FOUR) {
+                        plusFour = hands.get(seat).get(index);
+                        hands.get(seat).set(index, hands.get(current).set(0, plusFour));
+                        break;
+                    }
+                }
+            }
+        }
+        assertTrue(plusFour >= 0);
+        UnoSnapshot prepared = new UnoSnapshot(old.players(), hands, pile, old.discardPile(), old.scores(),
+                old.dealerSeat(), current, old.direction(), old.roundNumber(), old.version(),
+                UnoState.Phase.TURN, old.activeColor() == null ? UnoCard.Color.RED : old.activeColor(),
+                null, null, old.unoVulnerableSeat(), null, 0);
+        UnoState.restore(prepared);
+        jdbc.update("UPDATE game.matches SET snapshot = CAST(? AS jsonb) WHERE id = ?",
+                json.writeValueAsString(prepared), matchId);
+        GameIdentity actor = prepared.players().get(current).equals(host.userId()) ? host : guest;
+        int cardId = plusFour;
+        var played = matches.command(matchId, actor, new MatchCommandInput(1, UUID.randomUUID(), 1,
+                MatchCommandInput.Type.PLAY, cardId, UnoCard.Color.BLUE, null, false));
+        assertEquals(UnoState.Phase.DRAW_FOUR_RESPONSE, played.view().phase());
+        long seconds = java.time.Duration.between(Instant.now(), played.deadlineAt()).toSeconds();
+        assertTrue(seconds >= 6 && seconds <= 8);
+        GameIdentity responder = actor == host ? guest : host;
+        int handBefore = matches.state(matchId, responder).ownHand().size();
+        jdbc.update("UPDATE game.matches SET deadline_at = ? WHERE id = ?",
+                Timestamp.from(Instant.now().minusSeconds(1)), matchId);
+        MatchCommandInput late = new MatchCommandInput(1, UUID.randomUUID(), 2,
+                MatchCommandInput.Type.CHALLENGE_DRAW_FOUR, null, null, null, false);
+        assertEquals("TURN_EXPIRED", assertThrows(MatchFailure.class,
+                () -> matches.command(matchId, responder, late)).code());
+        var timedOut = matches.resolveTimeout(matchId);
+        assertEquals("AUTO_DRAW_FOUR_ACCEPTED", timedOut.event());
+        assertEquals(handBefore + 4, matches.state(matchId, responder).ownHand().size());
+        assertNull(matches.resolveTimeout(matchId));
+        assertEquals("TIMEOUT", jdbc.queryForObject(
+                "SELECT source FROM game.match_commands WHERE event = 'AUTO_DRAW_FOUR_ACCEPTED'", String.class));
+    }
+
+    private MatchService.MatchStart startMatch(GameIdentity host, GameIdentity guest) {
+        RoomView room = rooms.create(host, "CLASSIC", 2);
+        room = rooms.join(guest, room.code());
+        room = rooms.ready(room.id(), host, true, room.version());
+        room = rooms.ready(room.id(), guest, true, room.version());
+        return matches.start(room.id(), host, room.version());
     }
 
     private GameIdentity player(String nickname) {

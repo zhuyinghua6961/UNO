@@ -13,6 +13,7 @@ import java.sql.Timestamp;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -24,6 +25,8 @@ import tools.jackson.databind.json.JsonMapper;
 @Service
 public class MatchService {
     private static final Duration ROOM_LIFETIME = Duration.ofHours(24);
+    private static final Duration TURN_LIMIT = Duration.ofSeconds(30);
+    private static final Duration DRAW_FOUR_LIMIT = Duration.ofSeconds(8);
     private final JdbcTemplate jdbc;
     private final Clock clock;
     private final JsonMapper json = new JsonMapper();
@@ -45,7 +48,10 @@ public class MatchService {
         if ("PLAYING".equals(room.state())) {
             UUID active = one(jdbc.query("SELECT id FROM game.matches WHERE room_id = ? AND state = 'PLAYING'",
                     (rs, row) -> rs.getObject(1, UUID.class), roomId));
-            if (active != null) return new MatchStart(active, state(active, identity), room.version());
+            if (active != null) {
+                MatchState current = snapshot(active, identity);
+                return new MatchStart(active, current.view(), room.version(), current.deadlineAt());
+            }
         }
         if (!"CLASSIC".equals(room.mode()) || !"WAITING".equals(room.state())
                 || room.version() != expectedVersion || !room.expiresAt().isAfter(clock.instant()))
@@ -62,24 +68,33 @@ public class MatchService {
         if (dealerSeat < 0) throw MatchFailure.conflict();
         UnoState initial = rules.start(members.stream().map(Member::userId).toList(), dealerSeat);
         UUID matchId = UUID.randomUUID();
-        jdbc.update("INSERT INTO game.matches(id, room_id, mode, state, rules_version, version, snapshot) "
-                        + "VALUES (?, ?, 'CLASSIC', 'PLAYING', ?, ?, CAST(? AS jsonb))",
-                matchId, roomId, ClassicUno.RULES_VERSION, initial.version(), json.writeValueAsString(initial.snapshot()));
+        Instant deadline = newDeadline(initial.phase());
+        jdbc.update("INSERT INTO game.matches(id, room_id, mode, state, rules_version, version, snapshot, deadline_at) "
+                        + "VALUES (?, ?, 'CLASSIC', 'PLAYING', ?, ?, CAST(? AS jsonb), ?)",
+                matchId, roomId, ClassicUno.RULES_VERSION, initial.version(),
+                json.writeValueAsString(initial.snapshot()), timestamp(deadline));
         for (int seat = 0; seat < members.size(); seat++) jdbc.update(
                 "INSERT INTO game.match_players(match_id, user_id, seat) VALUES (?, ?, ?)",
                 matchId, members.get(seat).userId(), seat);
         jdbc.update("UPDATE game.rooms SET state = 'PLAYING', version = version + 1, expires_at = ? WHERE id = ?",
                 Timestamp.from(clock.instant().plus(ROOM_LIFETIME)), roomId);
-        return new MatchStart(matchId, rules.view(initial, identity.userId()), room.version() + 1);
+        return new MatchStart(matchId, rules.view(initial, identity.userId()), room.version() + 1, deadline);
     }
 
     @Transactional(readOnly = true)
     public UnoView state(UUID matchId, GameIdentity identity) {
-        String snapshot = one(jdbc.query("SELECT m.snapshot::text FROM game.matches m "
+        return snapshot(matchId, identity).view();
+    }
+
+    @Transactional(readOnly = true)
+    public MatchState snapshot(UUID matchId, GameIdentity identity) {
+        StateRow row = one(jdbc.query("SELECT m.snapshot::text, m.deadline_at FROM game.matches m "
                         + "JOIN game.match_players p ON p.match_id = m.id WHERE m.id = ? AND p.user_id = ?",
-                (rs, row) -> rs.getString(1), matchId, identity.userId()));
-        if (snapshot == null) throw MatchFailure.notFound();
-        return rules.view(UnoState.restore(json.readValue(snapshot, UnoSnapshot.class)), identity.userId());
+                (rs, index) -> new StateRow(rs.getString(1), instant(rs.getTimestamp(2))),
+                matchId, identity.userId()));
+        if (row == null) throw MatchFailure.notFound();
+        return new MatchState(rules.view(UnoState.restore(json.readValue(row.snapshot(), UnoSnapshot.class)),
+                identity.userId()), row.deadlineAt());
     }
 
     @Transactional(readOnly = true)
@@ -90,15 +105,15 @@ public class MatchService {
                         + "WHERE m.room_id = ? AND m.state = 'PLAYING' AND p.user_id = ?",
                 (rs, row) -> new ActiveMatch(rs.getObject(1, UUID.class), rs.getLong(2)),
                 roomId, identity.userId()));
-        return active == null ? null : new MatchStart(active.id(), state(active.id(), identity), active.roomVersion());
+        if (active == null) return null;
+        MatchState current = snapshot(active.id(), identity);
+        return new MatchStart(active.id(), current.view(), active.roomVersion(), current.deadlineAt());
     }
 
     @Transactional
     public CommandResult command(UUID matchId, GameIdentity identity, MatchCommandInput input) {
         if (input.protocolVersion() != 1) throw MatchFailure.invalid();
-        MatchRow match = one(jdbc.query("SELECT room_id, state, version, snapshot::text FROM game.matches WHERE id = ? FOR UPDATE",
-                (rs, row) -> new MatchRow(rs.getObject("room_id", UUID.class), rs.getString("state"),
-                        rs.getLong("version"), rs.getString(4)), matchId));
+        MatchRow match = locked(matchId);
         if (match == null || !isMatchPlayer(matchId, identity.userId())) throw MatchFailure.notFound();
         String requestPayload = json.writeValueAsString(input);
         StoredReceipt old = one(jdbc.query("SELECT request_payload, applied_version, event, outcome, "
@@ -112,10 +127,12 @@ public class MatchService {
             if (!old.requestPayload().equals(requestPayload)) throw MatchFailure.conflict();
             return new CommandResult(input.commandId(), true, old.appliedVersion(),
                     rules.view(before, identity.userId()), old.event(), old.outcome(),
-                    drawn(old.cardsDrawn()), evidence(old.privateEvidence()));
+                    drawn(old.cardsDrawn()), evidence(old.privateEvidence()), match.deadlineAt());
         }
         if (!"PLAYING".equals(match.state()) || match.version() != input.expectedVersion())
             throw MatchFailure.conflict();
+        if (match.deadlineAt() != null && !clock.instant().isBefore(match.deadlineAt()))
+            throw MatchFailure.turnExpired();
         UnoState after;
         String event;
         String outcome = UnoTransition.ChallengeOutcome.NOT_APPLICABLE.name();
@@ -137,25 +154,109 @@ public class MatchService {
         } catch (UnoRuleViolation violation) {
             throw MatchFailure.rule(violation.code().name());
         }
+        Instant deadline = nextDeadline(match.deadlineAt(), after.phase(), event);
+        persist(matchId, match.roomId(), identity.userId(), input.commandId(), requestPayload,
+                after, event, outcome, drawn, evidence, deadline, "PLAYER");
+        return new CommandResult(input.commandId(), false, after.version(), rules.view(after, identity.userId()),
+                event, outcome, drawn, evidence, deadline);
+    }
+
+    /** The row lock and deadline recheck make concurrent workers and player commands resolve once. */
+    @Transactional
+    public TimeoutResult resolveTimeout(UUID matchId) {
+        MatchRow match = locked(matchId);
+        if (match == null || !"PLAYING".equals(match.state()) || match.deadlineAt() == null
+                || clock.instant().isBefore(match.deadlineAt())) return null;
+        UnoState before = UnoState.restore(json.readValue(match.snapshot(), UnoSnapshot.class));
+        UUID actor = before.players().get(before.currentSeat());
+        UnoTransition transition;
+        Map<Integer, Integer> drawn;
+        String event;
+        try {
+            switch (before.phase()) {
+                case INITIAL_WILD_COLOR -> transition = rules.apply(before,
+                        new UnoCommand.ChooseInitialColor(actor, UnoCard.Color.RED));
+                case TURN -> transition = rules.apply(before, new UnoCommand.Draw(actor));
+                case AFTER_DRAW -> transition = rules.apply(before, new UnoCommand.Pass(actor));
+                case DRAW_FOUR_RESPONSE -> transition = rules.apply(before, new UnoCommand.AcceptDrawFour(actor));
+                case ROUND_OVER, MATCH_OVER -> {
+                    jdbc.update("UPDATE game.matches SET deadline_at = NULL WHERE id = ?", matchId);
+                    return null;
+                }
+                default -> throw new IllegalStateException("Unhandled timeout phase");
+            }
+            event = "AUTO_" + transition.event().name();
+            drawn = transition.cardsDrawnBySeat();
+            if (before.phase() == UnoState.Phase.TURN
+                    && transition.state().phase() == UnoState.Phase.AFTER_DRAW) {
+                transition = rules.apply(transition.state(), new UnoCommand.Pass(actor));
+                event = "AUTO_DREW_AND_PASSED";
+            }
+        } catch (UnoRuleViolation violation) {
+            throw new IllegalStateException("Persisted match rejected its timeout action", violation);
+        }
+        UnoState after = transition.state();
+        Instant deadline = newDeadline(after.phase());
+        UUID commandId = UUID.randomUUID();
+        persist(matchId, match.roomId(), actor, commandId,
+                "{\"type\":\"TIMEOUT\",\"phase\":\"" + before.phase() + "\"}",
+                after, event, transition.challengeOutcome().name(), drawn,
+                List.of(), deadline, "TIMEOUT");
+        return new TimeoutResult(matchId, after.version(), event);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UUID> dueMatches() {
+        return jdbc.query("SELECT id FROM game.matches WHERE state = 'PLAYING' AND deadline_at <= ? "
+                        + "ORDER BY deadline_at LIMIT 100",
+                (rs, row) -> rs.getObject(1, UUID.class), Timestamp.from(clock.instant()));
+    }
+
+    private MatchRow locked(UUID matchId) {
+        return one(jdbc.query("SELECT room_id, state, version, snapshot::text, deadline_at "
+                        + "FROM game.matches WHERE id = ? FOR UPDATE",
+                (rs, row) -> new MatchRow(rs.getObject("room_id", UUID.class), rs.getString("state"),
+                        rs.getLong("version"), rs.getString(4), instant(rs.getTimestamp(5))), matchId));
+    }
+
+    private void persist(UUID matchId, UUID roomId, UUID actor, UUID commandId, String requestPayload,
+            UnoState after, String event, String outcome, Map<Integer, Integer> drawn,
+            List<UnoCard> evidence, Instant deadline, String source) {
         List<Integer> evidenceIds = evidence.stream().map(UnoCard::id).toList();
         jdbc.update("UPDATE game.matches SET version = ?, snapshot = CAST(? AS jsonb), state = ?, "
-                        + "ended_at = CAST(? AS timestamptz) WHERE id = ?",
+                        + "ended_at = CAST(? AS timestamptz), deadline_at = ? WHERE id = ?",
                 after.version(), json.writeValueAsString(after.snapshot()),
                 after.phase() == UnoState.Phase.MATCH_OVER ? "ENDED" : "PLAYING",
-                after.phase() == UnoState.Phase.MATCH_OVER ? Timestamp.from(clock.instant()) : null, matchId);
+                after.phase() == UnoState.Phase.MATCH_OVER ? Timestamp.from(clock.instant()) : null,
+                timestamp(deadline), matchId);
         jdbc.update("INSERT INTO game.match_commands(match_id, actor_user_id, command_id, request_payload, "
-                        + "applied_version, event, outcome, cards_drawn, private_evidence) "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb))",
-                matchId, identity.userId(), input.commandId(), requestPayload, after.version(), event, outcome,
-                json.writeValueAsString(drawn), json.writeValueAsString(evidenceIds));
-        if (after.phase() == UnoState.Phase.MATCH_OVER && match.roomId() != null) {
-            jdbc.update("UPDATE game.room_members SET ready = FALSE WHERE room_id = ?", match.roomId());
+                        + "applied_version, event, outcome, cards_drawn, private_evidence, source) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb), ?)",
+                matchId, actor, commandId, requestPayload, after.version(), event, outcome,
+                json.writeValueAsString(drawn), json.writeValueAsString(evidenceIds), source);
+        if (after.phase() == UnoState.Phase.MATCH_OVER && roomId != null) {
+            jdbc.update("UPDATE game.room_members SET ready = FALSE WHERE room_id = ?", roomId);
             jdbc.update("UPDATE game.rooms SET state = 'WAITING', version = version + 1, expires_at = ? WHERE id = ?",
-                    Timestamp.from(clock.instant().plus(ROOM_LIFETIME)), match.roomId());
+                    Timestamp.from(clock.instant().plus(ROOM_LIFETIME)), roomId);
         }
-        return new CommandResult(input.commandId(), false, after.version(), rules.view(after, identity.userId()),
-                event, outcome, drawn, evidence);
     }
+
+    private Instant nextDeadline(Instant previous, UnoState.Phase phase, String event) {
+        if (event.equals("UNO_DECLARED") || event.equals("UNO_CAUGHT")
+                || (event.equals("DREW") && phase == UnoState.Phase.AFTER_DRAW)) return previous;
+        return newDeadline(phase);
+    }
+
+    private Instant newDeadline(UnoState.Phase phase) {
+        return switch (phase) {
+            case INITIAL_WILD_COLOR, TURN, AFTER_DRAW -> clock.instant().plus(TURN_LIMIT);
+            case DRAW_FOUR_RESPONSE -> clock.instant().plus(DRAW_FOUR_LIMIT);
+            case ROUND_OVER, MATCH_OVER -> null;
+        };
+    }
+
+    private static Timestamp timestamp(Instant value) { return value == null ? null : Timestamp.from(value); }
+    private static Instant instant(Timestamp value) { return value == null ? null : value.toInstant(); }
 
     private UnoCommand toRuleCommand(MatchCommandInput input, UUID actor) {
         return switch (input.type()) {
@@ -213,13 +314,16 @@ public class MatchService {
 
     private static <T> T one(List<T> rows) { return rows.isEmpty() ? null : rows.get(0); }
 
-    public record MatchStart(UUID matchId, UnoView view, long roomVersion) { }
+    public record MatchStart(UUID matchId, UnoView view, long roomVersion, Instant deadlineAt) { }
+    public record MatchState(UnoView view, Instant deadlineAt) { }
     public record CommandResult(UUID commandId, boolean duplicate, long appliedVersion, UnoView view,
             String event, String challengeOutcome, Map<Integer, Integer> cardsDrawnBySeat,
-            List<UnoCard> privateChallengeEvidence) { }
+            List<UnoCard> privateChallengeEvidence, Instant deadlineAt) { }
+    public record TimeoutResult(UUID matchId, long appliedVersion, String event) { }
     private record Room(String mode, String state, long version, UUID hostUserId, java.time.Instant expiresAt) { }
     private record Member(UUID userId, boolean ready) { }
-    private record MatchRow(UUID roomId, String state, long version, String snapshot) { }
+    private record MatchRow(UUID roomId, String state, long version, String snapshot, Instant deadlineAt) { }
+    private record StateRow(String snapshot, Instant deadlineAt) { }
     private record StoredReceipt(String requestPayload, long appliedVersion, String event, String outcome,
             String cardsDrawn, String privateEvidence) { }
     private record ActiveMatch(UUID id, long roomVersion) { }

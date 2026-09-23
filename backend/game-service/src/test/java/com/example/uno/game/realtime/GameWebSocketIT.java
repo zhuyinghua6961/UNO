@@ -8,6 +8,7 @@ import com.example.uno.game.GameApplication;
 import com.example.uno.game.auth.GameIdentity;
 import com.example.uno.game.auth.HttpSessionVerifier;
 import com.example.uno.game.matches.MatchService;
+import com.example.uno.game.matches.MatchDeadlineWorker;
 import com.example.uno.game.matches.MatchCommandInput;
 import com.example.uno.game.rooms.RoomService;
 import com.example.uno.game.rooms.RoomView;
@@ -15,6 +16,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.time.Instant;
+import java.sql.Timestamp;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +34,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -116,6 +119,7 @@ class GameWebSocketIT {
             assertEquals("MATCH_SNAPSHOT", hostSnapshot.path("type").asText());
             assertEquals("MATCH_SNAPSHOT", guestSnapshot.path("type").asText());
             assertEquals(1, hostSnapshot.path("protocolVersion").asInt());
+            assertFalse(hostSnapshot.path("deadlineAt").isMissingNode());
             assertEquals("MATCH_NOT_FOUND", outsiderPeer.nextMessage().path("code").asText());
             assertTrue(hostSnapshot.path("view").path("ownHand").size() >= 7);
             assertTrue(guestSnapshot.path("view").path("ownHand").size() >= 7);
@@ -149,12 +153,24 @@ class GameWebSocketIT {
             assertTrue(actor.nextMessage().path("result").path("duplicate").asBoolean());
             assertNull(other.messages.poll(300, TimeUnit.MILLISECONDS));
 
+            application.getBean(JdbcTemplate.class).update(
+                    "UPDATE game.matches SET deadline_at = ? WHERE id = ?",
+                    Timestamp.from(Instant.now().minusSeconds(1)), matchId);
+            application.getBean(MatchDeadlineWorker.class).resolveDueMatches();
+            JsonNode hostTimeout = hostPeer.nextMessage();
+            JsonNode guestTimeout = guestPeer.nextMessage();
+            assertEquals("MATCH_SNAPSHOT", hostTimeout.path("type").asText());
+            assertEquals("MATCH_SNAPSHOT", guestTimeout.path("type").asText());
+            long timeoutVersion = hostTimeout.path("view").path("version").asLong();
+            assertTrue(timeoutVersion > 2);
+            assertEquals(timeoutVersion, guestTimeout.path("view").path("version").asLong());
+
             Peer reconnected = connect(GUEST_TOKEN);
             try {
                 reconnected.socket.sendText(subscribe, true).join();
                 JsonNode restored = reconnected.nextMessage();
                 assertEquals("MATCH_SNAPSHOT", restored.path("type").asText());
-                assertEquals(2, restored.path("view").path("version").asLong());
+                assertEquals(timeoutVersion, restored.path("view").path("version").asLong());
                 assertEquals(guest.userId().toString(), restored.path("view").path("players").get(1)
                         .path("userId").asText());
             } finally {
