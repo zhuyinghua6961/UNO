@@ -55,11 +55,14 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 房间不能启动对局。进行中的房间暂不能离开，避免席位与权威状态脱节。Web 与 Flutter 已接入经典牌桌；Android/Web 混合整局已验收，iOS 对局待验收。
 
+## 房间文字 HTTP（已实现）
+
+`POST /api/rooms/{roomId}/messages` 请求 `{clientMessageId,content}`；`GET /api/rooms/{roomId}/messages?after=0&limit=50` 按递增频道序号分页，`latest=true` 取最近 50 条并返回后续补取游标。响应只含 `ROOM` 频道、服务器生成的消息 ID、发送者 ID/昵称、时间、序号和原样纯文本。请求不得指定发送者或收件人；每次发送和读取都要求有效会话及当前房间成员资格，重新加入后无法读取这次加入前的历史。同一发送者在同一房间重试相同 `clientMessageId` 与正文返回原消息，换正文返回 409。服务端每秒至多接受两条新消息，每条最多 500 个 Unicode 码点；默认 30 天后删除。Web 使用 Cookie/CSRF，App 使用 Bearer。当前双端用 2 秒游标补取；队伍文字及 WebSocket 消息事件待实现。
+
 ## 计划中的游戏 HTTP
 
 | 方法 | 路径 | 预期用途 |
 | --- | --- | --- |
-| GET | /api/rooms/{roomId}/messages | 按本人权限和游标取房间/队伍消息 |
 | POST | /api/voice/token | 从已认证身份和 matchId 推导队伍，返回受限短期媒体凭证 |
 
 Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷新、撤销和安全存储。WebSocket 浏览器连接使用允许的 `Origin` 和会话 Cookie；原生 App 连接使用 `X-UNO-Client: APP` 和 Bearer 访问凭证。Gateway 的 Reactor Netty 上游 WebSocket 会为原本无 `Origin` 的原生请求补充上游端点的同源 `Origin`，game-service 仅接受空值或与实际上游地址完全一致的值；其他来源、Cookie 或 Fetch Metadata 混用仍拒绝。握手、每条消息及连接定期核验会话；URL 查询参数不允许携带凭证。
@@ -79,7 +82,7 @@ Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷
 
 ## 后续聊天协议
 
-聊天指令和 `CHAT_MESSAGE` 事件尚未实现。聊天指令不能含 senderId、teamId、接收者列表；服务端须从会话和房间状态推导。消息幂等按身份/频道/commandId 处理，由服务器分配消息 ID、时间与频道序号。游戏状态与聊天使用不同序号和补偿机制；聊天不因游戏 expectedVersion 改变而重复发送。
+WebSocket `CHAT_SEND` 指令和 `CHAT_MESSAGE` 事件尚未实现；现有房间文字通过 HTTP 完成。未来队伍文字指令不能含 senderId、teamId、接收者列表；服务端须从会话和对局队伍快照推导。消息幂等按身份/频道/clientMessageId 处理，由服务器分配消息 ID、时间与频道序号。游戏状态与聊天使用不同序号和补偿机制；聊天不因游戏 expectedVersion 改变而重复发送。
 
 ## 语音准入草案
 

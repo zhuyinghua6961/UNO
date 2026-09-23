@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { roomApi, roomErrorMessage, type Room } from '../api/rooms'
 import { matchApi, matchErrorMessage } from '../api/matches'
+import RoomChat from '../components/RoomChat.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -93,7 +94,8 @@ onUnmounted(() => { active = false; clearInterval(timer) })
         <article class="room-panel"><p class="eyebrow">TABLE SETTINGS</p><h2>{{ room.members.length }} / {{ room.maxPlayers }} 人</h2><p v-if="room.mode === 'TEAM_2V2'" class="muted">A、B 两队各两人，座位交替排列。</p><div v-if="isHost && room.mode === 'CLASSIC'" class="room-settings"><label>人数上限<select :value="room.maxPlayers" :disabled="busy" @change="change(current => roomApi.settings(current, Number(($event.target as HTMLSelectElement).value)))"><option v-for="n in [2,3,4,5,6]" :key="n" :value="n" :disabled="n < room.members.length">{{ n }} 人</option></select></label></div><p class="muted">{{ room.state === 'PLAYING' ? '牌局已经开始，正在进入牌桌。' : room.canStart ? '所有人已准备，房主可以开始经典对局。' : '人齐并全部准备后，房主可以开始经典对局。' }}</p><button v-if="isHost && room.mode === 'CLASSIC' && room.state === 'WAITING'" class="button dark" :disabled="busy || !room.canStart" @click="startMatch">开始对局</button></article>
       </div>
       <div class="room-panel"><div class="room-heading"><h2>玩家与座位</h2><span class="muted">{{ room.state === 'WAITING' ? '等待中' : room.state }}</span></div><ol class="member-list"><li v-for="member in room.members" :key="member.userId"><span class="seat-badge">{{ member.seat + 1 }}</span><span><strong>{{ member.nickname }}</strong><small v-if="member.userId === room.hostUserId">房主</small><small v-if="member.userId === auth.user?.id">我</small></span><span v-if="room.mode === 'TEAM_2V2'" class="team-badge">{{ member.team }} 队</span><span class="ready-badge" :class="{ ready: member.ready }">{{ member.ready ? '已准备' : '未准备' }}</span></li></ol><div v-if="me && room.state === 'WAITING'" class="room-actions"><button class="button dark" :disabled="busy" @click="change(current => roomApi.ready(current, !me!.ready))">{{ me.ready ? '取消准备' : '准备' }}</button><template v-if="room.mode === 'TEAM_2V2'"><button v-for="team in (['A','B'] as const)" :key="team" class="button secondary small" :disabled="busy || me.team === team" @click="change(current => roomApi.team(current, team))">加入 {{ team }} 队</button></template><button class="button secondary small" :disabled="busy" @click="leave">离开房间</button></div></div>
-      <p class="room-footnote">经典对局已可开始；2v2 对局、文字与语音仍在建设中。</p>
+      <RoomChat :room-id="room.id" />
+      <p class="room-footnote">经典对局与房间文字已可使用；2v2 对局、队伍文字与语音仍在建设中。</p>
     </template>
   </section>
 </template>

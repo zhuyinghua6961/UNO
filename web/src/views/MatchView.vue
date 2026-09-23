@@ -6,6 +6,7 @@ import { matchApi, matchErrorMessage, MatchError, type Card, type CardColor,
   type MatchCommand, type MatchCommandType, type MatchSnapshot } from '../api/matches'
 import { roomApi, type Room } from '../api/rooms'
 import { connectMatchSocket, type MatchSocketStatus } from '../game/matchSocket'
+import RoomChat from '../components/RoomChat.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -234,6 +235,7 @@ onUnmounted(() => { disposed = true; revision++; channel?.close(); clearInterval
           <button class="inline-action sync-button" @click="synchronize()">同步最新状态</button>
         </aside>
       </div>
+      <RoomChat v-if="room" :room-id="room.id" />
     </template>
   </section>
 </template>

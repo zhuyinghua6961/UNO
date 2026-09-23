@@ -78,9 +78,9 @@ Web 建议采用同站 HttpOnly/Secure Cookie 会话；Flutter 使用短期访�
 
 文字分 ROOM / TEAM 两类；频道名称或 teamId 不能作为授权依据，服务端从实时房间席位重新计算接收者。服务器生成发送者身份、messageId、时间、递增消息序号。每次发送与拉取历史都重新校验范围。
 
-建议限制：单条最多 500 个 Unicode 码点、纯文本展示、基础频率上限 2 条/秒与短时突发限制；客户端不能通过 HTML 渲染消息。服务端限流、持久化、历史补偿与举报尚未实现。已有 ChatMessage 仅完成内容约束，不是完整过滤与审核系统。
+建议限制：单条最多 500 个 Unicode 码点、纯文本展示、基础频率上限 2 条/秒与短时突发限制；客户端不能通过 HTML 渲染消息。房间文字已实现服务端限流、持久化与游标补偿；队伍文字、实时消息事件、举报/禁言尚未实现。已有 ChatMessage 完成内容约束，不是完整过滤与审核系统。
 
-待补数据：room、room_members、match、match_players、match_teams、chat_messages、session 与 account_tokens。聊天历史保存时长与用户删除策略在公开上线前确认，默认不永久保存。
+已有数据：room、room_members、match、match_players、chat_messages、session 与 account_tokens。match_teams 随组队规则新增。房间文字当前默认保存 30 天，到期清理；保留时长、用户删除和举报策略仍需在公开上线前确认。
 
 ## 7. 队友语音
 

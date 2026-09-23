@@ -16,7 +16,7 @@ class BootstrapController {
     Map<String, Object> bootstrap() {
         return Map.of("service", "game-service", "stage", "scaffold", "protocolVersion", 1,
                 "plannedModes", List.of("CLASSIC", "TEAM_2V2"),
-                "features", Map.of("authentication", settings.enabled(), "rooms", settings.enabled(), "gameplay", settings.enabled(), "roomText", false,
+                "features", Map.of("authentication", settings.enabled(), "rooms", settings.enabled(), "gameplay", settings.enabled(), "roomText", settings.enabled(),
                         "teamText", false, "teamVoice", false));
     }
 }

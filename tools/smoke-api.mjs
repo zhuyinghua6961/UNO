@@ -11,7 +11,8 @@ const gameAuthAvailable = process.env.EXPECT_GAME_AUTH_AVAILABLE === 'true'
 assert.equal(bootstrap.features.authentication, gameAuthAvailable)
 assert.equal(bootstrap.features.rooms, gameAuthAvailable)
 assert.equal(bootstrap.features.gameplay, gameAuthAvailable)
-assert.ok(Object.entries(bootstrap.features).filter(([key]) => !['authentication', 'rooms', 'gameplay'].includes(key)).every(([, value]) => value === false))
+assert.equal(bootstrap.features.roomText, gameAuthAvailable)
+assert.ok(Object.entries(bootstrap.features).filter(([key]) => !['authentication', 'rooms', 'gameplay', 'roomText'].includes(key)).every(([, value]) => value === false))
 
 const identityResponse = await fetch(`${base}/api/auth/status`)
 assert.equal(identityResponse.status, 200)

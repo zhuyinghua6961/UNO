@@ -88,6 +88,22 @@ void main() {
         if (request.url.path == '/api/rooms/current') {
           return http.Response('', 204);
         }
+        if (request.url.path.endsWith('/messages')) {
+          final message = {
+            'id': 'e53572ef-9237-425b-b45a-2d14a017a74c',
+            'roomId': 'cae648d7-afaf-4dcd-a492-8bad87cb8c86',
+            'channel': 'ROOM',
+            'sequence': 3,
+            'senderUserId': 'c4d75d7d-117c-45e3-a289-8e38a2fed8cc',
+            'senderNickname': 'Alice',
+            'clientMessageId': '4904abda-1a52-49f8-9385-926e36493996',
+            'content': '<b>纯文字</b>',
+            'createdAt': '2026-09-23T10:00:00Z',
+          };
+          return http.Response(jsonEncode(request.method == 'POST'
+              ? message : {'items': [message], 'nextSequence': 3, 'hasMore': false}),
+              200, headers: {'content-type': 'application/json; charset=utf-8'});
+        }
         if (request.url.path == '/api/rooms' ||
             request.url.path.endsWith('/ready')) {
           return http.Response(
@@ -131,6 +147,20 @@ void main() {
       expect(await rooms.current(), isNull);
       final room = await rooms.create('CLASSIC', 4);
       await rooms.ready(room, true);
+      final page = await rooms.messages(room.id, latest: true);
+      expect(page.nextSequence, 3);
+      expect(page.items.single.content, '<b>纯文字</b>');
+      final message = await rooms.sendMessage(
+        room.id,
+        '4904abda-1a52-49f8-9385-926e36493996',
+        '<b>纯文字</b>',
+      );
+      expect(message.senderNickname, 'Alice');
+      final historyRequest = calls.firstWhere(
+        (request) => request.method == 'GET' && request.url.path.endsWith('/messages'),
+      );
+      expect(historyRequest.url.queryParameters['latest'], 'true');
+      expect(jsonDecode(calls.last.body)['clientMessageId'], message.clientMessageId);
       expect(
         jsonDecode(
           calls.where((c) => c.url.path.endsWith('/ready')).single.body,

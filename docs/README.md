@@ -8,7 +8,7 @@
 
 - 已有可构建的三端骨架、素材、状态接口、通信权限基础、16 个骨架测试和开发归档。
 - GitHub 私有仓库 `zhuyinghua6961/UNO` 已创建并关联 origin；2026-09-07 按用户授权进行首次本地提交（以 git log 为准），未推送，三个分支的名称和用途仍未确认。
-- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9进行中**；stage10–stage18未开始。Web 已通过两个真实账号从注册到终局、返回等待室并开始新局的浏览器验收；Android 模拟器与 Web 也已完成混合整局及第二局启动；iOS 对局、2v2、文字与语音仍待接入或验收。
+- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9进行中、stage11房间文字基础进行中**；stage10、stage12–stage18未开始。Web 已通过两个真实账号从注册到终局、返回等待室并开始新局的浏览器验收；Android 模拟器与 Web 也已完成混合整局及第二局启动；房间文字跨服务 API 已验收，双端界面已接入但尚未设备实测。iOS 对局、2v2、队伍文字与语音仍待接入或验收。
 - stage1 的工程约定和复现指南已补充，产品规则/登录渠道/三个分支仍待确认；stage2 按 [工程基线](engineering-baseline.md) 中的明确依赖例外推进。
 - Docker 完整构建的网络阻碍与 Flutter 分析命令差异见 [骨架验收记录](verification.md)，不能将本机原生联调记作容器联调。
 
@@ -26,7 +26,7 @@
 | [stage8](stages/stage8.md) | Web 经典对局 | 网页多个真实账号可以打完经典局 | stage7 | 已完成（本地验收） |
 | [stage9](stages/stage9.md) | Flutter 经典对局 | App 可以和 Web 玩家同桌对战 | stage7 | 进行中（Android/Web 已验收，iOS 对局待验收） |
 | [stage10](stages/stage10.md) | 四人 2v2 对局 | 两端支持队伍比赛和队伍结算 | stage8、stage9 | 未开始 |
-| [stage11](stages/stage11.md) | 房间／队伍文字 | 真实发送、接收、限流、历史补偿与隔离 | stage5、stage7、stage10 | 未开始 |
+| [stage11](stages/stage11.md) | 房间／队伍文字 | 真实发送、接收、限流、历史补偿与隔离 | stage5、stage7、stage10 | 进行中（房间文字基础已接入） |
 | [stage12](stages/stage12.md) | 重连与对局生命周期 | 刷新、掉线、超时、退房和重复连接可控 | stage10、stage11 | 未开始 |
 | [stage13](stages/stage13.md) | 队友语音后端 | 受限语音凭证、独立队伍频道与退出撤销 | stage3、stage10、stage12 | 未开始 |
 | [stage14](stages/stage14.md) | Web 队友开麦 | 浏览器主动授权、开麦、静音与退出 | stage8、stage13 | 未开始 |
@@ -110,6 +110,7 @@
 - [stage3验收记录](verification-stage3.md)：本轮实际验证与剩余范围。
 - [stage8 Web 验收](verification-stage8-web.md)：两个真实账号完整经典局、第二局与桌面/窄屏证据。
 - [stage9 Flutter 增量验收](verification-stage9-flutter.md)：App 牌桌、实时协议、双平台构建和设备限制。
+- [stage11 房间文字增量验收](verification-stage11-room-text.md)：消息权限、幂等、游标、双端界面与未验收范围。
 - [Flutter账号增量验收](verification-stage4-flutter.md)：自动测试、原生构建与未完成的设备/跨端验证。
 - [工程基线与未决事项](engineering-baseline.md)：约定、前置决策、环境差异和复现路径。
 - [数据库、迁移与恢复](persistence.md)：配置、数据关系、集成测试和备份恢复步骤。

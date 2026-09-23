@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../auth/auth_session.dart';
 import '../room/room_api.dart';
+import '../room/room_chat.dart';
 import 'match_audio_preference.dart';
 import 'match_api.dart';
 import 'match_models.dart';
@@ -52,6 +53,7 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
   late Timer clock;
   DateTime now = DateTime.now();
   late final MatchAudioPreference audioPreference;
+  late final RoomApi chatApi;
 
   MatchView? get view => state?.view;
   int get ownSeat =>
@@ -67,6 +69,7 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     audioPreference = widget.audioPreference ?? SecureMatchAudioPreference();
+    chatApi = RoomApi(session: widget.session);
     WidgetsBinding.instance.addObserver(this);
     clock = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => now = DateTime.now());
@@ -646,6 +649,7 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
             onPressed: () => widget.onBackToRoom(false),
             child: const Text('返回等待室'),
           ),
+          RoomChat(roomId: widget.room.id, api: chatApi),
         ],
       ),
     );
@@ -656,6 +660,7 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
     generation++;
     socket?.close();
     clock.cancel();
+    chatApi.close();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

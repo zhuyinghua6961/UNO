@@ -11,7 +11,7 @@ flutter test
 flutter run
 ```
 
-当前已有大厅、模式选择、牌桌预览、真实账号入口、好友房等待室和经典牌桌。账号页支持注册、邮箱验证/重发、登录、找回/重置密码与退出；好友房支持房间码加入、准备、选队、人数调整和离开。经典房间可启动或恢复对局；原生 WebSocket 接收个人牌面并提交触控动作。2v2 对局、消息和 LiveKit SDK 尚未接入；系统级邀请深链未配置。服务端默认关闭认证，需按 `../docs/authentication.md` 显式启用本地测试配置。Android 模拟器与 Web 的混合整局、结算和第二局已验收；iOS 对局仍待验收，见 `../docs/verification-stage9-flutter.md`。
+当前已有大厅、模式选择、牌桌预览、真实账号入口、好友房等待室、经典牌桌和房间文字。账号页支持注册、邮箱验证/重发、登录、找回/重置密码与退出；好友房支持房间码加入、准备、选队、人数调整和离开。经典房间可启动或恢复对局；原生 WebSocket 接收个人牌面并提交触控动作。房间文字在等待室及牌桌每两秒补取新消息，发送失败保留消息 ID 供重试。2v2 对局、队伍文字和 LiveKit SDK 尚未接入；系统级邀请深链未配置。服务端默认关闭认证，需按 `../docs/authentication.md` 显式启用本地测试配置。Android 模拟器与 Web 的混合整局、结算和第二局已验收；iOS 对局及房间文字设备界面仍待验收，见 `../docs/verification-stage9-flutter.md` 与 `../docs/verification-stage11-room-text.md`。
 
 本机可用 `dart analyze --format=machine` 完成静态检查；原有 Flutter LSP 异常见 `../docs/verification.md`。
 

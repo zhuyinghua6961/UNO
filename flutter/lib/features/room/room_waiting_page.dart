@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../auth/auth_session.dart';
 import '../match/match_api.dart';
 import 'room_api.dart';
+import 'room_chat.dart';
 
 class RoomWaitingPage extends StatefulWidget {
   const RoomWaitingPage({
@@ -270,7 +271,8 @@ class _RoomWaitingPageState extends State<RoomWaitingPage>
           onPressed: busy ? null : _leave,
           child: const Text('离开房间'),
         ),
-        const Text('经典局已可开桌；2v2 对局、文字与语音仍在建设中。'),
+        RoomChat(roomId: room.id, api: widget.api),
+        const Text('经典局与房间文字已可使用；2v2 对局、队伍文字与语音仍在建设中。'),
       ],
     );
   }

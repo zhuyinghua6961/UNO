@@ -112,6 +112,7 @@ class CrossServiceAuthIT {
         JsonNode bootstrap = json(app(gateway.base(), "GET", "/api/system/bootstrap", null, null));
         assertTrue(bootstrap.path("features").path("authentication").asBoolean());
         assertTrue(bootstrap.path("features").path("gameplay").asBoolean());
+        assertTrue(bootstrap.path("features").path("roomText").asBoolean());
     }
 
     @Test
@@ -241,6 +242,65 @@ class CrossServiceAuthIT {
                 Map.of("maxPlayers", 4, "expectedVersion", json(joined).path("version").asLong()), guestToken).statusCode());
         assertEquals(204, app(gateway.base(), "POST", "/api/rooms/" + id + "/leave", Map.of(), hostToken).statusCode());
         assertEquals(guest.path("user").path("id"), json(app(gateway.base(), "GET", "/api/rooms/" + id, null, guestToken)).path("hostUserId"));
+    }
+
+    @Test
+    void webAndAppExchangeRoomTextWithoutIdentitySpoofingOrFormerMemberAccess() throws Exception {
+        JsonNode host = createAccount();
+        JsonNode guest = createAccount();
+        JsonNode outsider = createAccount();
+        String hostToken = host.path("accessToken").asText();
+        String outsiderToken = outsider.path("accessToken").asText();
+        JsonNode room = json(app(gateway.base(), "POST", "/api/rooms",
+                Map.of("mode", "CLASSIC", "maxPlayers", 2), hostToken));
+        String path = "/api/rooms/" + room.path("id").asText() + "/messages";
+        assertEquals(404, app(gateway.base(), "GET", path, null, outsiderToken).statusCode());
+
+        var cookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+        var browser = HttpClient.newBuilder().cookieHandler(cookies).build();
+        JsonNode loginCsrf = json(browser.send(request(gateway.base(), "GET", "/api/auth/csrf", null).build(),
+                HttpResponse.BodyHandlers.ofString()));
+        assertEquals(200, browser.send(request(gateway.base(), "POST", "/api/auth/login",
+                Map.of("email", guest.path("user").path("email").asText(), "password", PASSWORD))
+                .header("Origin", ORIGIN).header("X-CSRF-TOKEN", loginCsrf.path("token").asText()).build(),
+                HttpResponse.BodyHandlers.ofString()).statusCode());
+        JsonNode joinCsrf = json(browser.send(request(gateway.base(), "GET", "/api/auth/csrf", null).build(),
+                HttpResponse.BodyHandlers.ofString()));
+        assertEquals(200, browser.send(request(gateway.base(), "POST", "/api/rooms/join",
+                Map.of("code", room.path("code").asText())).header("Origin", ORIGIN)
+                .header("X-CSRF-TOKEN", joinCsrf.path("token").asText()).build(),
+                HttpResponse.BodyHandlers.ofString()).statusCode());
+        UUID appMessageId = UUID.randomUUID();
+        var appSent = app(gateway.base(), "POST", path,
+                Map.of("clientMessageId", appMessageId, "content", "来自 App <b>纯文字</b>",
+                        "senderUserId", outsider.path("user").path("id").asText()), hostToken);
+        assertEquals(200, appSent.statusCode(), appSent.body());
+        assertEquals(host.path("user").path("id"), json(appSent).path("senderUserId"));
+        assertEquals(json(appSent).path("id"), json(app(gateway.base(), "POST", path,
+                Map.of("clientMessageId", appMessageId, "content", "来自 App <b>纯文字</b>"), hostToken)).path("id"));
+        assertEquals(409, app(gateway.base(), "POST", path,
+                Map.of("clientMessageId", appMessageId, "content", "不同正文"), hostToken).statusCode());
+        var noCsrf = browser.send(request(gateway.base(), "POST", path,
+                Map.of("clientMessageId", UUID.randomUUID(), "content", "无 CSRF"))
+                .header("Origin", ORIGIN).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(403, noCsrf.statusCode());
+        JsonNode sendCsrf = json(browser.send(request(gateway.base(), "GET", "/api/auth/csrf", null).build(),
+                HttpResponse.BodyHandlers.ofString()));
+        var webSent = browser.send(request(gateway.base(), "POST", path,
+                Map.of("clientMessageId", UUID.randomUUID(), "content", "来自 Web"))
+                .header("Origin", ORIGIN).header("X-CSRF-TOKEN", sendCsrf.path("token").asText()).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, webSent.statusCode(), webSent.body());
+        assertEquals(guest.path("user").path("id"), json(webSent).path("senderUserId"));
+        JsonNode appHistory = json(app(gateway.base(), "GET", path + "?after=0&limit=50", null, hostToken));
+        JsonNode webHistory = json(browser.send(request(gateway.base(), "GET", path + "?after=0&limit=50", null)
+                .header("Origin", ORIGIN).build(), HttpResponse.BodyHandlers.ofString()));
+        assertEquals(2, appHistory.path("items").size());
+        assertEquals(appHistory.path("items"), webHistory.path("items"));
+        assertEquals("来自 App <b>纯文字</b>", appHistory.path("items").get(0).path("content").asText());
+        assertEquals(204, app(gateway.base(), "POST", "/api/rooms/" + room.path("id").asText() + "/leave",
+                Map.of(), hostToken).statusCode());
+        assertEquals(404, app(gateway.base(), "GET", path, null, hostToken).statusCode());
     }
 
     @Test

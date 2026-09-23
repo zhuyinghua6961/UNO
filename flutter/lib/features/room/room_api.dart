@@ -101,6 +101,72 @@ class WaitingRoom {
   }
 }
 
+class RoomChatMessage {
+  RoomChatMessage(
+    this.id,
+    this.roomId,
+    this.sequence,
+    this.senderUserId,
+    this.senderNickname,
+    this.clientMessageId,
+    this.content,
+    this.createdAt,
+  );
+  final String id;
+  final String roomId;
+  final int sequence;
+  final String senderUserId;
+  final String senderNickname;
+  final String clientMessageId;
+  final String content;
+  final DateTime createdAt;
+
+  static RoomChatMessage parse(Object? value) {
+    if (value case {
+      'id': String id,
+      'roomId': String roomId,
+      'channel': 'ROOM',
+      'sequence': int sequence,
+      'senderUserId': String senderUserId,
+      'senderNickname': String senderNickname,
+      'clientMessageId': String clientMessageId,
+      'content': String content,
+      'createdAt': String timestamp,
+    } when sequence > 0) {
+      final createdAt = DateTime.tryParse(timestamp);
+      if (createdAt != null) {
+        return RoomChatMessage(id, roomId, sequence, senderUserId,
+            senderNickname, clientMessageId, content, createdAt);
+      }
+    }
+    throw const AuthFailure(502, 'INVALID_RESPONSE', '消息数据异常，请稍后重试。');
+  }
+}
+
+class RoomChatPage {
+  RoomChatPage(this.items, this.nextSequence, this.hasMore);
+  final List<RoomChatMessage> items;
+  final int nextSequence;
+  final bool hasMore;
+
+  static RoomChatPage parse(Object? value) {
+    if (value case {
+      'items': List<dynamic> raw,
+      'nextSequence': int nextSequence,
+      'hasMore': bool hasMore,
+    } when nextSequence >= 0) {
+      final items = raw.map(RoomChatMessage.parse).toList();
+      for (var index = 1; index < items.length; index++) {
+        if (items[index].sequence <= items[index - 1].sequence) {
+          throw const AuthFailure(502, 'INVALID_RESPONSE', '消息顺序异常，请稍后重试。');
+        }
+      }
+      return RoomChatPage(items, nextSequence, hasMore);
+    }
+    throw const AuthFailure(502, 'INVALID_RESPONSE', '消息数据异常，请稍后重试。');
+  }
+}
+
 class RoomApi {
   RoomApi({required this.session, http.Client? client, String? baseUrl})
     : _client = client ?? http.Client(),
@@ -213,6 +279,18 @@ class RoomApi {
           body: {'maxPlayers': maxPlayers, 'expectedVersion': room.version},
         ),
       );
+
+  Future<RoomChatPage> messages(String roomId, {int after = 0, bool latest = false}) async =>
+      RoomChatPage.parse(await _request(
+        '/api/rooms/$roomId/messages?after=$after&limit=50&latest=$latest',
+      ));
+
+  Future<RoomChatMessage> sendMessage(String roomId, String clientMessageId, String content) async =>
+      RoomChatMessage.parse(await _request(
+        '/api/rooms/$roomId/messages',
+        post: true,
+        body: {'clientMessageId': clientMessageId, 'content': content},
+      ));
 
   void close() => _client.close();
 }
