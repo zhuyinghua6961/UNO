@@ -2,7 +2,7 @@
 
 更新：2026-09-06。真实接入 PostgreSQL 17；尚无注册、登录或游戏持久化业务接口。
 
-历史范围说明：本页保留stage2的基础表设计；2026-09-07新增identity V3及可关闭的认证业务，当前行为以 [账号指南](authentication.md) 为准，不能再将下文“凭证尚未消费”理解为当前版本现状。V1/V2保持原样，game仍没有游戏业务表。
+历史范围说明：本页保留stage2的基础表设计；2026-09-07新增identity V3及可关闭的认证业务，当前行为以 [账号指南](authentication.md) 为准，不能再将下文“凭证尚未消费”理解为当前版本现状。2026-09-23 game V2 新增等待房间、V3 新增经典对局表；V1/V2 历史迁移保持原样。
 
 ## 所有权与目录
 
@@ -41,12 +41,11 @@ Spring Boot 管理 Flyway 与 PostgreSQL JDBC 版本。参考依据：Spring Boo
 
 ## 已建关系与未来草案
 
-game.rooms → game.room_members（roomId,userId,seat）已由 game V2 建表；一个账号仅占一个席位，房间含邀请码、模式、上限、状态、版本和到期时间。一个 room 可产生多个 matches（对局表尚未实现）。
-matches → match_players（固定参与者快照）、match_teams（每局队伍与队员）、match_results。
+game.rooms → game.room_members（roomId,userId,seat）已由 game V2 建表；一个账号仅占一个席位，房间含邀请码、模式、上限、状态、版本和到期时间。game V3 新增 matches（经典局版本与仅服务器可见的 JSONB 牌局快照）、match_players（固定参与者席位快照）和 match_commands（按对局、身份、commandId 去重的动作回执）；一个房间可产生多局。房间过期删除后仍保留对局和固定席位快照。match_teams、match_results 尚未实现。
 messages 关联 roomId，可选 matchId/teamId，以及服务器推导的 senderId；队伍历史权限必须基于当时成员，不只看当前队伍。
 identity.accounts.id 与 game 侧 userId 是跨服务逻辑引用，不跨数据库加外键；身份失效和数据删除通过后续服务协议处理，不通过直接查另一个数据库实现。
 
-房间等待状态及索引已在 stage5 建立；牌堆/手牌快照、重连记录、消息幂等键和索引随 stage7/11/12/16 的真实访问模式追加。实时内存状态与持久化恢复边界在 stage7/12 定义，Redis 当前不参与读写。
+房间等待状态及索引已在 stage5 建立；牌堆/手牌快照和动作版本已在 stage7 初段写入 matches，只有服务器读取并投影为个人视图。重连记录、聊天消息幂等键和索引随 stage7/11/12/16 的真实访问模式追加。Redis 当前不参与读写。
 
 ## 本地启动
 

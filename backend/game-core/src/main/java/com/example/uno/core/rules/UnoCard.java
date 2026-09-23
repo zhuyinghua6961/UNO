@@ -27,6 +27,10 @@ public final class UnoCard {
     public Kind kind() { return kind; }
     /** Returns -1 for a non-number card. */
     public int number() { return number; }
+    public int getId() { return id; }
+    public Color getColor() { return color; }
+    public Kind getKind() { return kind; }
+    public int getNumber() { return number; }
     public int points() {
         return switch (kind) {
             case NUMBER -> number;

@@ -46,7 +46,7 @@ class RoomServiceIT {
     static void stop() { if (application != null) application.close(); }
 
     @BeforeEach
-    void empty() { jdbc.update("TRUNCATE game.room_members, game.rooms"); }
+    void empty() { jdbc.update("TRUNCATE game.match_commands, game.match_players, game.matches, game.room_members, game.rooms"); }
 
     @Test
     void classicRoomEnforcesMembershipVersionReadinessAndHostTransfer() {

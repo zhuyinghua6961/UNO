@@ -117,6 +117,19 @@ public final class UnoState {
     public Integer roundWinnerSeat() { return roundWinnerSeat; }
     public int roundPoints() { return roundPoints; }
     public UnoCard topCard() { return UnoCard.of(discardPile.get(discardPile.size() - 1)); }
+    public UnoSnapshot snapshot() {
+        return new UnoSnapshot(players, hands, drawPile, discardPile, scores, dealerSeat, currentSeat,
+                direction, roundNumber, version, phase, activeColor, drawnCardId, pendingDrawFour,
+                unoVulnerableSeat, roundWinnerSeat, roundPoints);
+    }
+    public static UnoState restore(UnoSnapshot snapshot) {
+        Objects.requireNonNull(snapshot);
+        return new UnoState(snapshot.players(), snapshot.hands(), snapshot.drawPile(), snapshot.discardPile(),
+                snapshot.scores(), snapshot.dealerSeat(), snapshot.currentSeat(), snapshot.direction(),
+                snapshot.roundNumber(), snapshot.version(), snapshot.phase(), snapshot.activeColor(),
+                snapshot.drawnCardId(), snapshot.pendingDrawFour(), snapshot.unoVulnerableSeat(),
+                snapshot.roundWinnerSeat(), snapshot.roundPoints());
+    }
     public int seatOf(UUID player) {
         int seat = players.indexOf(player);
         if (seat < 0) throw new UnoRuleViolation(UnoRuleViolation.Code.UNKNOWN_PLAYER);

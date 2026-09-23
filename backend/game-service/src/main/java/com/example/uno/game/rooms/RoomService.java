@@ -80,14 +80,16 @@ public class RoomService {
         UUID id = currentRoomId(identity.userId());
         if (id == null) return null;
         RoomRow room = room(id);
-        return room == null || !room.expiresAt().isAfter(clock.instant()) ? null : view(room);
+        return room == null || ("WAITING".equals(room.state()) && !room.expiresAt().isAfter(clock.instant()))
+                ? null : view(room);
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public RoomView get(UUID id, GameIdentity identity) {
         if (!isMember(id, identity.userId())) throw RoomFailure.notFound();
         RoomRow room = room(id);
-        if (room == null || !room.expiresAt().isAfter(clock.instant())) throw RoomFailure.notFound();
+        if (room == null || ("WAITING".equals(room.state()) && !room.expiresAt().isAfter(clock.instant())))
+            throw RoomFailure.notFound();
         return view(room);
     }
 
@@ -95,6 +97,7 @@ public class RoomService {
     public void leave(UUID id, GameIdentity identity) {
         RoomRow room = lockedRoom(id);
         if (room == null || !isMember(id, identity.userId())) return;
+        if (!"WAITING".equals(room.state())) throw RoomFailure.conflict("对局进行中，暂不能离开房间");
         jdbc.update("DELETE FROM game.room_members WHERE room_id = ? AND user_id = ?", id, identity.userId());
         List<RoomView.Member> remaining = members(room);
         if (remaining.isEmpty()) {
@@ -153,7 +156,8 @@ public class RoomService {
     public void expireRooms() { deleteExpired(); }
 
     private void deleteExpired() {
-        jdbc.update("DELETE FROM game.rooms WHERE expires_at <= ?", Timestamp.from(clock.instant()));
+        jdbc.update("DELETE FROM game.rooms WHERE state = 'WAITING' AND expires_at <= ?",
+                Timestamp.from(clock.instant()));
     }
 
     private void changed(UUID id) {

@@ -38,13 +38,25 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 | POST | /api/rooms/{id}/team | `{team:"A"|"B",expectedVersion}`，仅 2v2 |
 | POST | /api/rooms/{id}/settings | `{maxPlayers,expectedVersion}`，仅房主 |
 
-房间响应含 `id,code,mode,maxPlayers,hostUserId,state,version,expiresAt,canStart,members`；成员含 `userId,nickname,seat,team,ready`。经典局 2–6 人，2v2 固定四人；座位从 0 开始，偶数为 A 队、奇数为 B 队。成员/设置改变会重置所有准备状态。邀请码 24 小时有效，同账号只能在一间房且只占一个席位。`canStart` 只是等待室计算结果，目前没有启动对局端点。Web 写操作须先取 `/api/auth/csrf` 并携 Cookie、Origin 和 `X-CSRF-TOKEN`；原生 App 须用 `X-UNO-Client: APP` 与 Bearer 令牌。
+房间响应含 `id,code,mode,maxPlayers,hostUserId,state,version,expiresAt,canStart,members`；成员含 `userId,nickname,seat,team,ready`。经典局 2–6 人，2v2 固定四人；座位从 0 开始，偶数为 A 队、奇数为 B 队。成员/设置改变会重置所有准备状态。邀请码在等待状态下 24 小时有效，同账号只能在一间房且只占一个席位。Web 写操作须先取 `/api/auth/csrf` 并携 Cookie、Origin 和 `X-CSRF-TOKEN`；原生 App 须用 `X-UNO-Client: APP` 与 Bearer 令牌。
+
+## 经典对局 HTTP（已实现初始切片）
+
+| 方法 | 路径 | 行为 |
+| --- | --- | --- |
+| POST | /api/rooms/{roomId}/start | 房主提交 `{expectedVersion}`；仅全员准备的经典房间可启动，返回 `{matchId,view,roomVersion}`；重复启动返回原对局 |
+| GET | /api/rooms/{roomId}/match | 对局成员发现进行中的对局并取回个人视图；没有则 204 |
+| GET | /api/matches/{matchId}/state | 仅对局成员可读；返回当前用户 `UnoView`，其他人只见手牌数量 |
+| POST | /api/matches/{matchId}/commands | 成员提交 `{protocolVersion:1,commandId,expectedVersion,type,...}`；按规则执行，返回动作版本、事件、当前个人视图与仅本人可见的质疑证据 |
+
+动作 `type` 支持 `PLAY`（`cardId,chosenColor,callUno`）、`DRAW`、`PASS`、`SAY_UNO`、`CATCH_UNO`（`targetUserId`）、`ACCEPT_DRAW_FOUR`、`CHALLENGE_DRAW_FOUR`、`CHOOSE_INITIAL_COLOR`（`chosenColor`）、`NEXT_ROUND`。`actor` 从已验证会话推导，不能由客户端指定。对局行锁串行化动作；版本不符或同一 `commandId` 换内容返回 409，规则拒绝返回 422；同一动作重试返回 `duplicate:true` 且不重放效果。`view` 是响应时的最新个人视图，`appliedVersion` 是此命令首次落地的版本。
+
+牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 房间不能启动对局。进行中的房间暂不能离开，避免席位与权威状态脱节。当前只可通过 HTTP 轮询状态，尚无 WebSocket 推送、服务器计时和双端牌桌动作界面。
 
 ## 计划中的游戏 HTTP
 
 | 方法 | 路径 | 预期用途 |
 | --- | --- | --- |
-| GET | /api/matches/{matchId}/state | 当前用户可见的状态 |
 | GET | /api/rooms/{roomId}/messages | 按本人权限和游标取房间/队伍消息 |
 | POST | /api/voice/token | 从已认证身份和 matchId 推导队伍，返回受限短期媒体凭证 |
 

@@ -22,7 +22,7 @@
 
 `ClassicUno.start(players,dealerSeat,random)` 建立回合；`apply(state,command,random)` 返回全新状态、事件和按席位的抽牌数量；`nextRound` 在本轮结束且尚未达到 500 分时重开；`view(state,viewer)` 只给本人完整手牌、其他玩家牌数及公共状态。`RULES_VERSION=1`。相同状态、随机输入与动作序列可重放；生产默认使用 `SecureRandom`，测试传入固定种子。
 
-`UnoState` 是仅供服务器保存的完整状态，含所有手牌与抽牌顺序，不能直接广播。`UnoTransition.privateReveals` 只以质疑者用户 ID 为键；实时层必须逐人发送。规则拒绝抛出带代码的 `UnoRuleViolation`，原状态不会被修改。命令去重、期望版本检查、鉴权、连接接管、30 秒回合计时和 8 秒质疑计时由 stage7/12 实现。
+`UnoState` 是仅供服务器保存的完整状态，含所有手牌与抽牌顺序，不能直接广播。`UnoSnapshot` 仅用于服务器持久化和恢复，也不能作为玩家响应。`UnoTransition.privateReveals` 只以质疑者用户 ID 为键；实时层必须逐人发送。规则拒绝抛出带代码的 `UnoRuleViolation`，原状态不会被修改。命令去重、期望版本检查、鉴权、连接接管、30 秒回合计时和 8 秒质疑计时由 stage7/12 实现。
 
 ## 已覆盖用例
 
