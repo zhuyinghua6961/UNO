@@ -6,28 +6,44 @@
 
 | 方法 | 路径 | 行为 |
 | --- | --- | --- |
-| GET | /api/system/bootstrap | 返回 game-service、stage=scaffold、protocolVersion=1 与均为 false 的功能开关 |
-| GET | /api/auth/status | 返回账号模块骨架状态，loginAvailable/registrationAvailable=false |
+| GET | /api/system/bootstrap | stage=scaffold、protocolVersion=1；authentication和rooms反映GAME_AUTH_ENABLED，gameplay等仍为false |
+| GET | /api/system/session | game侧已验证的userId/sessionId/nickname/clientType/expiresAt；需要真实Web或App会话 |
+| GET | /api/auth/status | 返回backend-auth状态，loginAvailable/registrationAvailable取决于AUTH_ENABLED，默认false |
 | GET | /actuator/health | 各 Java 进程的基础健康检查；网关不聚合下游就绪情况 |
 | GET | /actuator/health/readiness | identity/game 直连探针，包含数据库；不可用返回503，仅含status |
 | GET | /actuator/health/liveness | identity/game 直连探针，不依赖数据库；仅含status |
 
 未登录访问受保护路径默认 401/403；没有开放示例账号或语音令牌。当前 `/ws/**` 仅配置网关预留路由，没有 WebSocket handler。
 
-stage2 的账号/会话/令牌数据表与内部仓储不构成对外认证接口；所有业务能力开关仍为 false。业务错误结构约定见 [工程基线](../engineering-baseline.md)，尚未实现全局业务异常转换。
+2026-09-07新增可关闭的identity认证后端及game会话校验，见 [账号与会话](../authentication.md) 和 [跨服务身份](../service-authentication.md)。bootstrap仍是scaffold，不因为身份可验证就宣称游戏可玩。
 
-## 计划中的 HTTP（均未实现）
+## 账号HTTP（已实现，默认关闭）
+
+GET /api/auth/csrf；POST /api/auth/register、/api/auth/login、/api/auth/refresh、/api/auth/logout、/api/auth/verification/request、/api/auth/verify-email、/api/auth/password/forgot、/api/auth/password/reset；GET /api/users/me。
+
+AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: APP，Web须Cookie/Origin/CSRF。game另需GAME_AUTH_ENABLED和内部服务凭证；客户端UI与外网邮件尚未交付。
+
+内部`POST /internal/auth/introspect`只允许专用game服务凭证，不是玩家接口；gateway没有此路由，不能使用用户Bearer调用。具体请求/响应和TLS要求见跨服务身份说明。
+
+## 房间 HTTP（已实现，须启用账号与game鉴权）
+
+| 方法 | 路径 | 行为 |
+| --- | --- | --- |
+| GET | /api/rooms/current | 当前用户房间；没有则 204 |
+| POST | /api/rooms | 创建 `{mode,maxPlayers}`；已有房间返回当前房间 |
+| POST | /api/rooms/join | 以 `{code}` 加入；房间码区分大小写输入但服务端统一大写 |
+| GET | /api/rooms/{id} | 仅成员可读取 |
+| POST | /api/rooms/{id}/leave | 离开，成功 204；空房删除，房主离开自动移交 |
+| POST | /api/rooms/{id}/ready | `{ready,expectedVersion}`；版本不一致返回 409 |
+| POST | /api/rooms/{id}/team | `{team:"A"|"B",expectedVersion}`，仅 2v2 |
+| POST | /api/rooms/{id}/settings | `{maxPlayers,expectedVersion}`，仅房主 |
+
+房间响应含 `id,code,mode,maxPlayers,hostUserId,state,version,expiresAt,canStart,members`；成员含 `userId,nickname,seat,team,ready`。经典局 2–6 人，2v2 固定四人；座位从 0 开始，偶数为 A 队、奇数为 B 队。成员/设置改变会重置所有准备状态。邀请码 24 小时有效，同账号只能在一间房且只占一个席位。`canStart` 只是等待室计算结果，目前没有启动对局端点。Web 写操作须先取 `/api/auth/csrf` 并携 Cookie、Origin 和 `X-CSRF-TOKEN`；原生 App 须用 `X-UNO-Client: APP` 与 Bearer 令牌。
+
+## 计划中的游戏 HTTP
 
 | 方法 | 路径 | 预期用途 |
 | --- | --- | --- |
-| POST | /api/auth/register | 注册 |
-| POST | /api/auth/login | 登录 |
-| POST | /api/auth/refresh | 轮换 App 凭证 |
-| POST | /api/auth/logout | 撤销会话及实时连接 |
-| GET | /api/users/me | 当前身份和偏好 |
-| POST | /api/rooms | 创建 CLASSIC 或 TEAM_2V2 房间 |
-| POST | /api/rooms/{roomId}/join | 房间码/邀请验证后加入 |
-| POST | /api/rooms/{roomId}/leave | 离开并撤销通信资格 |
 | GET | /api/matches/{matchId}/state | 当前用户可见的状态 |
 | GET | /api/rooms/{roomId}/messages | 按本人权限和游标取房间/队伍消息 |
 | POST | /api/voice/token | 从已认证身份和 matchId 推导队伍，返回受限短期媒体凭证 |

@@ -1,6 +1,19 @@
 server:
   port: ${SERVER_PORT:8081}
+  forward-headers-strategy: none
 spring:
+  mail:
+    host: ${SMTP_HOST:127.0.0.1}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:true}
+      mail.smtp.starttls.required: ${SMTP_STARTTLS:true}
+      mail.smtp.connectiontimeout: 3000
+      mail.smtp.timeout: 3000
+      mail.smtp.writetimeout: 3000
   application:
     name: uno-identity-service
   datasource:
@@ -19,6 +32,9 @@ spring:
     validate-on-migrate: true
     baseline-on-migrate: false
 management:
+  health:
+    mail:
+      enabled: false
   endpoints:
     web:
       exposure:
@@ -34,3 +50,18 @@ management:
           include: readinessState,db
         liveness:
           include: livenessState
+uno:
+  internal-auth:
+    enabled: ${IDENTITY_INTERNAL_AUTH_ENABLED:false}
+    game-service-key: ${IDENTITY_GAME_SERVICE_KEY:}
+    allow-insecure-http: ${IDENTITY_INTERNAL_ALLOW_HTTP:false}
+    requests-per-window: 10000
+  auth:
+    enabled: ${AUTH_ENABLED:false}
+    secure-cookies: ${AUTH_COOKIE_SECURE:true}
+    allowed-origins: ${AUTH_ALLOWED_ORIGINS:}
+    mail-key: ${AUTH_MAIL_KEY:}
+    mail-from: ${SMTP_FROM:uno@localhost}
+    mail-dispatch-enabled: ${AUTH_MAIL_DISPATCH_ENABLED:true}
+    ip-limit: 120
+    account-limit: 10

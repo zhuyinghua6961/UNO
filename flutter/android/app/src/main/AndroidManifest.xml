@@ -4,6 +4,7 @@
     <application
         android:label="UNO 好友牌桌"
         android:name="${applicationName}"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

@@ -64,7 +64,7 @@ class DatabaseIT {
 
     @Test
     void emptyDatabaseMigratesAndRepeatPreservesAccounts() {
-        assertEquals(2, migrations().migrate().migrationsExecuted);
+        assertEquals(3, migrations().migrate().migrationsExecuted);
         JdbcAccountStore store = new JdbcAccountStore(JdbcClient.create(source));
         Account account = store.create(" Player@Example.COM ", "test-encoded-password", "玩家");
         assertEquals("player@example.com", account.email());
@@ -81,7 +81,7 @@ class DatabaseIT {
         Flyway.configure().dataSource(source).schemas(schema).target("1").load().migrate();
         Account account = new JdbcAccountStore(JdbcClient.create(source))
                 .create("upgrade@example.com", "test-hash", "升级测试");
-        assertEquals(1, migrations().migrate().migrationsExecuted);
+        assertEquals(2, migrations().migrate().migrationsExecuted);
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM accounts WHERE id = ?", Integer.class, account.id()));
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM sessions", Integer.class));
     }
@@ -151,7 +151,7 @@ class DatabaseIT {
         assertThrows(FlywayException.class, () -> Flyway.configure().dataSource(source).schemas(schema)
                 .locations("classpath:db/migration", "classpath:db/failing").load().migrate());
         assertNull(jdbc.queryForObject("SELECT to_regclass('must_not_survive')", String.class));
-        assertEquals(2, jdbc.queryForObject(
+        assertEquals(3, jdbc.queryForObject(
                 "SELECT count(*) FROM flyway_schema_history WHERE success AND version IS NOT NULL", Integer.class));
         assertEquals(0, migrations().migrate().migrationsExecuted);
     }

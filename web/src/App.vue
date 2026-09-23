@@ -1,15 +1,28 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { getBootstrap } from './api/system'
+import { useAuthStore } from './stores/auth'
 
 const backendStatus = ref('正在检查后端')
+const auth = useAuthStore()
+let refreshTimer: ReturnType<typeof setInterval> | undefined
+function restoreWhenVisible() { if (document.visibilityState === 'visible') void auth.restore() }
 onMounted(async () => {
+  void auth.restore()
+  document.addEventListener('visibilitychange', restoreWhenVisible)
+  window.addEventListener('focus', restoreWhenVisible)
+  refreshTimer = setInterval(restoreWhenVisible, 60000)
   try {
-    await getBootstrap()
-    backendStatus.value = '后端骨架已连接'
+    const bootstrap = await getBootstrap()
+    backendStatus.value = bootstrap.features.authentication ? '账号已接入 · 对局建设中' : '后端骨架已连接'
   } catch {
     backendStatus.value = '独立预览 · 后端未连接'
   }
+})
+onUnmounted(() => {
+  clearInterval(refreshTimer)
+  document.removeEventListener('visibilitychange', restoreWhenVisible)
+  window.removeEventListener('focus', restoreWhenVisible)
 })
 </script>
 
@@ -24,7 +37,7 @@ onMounted(async () => {
     <div class="main-shell">
       <header class="topbar">
         <RouterLink to="/" class="wordmark">UNO <span>好友牌桌</span></RouterLink>
-        <div class="account"><span class="status" role="status">{{ backendStatus }}</span><RouterLink to="/login" class="button secondary small">登录 / 注册</RouterLink></div>
+        <div class="account"><span class="status" role="status">{{ backendStatus }}</span><RouterLink :to="auth.user ? '/account' : '/login'" class="button secondary small">{{ auth.user ? auth.user.nickname : '登录 / 注册' }}</RouterLink></div>
       </header>
       <main><RouterView /></main>
       <footer>开发预览 · v0.1 <span>不是可玩的正式版本 · 非官方 UNO 产品</span></footer>

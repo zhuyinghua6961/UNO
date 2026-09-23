@@ -8,11 +8,13 @@ class LobbyPage extends StatelessWidget {
     required this.mode,
     required this.onModeChanged,
     required this.onPreview,
+    this.roomEntry,
   });
 
   final GameMode mode;
   final ValueChanged<GameMode> onModeChanged;
   final VoidCallback onPreview;
+  final Widget? roomEntry;
 
   @override
   Widget build(BuildContext context) {
@@ -100,8 +102,9 @@ class LobbyPage extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 16),
+        ?roomEntry,
         const Text(
-          '账号、联网对局和通信功能尚未接入。这里只预览页面与素材。',
+          '好友房已接入；对局和通信将在后续阶段实现。牌桌仍为交互预览。',
           style: TextStyle(fontSize: 12, color: Colors.black54),
         ),
       ],

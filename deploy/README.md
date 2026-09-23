@@ -25,6 +25,8 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml down
 
 ## 数据库与可选基础设施
 
+默认账号功能关闭。若需本地测试真实账号后端，显式合并 `compose.auth-local.yaml`，它启用邮箱认证并添加仅回环可访问的Mailpit，不发送公网邮件。先重新运行配置初始化脚本补充AUTH_MAIL_KEY，旧密钥不会覆盖。详见 [账号运行指南](../docs/authentication.md)。
+
 PostgreSQL 17 现在是默认必需服务；identity/game 使用不同的库、非超级用户角色和随机密码，启动依赖数据库健康。空卷通过 `postgres/10-create-service-databases.sql` 初始化，后续应用启动执行 Flyway。
 
 `node tools/init-local-env.mjs` 会保留已有秘密，仅补缺失的服务密码等设置。已有数据卷不会自动重跑初始化，环境变量也不会自动修改库内密码。**禁止为解决初始化问题删除数据卷**；升级、原生 Java 连接、备份恢复及权限说明见 [数据库指南](../docs/persistence.md)。

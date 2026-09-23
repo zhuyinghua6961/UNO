@@ -1,0 +1,16 @@
+.auth-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+.auth-tabs button { border: 1px solid #d9dfd8; border-radius: 20px; padding: 8px 12px; background: transparent; color: #35443c; cursor: pointer; }
+.auth-tabs button[aria-current="page"] { background: #1e382c; color: white; border-color: #1e382c; }
+.auth-panel fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.auth-panel label { display: grid; gap: 8px; margin-bottom: 18px; }
+.auth-panel input { width: 100%; min-width: 0; }
+.auth-panel :disabled { cursor: not-allowed; opacity: .65; }
+.auth-panel button:focus-visible, .auth-panel input:focus-visible { outline: 3px solid #467c5f; outline-offset: 3px; }
+.auth-panel .auth-error { color: #8e2828; background: #fff0ed; padding: 14px; border-radius: 12px; }
+.auth-notice { background: #edf4e8; color: #304b34; padding: 14px; border-radius: 12px; }
+.auth-submit { width: 100%; margin-top: 8px; }
+.auth-footnote { font-size: 12px; margin-top: 20px; }
+.account-layout { max-width: 900px; margin: 50px auto; padding: 0 24px; }
+.account-panel dd { margin: 6px 0 24px; overflow-wrap: anywhere; }
+.account-panel dt { color: #6a746c; font-size: 13px; }
+.account-actions { display: flex; flex-wrap: wrap; gap: 12px; }

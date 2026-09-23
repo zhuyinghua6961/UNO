@@ -7,6 +7,12 @@ spring:
     gateway:
       server:
         webflux:
+          default-filters:
+            - RemoveRequestHeader=X-User-Id
+            - RemoveRequestHeader=X-Account-Id
+            - RemoveRequestHeader=X-Authenticated-User
+            - RemoveRequestHeader=X-Internal-Service
+            - RemoveRequestHeader=X-Service-Token
           routes:
             - id: identity
               uri: ${IDENTITY_URL:http://localhost:8081}

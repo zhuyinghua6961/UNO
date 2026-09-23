@@ -17,6 +17,8 @@ test('local secrets initialize safely and repeat without changing values', async
     const initial = await readFile(target, 'utf8')
     assert.match(initial, /^IDENTITY_DB_PASSWORD=[0-9a-f]{48}$/m)
     assert.match(initial, /^GAME_DB_PASSWORD=[0-9a-f]{48}$/m)
+    assert.match(initial, /^AUTH_MAIL_KEY=[0-9a-f]{64}$/m)
+    assert.match(initial, /^IDENTITY_GAME_SERVICE_KEY=[0-9a-f]{64}$/m)
     assert.equal((await stat(target)).mode & 0o777, 0o600)
     execFileSync(process.execPath, [script])
     assert.equal(await readFile(target, 'utf8'), initial)

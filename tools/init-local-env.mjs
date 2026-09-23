@@ -11,6 +11,8 @@ const defaults = {
   POSTGRES_PASSWORD: randomBytes(24).toString('hex'),
   IDENTITY_DB_PASSWORD: randomBytes(24).toString('hex'),
   GAME_DB_PASSWORD: randomBytes(24).toString('hex'),
+  AUTH_MAIL_KEY: randomBytes(32).toString('hex'),
+  IDENTITY_GAME_SERVICE_KEY: randomBytes(32).toString('hex'),
   LIVEKIT_API_KEY: `uno_${randomBytes(8).toString('hex')}`,
   LIVEKIT_API_SECRET: randomBytes(32).toString('hex'),
 }

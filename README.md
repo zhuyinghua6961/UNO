@@ -5,7 +5,7 @@ Vue + Spring Cloud + Flutter 的多人卡牌游戏开发骨架。当前为 **0.1
 ## 目录
 
 ```text
-backend/    Maven 多模块：gateway、identity-service、game-service、game-core
+backend/    Maven 多模块：三个服务、game-core、integration-tests（仅测试）
 web/        Vue 3 + TypeScript + Vite + Pinia + Vue Router
 flutter/    Android / iOS Flutter 工程
 deploy/     Dockerfile、Compose、Nginx、可选 LiveKit
@@ -17,18 +17,23 @@ tools/      素材同步、本地配置初始化、发布归档
 
 ## 当前可用范围
 
-- Web：大厅、经典/2v2 模式选择、牌桌与聊天区布局预览、禁用态登录页面。
-- Flutter：对应的大厅、牌桌、账号入口；Android/iOS 工程与麦克风用途声明。
+- Web：大厅、模式/牌桌布局预览、好友房邀请与等待室；真实注册、验证、登录、找回/重置、退出、账号页和会话恢复（须显式启用后端）。
+- Flutter：大厅、牌桌预览、账号入口和好友房等待室；Android/iOS 工程与麦克风用途声明。
 - 后端：三个可启动进程、Spring Cloud Gateway 路由、健康检查和公开骨架状态接口。
 - 数据库：PostgreSQL 17 双服务独立库与角色、账号/会话/验证令牌表、Flyway 迁移、内部账号仓储；并非已开放登录。
-- 规则基础：房间/队伍消息受众、2v2 队友语音隔离策略、消息格式约束及单元测试。**尚未连接网络或真实身份，因此不是已经落地的通信授权系统。**
+- 账号后端：注册、验证邮箱、登录、当前用户、退出、密码找回/重置；Web Cookie/CSRF与App刷新轮换。默认关闭，仅显式本地配置启用，详见 `docs/authentication.md`。
+- 房间基础：真实账号可创建/加入等待室、准备、2v2 选队及离开；规则基础包含房间/队伍消息受众和语音隔离策略，但通信尚未连接网络。
 - 部署：Web、三个 Java 进程和必需 PostgreSQL 的开发 Compose；Redis、LiveKit 仍为可选配置。
 
-尚未实现：注册登录、发牌与完整规则引擎、真实房间、实时 WebSocket、文字消息传输/存储、LiveKit 令牌签发和两端语音 SDK、战绩持久化、生产 HTTPS/TURN 和正式移动端签名。
+游戏服务已通过内部会话核验确认账号身份，不信任客户端身份头、不共享账号库；支持从Web账号页验证同一userId。详见 `docs/service-authentication.md`。
+
+尚未实现：发牌与完整规则引擎、启动对局、实时WebSocket、文字传输/存储、语音SDK与准入、战绩、生产HTTPS/TURN和移动签名。邮箱渠道最终确认、外网邮件服务和设备界面验收仍待完成。
 
 数据库新增 14 个真实 PostgreSQL 集成测试与 2 个配置工具测试，原有 16 个骨架测试保留。完整 Docker 应用镜像构建仍未验收，数据库容器验证不等于全栈容器联调。具体证据见 `docs/verification-stage2.md`，历史记录见 `docs/verification.md`。
 
-所有功能占位都标注待接入；受保护的后端路径默认拒绝访问，没有演示账号、模拟登录或开放令牌签发。
+2026-09-07：跨服务身份增量验收见 `docs/verification-service-auth.md`；Web账号验收见 `docs/verification-stage4-web.md`。stage3技术项已实现但渠道待确认，stage4仅Web已接入，不能当作双端完成。
+
+未实现的对局与通信功能仍禁用；账号表单和好友房只在后端明确启用时开放；没有演示账号、模拟登录或语音令牌签发。房间实现与验收边界见 `docs/verification-stage5.md`。
 
 ## 本地开发
 
@@ -48,7 +53,7 @@ mvn -f backend/pom.xml verify
 mvn -f backend/pom.xml -Pdatabase-it verify
 ```
 
-identity/game 现在必须配置数据库才能启动。先按 [数据库与运行指南](docs/persistence.md) 启动 PostgreSQL、载入连接配置，再分别运行三个模块的 JAR。默认端口 8081、8082、8080；可以通过 SERVER_PORT、IDENTITY_URL、GAME_URL、GAME_WS_URL 覆盖。接口仍只展示健康/骨架状态，不提供登录或对局能力。工程约定与环境问题见 [工程基线](docs/engineering-baseline.md)。
+identity/game必须配置数据库才能启动。先按 [数据库与运行指南](docs/persistence.md) 启动PostgreSQL、载入连接配置，再分别运行三个模块JAR。默认端口8081、8082、8080，可通过SERVER_PORT、IDENTITY_URL、GAME_URL、GAME_WS_URL覆盖。默认认证关闭；验证账号后端时额外按 [账号指南](docs/authentication.md) 配置本地邮件、开关与Origin。游戏仍无真实对局能力。
 
 ```sh
 cd flutter

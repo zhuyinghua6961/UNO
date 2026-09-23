@@ -11,4 +11,5 @@ flutter
 .env
 deploy/.env
 deploy/secrets
+deploy/backups
 **/*.log

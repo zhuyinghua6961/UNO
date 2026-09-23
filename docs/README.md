@@ -1,6 +1,6 @@
 # UNO 实现阶段总索引
 
-更新：2026-09-06。本文是后续实现的统一入口，按 **stage1 → stage18** 拆分，不代表已经执行这些阶段。
+更新：2026-09-23。本文是后续实现的统一入口，按 **stage1 → stage18** 拆分，不代表已经执行所有阶段。
 
 技术约束：Vue Web、Spring Cloud 后端、Flutter Android/iOS、Docker 部署；业务目录为 backend、web、flutter、deploy、release。范围包括独立账号、经典对局、2v2、房间/队伍文字、队友语音和发布交付。
 
@@ -8,7 +8,7 @@
 
 - 已有可构建的三端骨架、素材、状态接口、通信权限基础、16 个骨架测试和开发归档。
 - GitHub 私有仓库 `zhuyinghua6961/UNO` 已创建并关联 origin；2026-09-07 按用户授权进行首次本地提交（以 git log 为准），未推送，三个分支的名称和用途仍未确认。
-- **stage1 部分完成、stage2 已完成（本地开发范围）**；stage3–stage18 未开始。stage2 新增真实 PostgreSQL、迁移、权限隔离和恢复验证，但不等于登录可用。
+- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成**；stage6–stage18未开始。房间后端、Web/App 等待室及跨服务 HTTP 联调已完成，设备界面验收待做。
 - stage1 的工程约定和复现指南已补充，产品规则/登录渠道/三个分支仍待确认；stage2 按 [工程基线](engineering-baseline.md) 中的明确依赖例外推进。
 - Docker 完整构建的网络阻碍与 Flutter 分析命令差异见 [骨架验收记录](verification.md)，不能将本机原生联调记作容器联调。
 
@@ -18,9 +18,9 @@
 | --- | --- | --- | --- | --- |
 | [stage1](stages/stage1.md) | 工程基线与需求收口 | 明确范围、运行方式、规则决策与安全底线 | 无 | 部分完成 |
 | [stage2](stages/stage2.md) | 数据库与迁移基础 | 账号和业务数据有可靠存储与版本迁移 | stage1（见依赖例外） | 已完成（本地） |
-| [stage3](stages/stage3.md) | 后端账号与会话 | 真实注册、登录、验证、找回与退出 | stage2 | 未开始 |
-| [stage4](stages/stage4.md) | Web／App 账号闭环 | 两端可用同一账号体系登录与恢复会话 | stage3 | 未开始 |
-| [stage5](stages/stage5.md) | 房间与组队准备 | 邀请、加入、准备、房主移交与 2v2 席位 | stage4 | 未开始 |
+| [stage3](stages/stage3.md) | 后端账号与会话 | 真实注册、登录、验证、找回与退出 | stage2 | 部分完成（技术项已实现，渠道待确认） |
+| [stage4](stages/stage4.md) | Web／App 账号闭环 | 两端可用同一账号体系登录与恢复会话 | stage3 | 部分完成（Flutter设备与跨端验收待做） |
+| [stage5](stages/stage5.md) | 房间与组队准备 | 邀请、加入、准备、房主移交与 2v2 席位 | stage4 | 部分完成（设备界面待验收） |
 | [stage6](stages/stage6.md) | 经典 UNO 规则引擎 | 可独立测试的发牌、出牌、罚牌、质疑、胜负 | stage1 | 未开始 |
 | [stage7](stages/stage7.md) | 实时对局后端 | 服务器裁决、私有视图、命令去重与状态同步 | stage3、stage5、stage6 | 未开始 |
 | [stage8](stages/stage8.md) | Web 经典对局 | 网页多个真实账号可以打完经典局 | stage7 | 未开始 |
@@ -104,6 +104,11 @@
 
 ## 7. 其他文档入口
 
+- [账号与会话](authentication.md)：当前后端认证协议、开关、Cookie/App凭证与本地邮件。
+- [跨服务身份](service-authentication.md)：game与identity的核验协议、默认TLS、开发配置和失败行为。
+- [跨服务验收记录](verification-service-auth.md)：真实三进程联调与异常场景。
+- [stage3验收记录](verification-stage3.md)：本轮实际验证与剩余范围。
+- [Flutter账号增量验收](verification-stage4-flutter.md)：自动测试、原生构建与未完成的设备/跨端验证。
 - [工程基线与未决事项](engineering-baseline.md)：约定、前置决策、环境差异和复现路径。
 - [数据库、迁移与恢复](persistence.md)：配置、数据关系、集成测试和备份恢复步骤。
 - [stage2 验收记录](verification-stage2.md)：当前数据库交付及实际验证范围。

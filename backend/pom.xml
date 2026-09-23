@@ -19,6 +19,7 @@
     <module>identity-service</module>
     <module>game-service</module>
     <module>gateway</module>
+    <module>integration-tests</module>
   </modules>
   <dependencyManagement>
     <dependencies>

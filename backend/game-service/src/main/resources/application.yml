@@ -1,5 +1,6 @@
 server:
   port: ${SERVER_PORT:8082}
+  forward-headers-strategy: none
 spring:
   application:
     name: uno-game-service
@@ -34,3 +35,12 @@ management:
           include: readinessState,db
         liveness:
           include: livenessState
+uno:
+  auth:
+    enabled: ${GAME_AUTH_ENABLED:false}
+    secure-cookies: ${AUTH_COOKIE_SECURE:true}
+    allowed-origins: ${AUTH_ALLOWED_ORIGINS:}
+    identity-base-url: ${IDENTITY_INTERNAL_URL:https://identity-service}
+    service-key: ${IDENTITY_GAME_SERVICE_KEY:}
+    allow-insecure-http: ${GAME_AUTH_ALLOW_HTTP:false}
+    timeout-millis: 2000
