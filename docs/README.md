@@ -8,7 +8,7 @@
 
 - 已有可构建的三端骨架、素材、状态接口、通信权限基础、16 个骨架测试和开发归档。
 - GitHub 私有仓库 `zhuyinghua6961/UNO` 已创建并关联 origin；2026-09-07 按用户授权进行首次本地提交（以 git log 为准），未推送，三个分支的名称和用途仍未确认。
-- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分开始**；stage8–stage18未开始。房间后端、Web/App 等待室及跨服务 HTTP 联调已完成；经典规则、对局启动、HTTP/WebSocket 动作、私有状态推送和基本服务器计时已实现，双端牌桌尚未接入。
+- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）**；stage9–stage18未开始。Web 已通过两个真实账号从注册到 500 分终局、返回等待室并开始新局的浏览器验收；Flutter 牌桌、2v2 对局、文字与语音仍待接入。
 - stage1 的工程约定和复现指南已补充，产品规则/登录渠道/三个分支仍待确认；stage2 按 [工程基线](engineering-baseline.md) 中的明确依赖例外推进。
 - Docker 完整构建的网络阻碍与 Flutter 分析命令差异见 [骨架验收记录](verification.md)，不能将本机原生联调记作容器联调。
 
@@ -22,8 +22,8 @@
 | [stage4](stages/stage4.md) | Web／App 账号闭环 | 两端可用同一账号体系登录与恢复会话 | stage3 | 部分完成（Flutter设备与跨端验收待做） |
 | [stage5](stages/stage5.md) | 房间与组队准备 | 邀请、加入、准备、房主移交与 2v2 席位 | stage4 | 部分完成（设备界面待验收） |
 | [stage6](stages/stage6.md) | 经典 UNO 规则引擎 | 可独立测试的发牌、出牌、罚牌、质疑、胜负 | stage1 | 部分完成（产品边界待确认） |
-| [stage7](stages/stage7.md) | 实时对局后端 | 服务器裁决、私有视图、命令去重与状态同步 | stage3、stage5、stage6 | 部分完成（HTTP/WebSocket 对局与计时） |
-| [stage8](stages/stage8.md) | Web 经典对局 | 网页多个真实账号可以打完经典局 | stage7 | 未开始 |
+| [stage7](stages/stage7.md) | 实时对局后端 | 服务器裁决、私有视图、命令去重与状态同步 | stage3、stage5、stage6 | 部分完成（跨实例广播与完整断线策略待 stage12） |
+| [stage8](stages/stage8.md) | Web 经典对局 | 网页多个真实账号可以打完经典局 | stage7 | 已完成（本地验收） |
 | [stage9](stages/stage9.md) | Flutter 经典对局 | App 可以和 Web 玩家同桌对战 | stage7 | 未开始 |
 | [stage10](stages/stage10.md) | 四人 2v2 对局 | 两端支持队伍比赛和队伍结算 | stage8、stage9 | 未开始 |
 | [stage11](stages/stage11.md) | 房间／队伍文字 | 真实发送、接收、限流、历史补偿与隔离 | stage5、stage7、stage10 | 未开始 |
@@ -108,6 +108,7 @@
 - [跨服务身份](service-authentication.md)：game与identity的核验协议、默认TLS、开发配置和失败行为。
 - [跨服务验收记录](verification-service-auth.md)：真实三进程联调与异常场景。
 - [stage3验收记录](verification-stage3.md)：本轮实际验证与剩余范围。
+- [stage8 Web 验收](verification-stage8-web.md)：两个真实账号完整经典局、第二局与桌面/窄屏证据。
 - [Flutter账号增量验收](verification-stage4-flutter.md)：自动测试、原生构建与未完成的设备/跨端验证。
 - [工程基线与未决事项](engineering-baseline.md)：约定、前置决策、环境差异和复现路径。
 - [数据库、迁移与恢复](persistence.md)：配置、数据关系、集成测试和备份恢复步骤。

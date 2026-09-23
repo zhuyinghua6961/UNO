@@ -16,4 +16,4 @@
 
 ## 尚未验证或实现
 
-HTTP 控制器的真实跨服务账号连接、多人经网络完整打完一局及双端牌桌仍在 stage7/8/9 后续范围。连续超时中断、断线保留和跨实例广播仍待 stage12。WebSocket 已实现单连接消息体积与速率限制，HTTP 同类限制仍待补。当前 `GAME_AUTH_ENABLED` 默认关闭，真实会话与 game 鉴权须按现有配置显式启用。
+此处记录的是 stage7 初段当时的验证范围。后续 [stage8 Web 验收](verification-stage8-web.md) 已补两个真实账号经 HTTP/WebSocket 从 0 分到 500 分终局并开始第二局。Flutter 牌桌仍待 stage9；连续超时中断、断线保留和跨实例广播仍待 stage12。WebSocket 已实现单连接消息体积与速率限制，HTTP 同类限制仍待补。当前 `GAME_AUTH_ENABLED` 默认关闭，真实会话与 game 鉴权须按现有配置显式启用。

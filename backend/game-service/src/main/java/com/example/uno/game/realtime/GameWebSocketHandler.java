@@ -50,9 +50,12 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         Client client = clients.get(session.getId());
         if (client == null) { session.close(CloseStatus.POLICY_VIOLATION); return; }
-        if (message.getPayload().getBytes(StandardCharsets.UTF_8).length > MAX_MESSAGE_BYTES
-                || !client.allowMessage()) {
+        if (message.getPayload().getBytes(StandardCharsets.UTF_8).length > MAX_MESSAGE_BYTES) {
             close(client, CloseStatus.POLICY_VIOLATION);
+            return;
+        }
+        if (!client.allowMessage()) {
+            close(client, CloseStatus.POLICY_VIOLATION.withReason("RATE_LIMITED"));
             return;
         }
         if (!verify(client)) return;

@@ -92,7 +92,7 @@ onUnmounted(clearSecrets)
   <section class="auth-layout">
     <div>
       <p class="eyebrow">YOUR SEAT IS WAITING</p><h1>先认识你，<br />再一起玩。</h1>
-      <p class="muted">账号已连接真实后端；房间与对局仍在建设中。</p>
+      <p class="muted">登录后可创建好友房，与朋友开始经典对局。</p>
       <p class="muted">当前为可关闭的邮箱账号开发版本。验证和重置凭证需从邮件中复制，本地开发邮件由开发收件箱接收。</p>
       <RouterLink to="/">← 返回大厅</RouterLink>
     </div>

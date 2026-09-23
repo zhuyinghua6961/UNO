@@ -195,6 +195,25 @@ class GameWebSocketIT {
     }
 
     @Test
+    void rateLimitedConnectionProvidesARecoverableCloseReason() throws Exception {
+        sessions.put(HOST_TOKEN, player("RateLimited"));
+        Peer peer = connect(HOST_TOKEN);
+        try {
+            String invalid = "{\"protocolVersion\":1,\"type\":\"SUBSCRIBE\"}";
+            for (int attempt = 0; attempt < 30; attempt++) {
+                peer.socket.sendText(invalid, true).join();
+                assertEquals("BAD_MESSAGE", peer.nextMessage().path("code").asText());
+            }
+            peer.socket.sendText(invalid, true).join();
+            Peer.CloseEvent close = peer.nextCloseEvent();
+            assertEquals(1008, close.statusCode());
+            assertEquals("RATE_LIMITED", close.reason());
+        } finally {
+            peer.socket.abort();
+        }
+    }
+
+    @Test
     void browserCookieRequiresAllowedOrigin() throws Exception {
         GameIdentity webHost = new GameIdentity(UUID.randomUUID(), UUID.randomUUID(), "WebHost", "WEB",
                 Instant.now().plusSeconds(3600));
@@ -436,7 +455,7 @@ class GameWebSocketIT {
     private static final class Peer implements WebSocket.Listener {
         WebSocket socket;
         final BlockingQueue<String> messages = new LinkedBlockingQueue<>();
-        final BlockingQueue<Integer> closes = new LinkedBlockingQueue<>();
+        final BlockingQueue<CloseEvent> closes = new LinkedBlockingQueue<>();
         final StringBuilder pending = new StringBuilder();
 
         JsonNode nextMessage() throws InterruptedException {
@@ -446,9 +465,13 @@ class GameWebSocketIT {
         }
 
         int nextClose() throws InterruptedException {
-            Integer status = closes.poll(5, TimeUnit.SECONDS);
-            assertNotNull(status, "Timed out waiting for WebSocket close");
-            return status;
+            return nextCloseEvent().statusCode();
+        }
+
+        CloseEvent nextCloseEvent() throws InterruptedException {
+            CloseEvent close = closes.poll(5, TimeUnit.SECONDS);
+            assertNotNull(close, "Timed out waiting for WebSocket close");
+            return close;
         }
 
         @Override public void onOpen(WebSocket webSocket) { webSocket.request(1); }
@@ -459,8 +482,10 @@ class GameWebSocketIT {
             return CompletableFuture.completedFuture(null);
         }
         @Override public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-            closes.add(statusCode);
+            closes.add(new CloseEvent(statusCode, reason));
             return CompletableFuture.completedFuture(null);
         }
+
+        record CloseEvent(int statusCode, String reason) { }
     }
 }

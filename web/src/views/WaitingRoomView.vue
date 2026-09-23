@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { roomApi, roomErrorMessage, type Room } from '../api/rooms'
+import { matchApi, matchErrorMessage } from '../api/matches'
 
 const route = useRoute()
 const router = useRouter()
@@ -25,8 +26,29 @@ watch(() => auth.state, state => {
 
 async function refresh() {
   if (busy.value || !active || auth.state !== 'authenticated' || document.visibilityState === 'hidden') return
-  try { const next = await roomApi.get(roomId); if (active && auth.state === 'authenticated') { if (!room.value || next.version >= room.value.version) room.value = next; error.value = '' } }
+  try {
+    const next = await roomApi.get(roomId)
+    if (!active || auth.state !== 'authenticated') return
+    if (!room.value || next.version >= room.value.version) room.value = next
+    error.value = ''
+    if (next.state === 'PLAYING') {
+      const match = await matchApi.current(roomId)
+      if (active && match) await router.replace(`/matches/${match.matchId}`)
+    }
+  }
   catch (failure) { if (active) error.value = roomErrorMessage(failure) }
+}
+
+async function startMatch() {
+  if (!room.value || !isHost.value || !room.value.canStart || busy.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    const started = await matchApi.start(roomId, room.value.version)
+    if (active) await router.replace(`/matches/${started.matchId}`)
+  } catch (failure) {
+    if (active) { error.value = matchErrorMessage(failure); await refreshAfterConflict() }
+  } finally { busy.value = false }
 }
 
 async function change(action: (current: Room) => Promise<Room | void>) {
@@ -68,10 +90,10 @@ onUnmounted(() => { active = false; clearInterval(timer) })
     <template v-else>
       <div class="waiting-grid">
         <article class="room-panel"><p class="eyebrow">INVITATION</p><h2>{{ room.mode === 'TEAM_2V2' ? '默契双人组 · 2v2' : '经典自由局' }}</h2><p>房间码 <strong class="room-code">{{ room.code }}</strong></p><p class="muted">邀请在 {{ new Date(room.expiresAt).toLocaleString() }} 前有效。</p><label class="room-link-label">邀请链接<input :value="inviteUrl" readonly aria-label="邀请链接" /></label><div class="room-actions"><button class="button secondary small" @click="copyInvite">复制邀请链接</button><button class="button secondary small" :disabled="busy" @click="refresh">刷新</button></div></article>
-        <article class="room-panel"><p class="eyebrow">TABLE SETTINGS</p><h2>{{ room.members.length }} / {{ room.maxPlayers }} 人</h2><p v-if="room.mode === 'TEAM_2V2'" class="muted">A、B 两队各两人，座位交替排列。</p><div v-if="isHost && room.mode === 'CLASSIC'" class="room-settings"><label>人数上限<select :value="room.maxPlayers" :disabled="busy" @change="change(current => roomApi.settings(current, Number(($event.target as HTMLSelectElement).value)))"><option v-for="n in [2,3,4,5,6]" :key="n" :value="n" :disabled="n < room.members.length">{{ n }} 人</option></select></label></div><p class="muted">{{ room.canStart ? '所有人已准备，等待后续对局功能接入。' : '人齐并全部准备后，房间会显示可开始状态。' }}</p></article>
+        <article class="room-panel"><p class="eyebrow">TABLE SETTINGS</p><h2>{{ room.members.length }} / {{ room.maxPlayers }} 人</h2><p v-if="room.mode === 'TEAM_2V2'" class="muted">A、B 两队各两人，座位交替排列。</p><div v-if="isHost && room.mode === 'CLASSIC'" class="room-settings"><label>人数上限<select :value="room.maxPlayers" :disabled="busy" @change="change(current => roomApi.settings(current, Number(($event.target as HTMLSelectElement).value)))"><option v-for="n in [2,3,4,5,6]" :key="n" :value="n" :disabled="n < room.members.length">{{ n }} 人</option></select></label></div><p class="muted">{{ room.state === 'PLAYING' ? '牌局已经开始，正在进入牌桌。' : room.canStart ? '所有人已准备，房主可以开始经典对局。' : '人齐并全部准备后，房主可以开始经典对局。' }}</p><button v-if="isHost && room.mode === 'CLASSIC' && room.state === 'WAITING'" class="button dark" :disabled="busy || !room.canStart" @click="startMatch">开始对局</button></article>
       </div>
       <div class="room-panel"><div class="room-heading"><h2>玩家与座位</h2><span class="muted">{{ room.state === 'WAITING' ? '等待中' : room.state }}</span></div><ol class="member-list"><li v-for="member in room.members" :key="member.userId"><span class="seat-badge">{{ member.seat + 1 }}</span><span><strong>{{ member.nickname }}</strong><small v-if="member.userId === room.hostUserId">房主</small><small v-if="member.userId === auth.user?.id">我</small></span><span v-if="room.mode === 'TEAM_2V2'" class="team-badge">{{ member.team }} 队</span><span class="ready-badge" :class="{ ready: member.ready }">{{ member.ready ? '已准备' : '未准备' }}</span></li></ol><div v-if="me && room.state === 'WAITING'" class="room-actions"><button class="button dark" :disabled="busy" @click="change(current => roomApi.ready(current, !me!.ready))">{{ me.ready ? '取消准备' : '准备' }}</button><template v-if="room.mode === 'TEAM_2V2'"><button v-for="team in (['A','B'] as const)" :key="team" class="button secondary small" :disabled="busy || me.team === team" @click="change(current => roomApi.team(current, team))">加入 {{ team }} 队</button></template><button class="button secondary small" :disabled="busy" @click="leave">离开房间</button></div></div>
-      <p class="room-footnote">当前阶段可以组房、邀请、选队和准备；对局将在后续阶段接入。</p>
+      <p class="room-footnote">经典对局已可开始；2v2 对局、文字与语音仍在建设中。</p>
     </template>
   </section>
 </template>
