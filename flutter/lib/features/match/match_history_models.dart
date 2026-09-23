@@ -6,29 +6,43 @@ class MatchHistoryPage {
   final String? nextCursor;
 
   factory MatchHistoryPage.parse(Object? value) {
-    if (value is! Map<String, dynamic> || value['items'] is! List ||
+    if (value is! Map<String, dynamic> ||
+        value['items'] is! List ||
         (value['nextCursor'] != null && value['nextCursor'] is! String)) {
       throw const MatchDataFailure();
     }
     return MatchHistoryPage(
-      (value['items'] as List).map(MatchHistoryItem.parse).toList(growable: false),
+      (value['items'] as List)
+          .map(MatchHistoryItem.parse)
+          .toList(growable: false),
       value['nextCursor'] as String?,
     );
   }
 }
 
 class MatchHistoryItem {
-  const MatchHistoryItem(this.matchId, this.endedAt, this.rounds, this.result, this.players);
+  const MatchHistoryItem(
+    this.matchId,
+    this.mode,
+    this.endedAt,
+    this.rounds,
+    this.result,
+    this.players,
+  );
   final String matchId;
+  final String mode;
   final DateTime endedAt;
   final int rounds;
   final String result;
   final List<MatchHistoryPlayer> players;
 
   factory MatchHistoryItem.parse(Object? value) {
-    if (value is! Map<String, dynamic> || value['matchId'] is! String ||
-        value['mode'] != 'CLASSIC' || value['endedAt'] is! String ||
-        value['rounds'] is! int || value['rounds'] < 1 ||
+    if (value is! Map<String, dynamic> ||
+        value['matchId'] is! String ||
+        !const ['CLASSIC', 'TEAM_2V2'].contains(value['mode']) ||
+        value['endedAt'] is! String ||
+        value['rounds'] is! int ||
+        value['rounds'] < 1 ||
         !const ['WIN', 'LOSS'].contains(value['result']) ||
         value['players'] is! List) {
       throw const MatchDataFailure();
@@ -37,10 +51,13 @@ class MatchHistoryItem {
     if (ended == null) throw const MatchDataFailure();
     return MatchHistoryItem(
       value['matchId'] as String,
+      value['mode'] as String,
       ended.toLocal(),
       value['rounds'] as int,
       value['result'] as String,
-      (value['players'] as List).map(MatchHistoryPlayer.parse).toList(growable: false),
+      (value['players'] as List)
+          .map(MatchHistoryPlayer.parse)
+          .toList(growable: false),
     );
   }
 }
@@ -52,12 +69,17 @@ class MatchHistoryPlayer {
   final int score;
 
   factory MatchHistoryPlayer.parse(Object? value) {
-    if (value is! Map<String, dynamic> || value['userId'] is! String ||
+    if (value is! Map<String, dynamic> ||
+        value['userId'] is! String ||
         (value['nickname'] != null && value['nickname'] is! String) ||
-        value['seat'] is! int || value['score'] is! int) {
+        value['seat'] is! int ||
+        value['score'] is! int) {
       throw const MatchDataFailure();
     }
-    return MatchHistoryPlayer(value['userId'] as String, value['nickname'] as String?,
-        value['score'] as int);
+    return MatchHistoryPlayer(
+      value['userId'] as String,
+      value['nickname'] as String?,
+      value['score'] as int,
+    );
   }
 }

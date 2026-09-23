@@ -23,7 +23,7 @@ export type MatchReceipt = MatchSnapshot & {
   challengeOutcome: string; cardsDrawnBySeat: Record<string, number>; privateChallengeEvidence: Card[]
 }
 export type HistoryPlayer = { userId: string; seat: number; nickname: string | null; score: number }
-export type HistoryItem = { matchId: string; mode: 'CLASSIC'; endedAt: string; rounds: number;
+export type HistoryItem = { matchId: string; mode: 'CLASSIC' | 'TEAM_2V2'; endedAt: string; rounds: number;
   winnerUserId: string; result: 'WIN' | 'LOSS'; players: HistoryPlayer[] }
 export type HistoryPage = { items: HistoryItem[]; nextCursor: string | null }
 
@@ -89,7 +89,7 @@ export function parseHistoryPage(value: unknown): HistoryPage {
   if (!record(value) || !Array.isArray(value.items)
     || !(value.nextCursor === null || typeof value.nextCursor === 'string')) throw invalid()
   const items = value.items.map(item => {
-    if (!record(item) || !uuid.test(String(item.matchId)) || item.mode !== 'CLASSIC'
+    if (!record(item) || !uuid.test(String(item.matchId)) || !['CLASSIC', 'TEAM_2V2'].includes(String(item.mode))
       || typeof item.endedAt !== 'string' || !Number.isFinite(Date.parse(item.endedAt))
       || !integer(item.rounds) || !uuid.test(String(item.winnerUserId))
       || !['WIN', 'LOSS'].includes(String(item.result)) || !Array.isArray(item.players)) throw invalid()

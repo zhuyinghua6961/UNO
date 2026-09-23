@@ -41,7 +41,11 @@ class _MatchHistoryPanelState extends State<MatchHistoryPanel> {
     if (loading) return;
     final current = ++revision;
     setState(() {
-      if (refresh) { items = const []; cursor = null; loaded = false; }
+      if (refresh) {
+        items = const [];
+        cursor = null;
+        loaded = false;
+      }
       loading = true;
       error = '';
     });
@@ -67,26 +71,45 @@ class _MatchHistoryPanelState extends State<MatchHistoryPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Expanded(child: Text('经典对局战绩', style: Theme.of(context).textTheme.titleLarge)),
-            TextButton(onPressed: loading ? null : () => _load(refresh: true), child: const Text('刷新')),
-          ]),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '对局战绩',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              TextButton(
+                onPressed: loading ? null : () => _load(refresh: true),
+                child: const Text('刷新'),
+              ),
+            ],
+          ),
           if (error.isNotEmpty) ...[
             Text(error, style: const TextStyle(color: Colors.red)),
-            TextButton(onPressed: loading ? null : _load, child: const Text('重试')),
+            TextButton(
+              onPressed: loading ? null : _load,
+              child: const Text('重试'),
+            ),
           ],
-          if (loaded && items.isEmpty) const Text('还没有已完成的经典对局。'),
+          if (loaded && items.isEmpty) const Text('还没有已完成的对局。'),
           for (final item in items)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text(item.result == 'WIN' ? '胜利' : '未获胜'),
-              subtitle: Text('${item.endedAt.toString().substring(0, 16)} · ${item.rounds} 轮\n'
-                  '${item.players.map((player) => '${player.nickname ?? '玩家 ${player.userId.substring(0, 6)}'} ${player.score} 分').join(' · ')}'),
+              title: Text(
+                '${item.mode == 'TEAM_2V2' ? '2v2' : '经典'} · ${item.result == 'WIN' ? '胜利' : '未获胜'}',
+              ),
+              subtitle: Text(
+                '${item.endedAt.toString().substring(0, 16)} · ${item.rounds} 轮\n'
+                '${item.players.map((player) => '${player.nickname ?? '玩家 ${player.userId.substring(0, 6)}'} ${player.score} 分').join(' · ')}',
+              ),
               isThreeLine: true,
             ),
           if (cursor != null)
-            OutlinedButton(onPressed: loading ? null : _load,
-                child: Text(loading ? '读取中…' : '加载更多')),
+            OutlinedButton(
+              onPressed: loading ? null : _load,
+              child: Text(loading ? '读取中…' : '加载更多'),
+            ),
           if (loading && items.isEmpty) const CircularProgressIndicator(),
         ],
       ),

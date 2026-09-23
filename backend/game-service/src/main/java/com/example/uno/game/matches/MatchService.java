@@ -1,6 +1,7 @@
 package com.example.uno.game.matches;
 
 import com.example.uno.core.rules.ClassicUno;
+import com.example.uno.core.rules.TeamUno;
 import com.example.uno.core.rules.UnoCard;
 import com.example.uno.core.rules.UnoCommand;
 import com.example.uno.core.rules.UnoRuleViolation;
@@ -31,6 +32,7 @@ public class MatchService {
     private final Clock clock;
     private final JsonMapper json = new JsonMapper();
     private final ClassicUno rules = new ClassicUno();
+    private final TeamUno teamRules = new TeamUno();
 
     public MatchService(JdbcTemplate jdbc, Clock roomClock) {
         this.jdbc = jdbc;
@@ -53,29 +55,34 @@ public class MatchService {
                 return new MatchStart(active, current.view(), room.version(), current.deadlineAt());
             }
         }
-        if (!"CLASSIC".equals(room.mode()) || !"WAITING".equals(room.state())
+        if (!("CLASSIC".equals(room.mode()) || "TEAM_2V2".equals(room.mode())) || !"WAITING".equals(room.state())
                 || room.version() != expectedVersion || !room.expiresAt().isAfter(clock.instant()))
             throw MatchFailure.conflict();
         List<Member> members = jdbc.query("SELECT user_id, nickname, seat, ready FROM game.room_members WHERE room_id = ? ORDER BY seat",
                 (rs, row) -> new Member(rs.getObject("user_id", UUID.class), rs.getString("nickname"), rs.getBoolean("ready")),
                 roomId);
-        if (members.size() < 2 || members.size() > 6 || members.stream().anyMatch(member -> !member.ready()))
+        if (("TEAM_2V2".equals(room.mode()) && members.size() != 4)
+                || ("CLASSIC".equals(room.mode()) && (members.size() < 2 || members.size() > 6))
+                || members.stream().anyMatch(member -> !member.ready()))
             throw MatchFailure.conflict();
         int dealerSeat = -1;
         for (int seat = 0; seat < members.size(); seat++) {
             if (members.get(seat).userId().equals(identity.userId())) dealerSeat = seat;
         }
         if (dealerSeat < 0) throw MatchFailure.conflict();
-        UnoState initial = rules.start(members.stream().map(Member::userId).toList(), dealerSeat);
+        UnoState initial = "TEAM_2V2".equals(room.mode())
+                ? teamRules.start(members.stream().map(Member::userId).toList(), dealerSeat)
+                : rules.start(members.stream().map(Member::userId).toList(), dealerSeat);
         UUID matchId = UUID.randomUUID();
         Instant deadline = newDeadline(initial.phase());
         jdbc.update("INSERT INTO game.matches(id, room_id, mode, state, rules_version, version, snapshot, deadline_at) "
-                        + "VALUES (?, ?, 'CLASSIC', 'PLAYING', ?, ?, CAST(? AS jsonb), ?)",
-                matchId, roomId, ClassicUno.RULES_VERSION, initial.version(),
+                        + "VALUES (?, ?, ?, 'PLAYING', ?, ?, CAST(? AS jsonb), ?)",
+                matchId, roomId, room.mode(), ClassicUno.RULES_VERSION, initial.version(),
                 json.writeValueAsString(initial.snapshot()), timestamp(deadline));
         for (int seat = 0; seat < members.size(); seat++) jdbc.update(
-                "INSERT INTO game.match_players(match_id, user_id, seat, nickname_snapshot) VALUES (?, ?, ?, ?)",
-                matchId, members.get(seat).userId(), seat, members.get(seat).nickname());
+                "INSERT INTO game.match_players(match_id, user_id, seat, nickname_snapshot, team_snapshot) VALUES (?, ?, ?, ?, ?)",
+                matchId, members.get(seat).userId(), seat, members.get(seat).nickname(),
+                "TEAM_2V2".equals(room.mode()) ? (seat % 2 == 0 ? "A" : "B") : null);
         jdbc.update("UPDATE game.rooms SET state = 'PLAYING', version = version + 1, expires_at = ? WHERE id = ?",
                 Timestamp.from(clock.instant().plus(ROOM_LIFETIME)), roomId);
         return new MatchStart(matchId, rules.view(initial, identity.userId()), room.version() + 1, deadline);
@@ -140,11 +147,12 @@ public class MatchService {
         List<UnoCard> evidence = List.of();
         try {
             if (input.type() == MatchCommandInput.Type.NEXT_ROUND) {
+                if ("TEAM_2V2".equals(match.mode())) throw MatchFailure.invalid();
                 requireEmptyPayload(input);
                 after = rules.nextRound(before, new SecureRandom());
                 event = "NEXT_ROUND_STARTED";
             } else {
-                UnoTransition transition = rules.apply(before, toRuleCommand(input, identity.userId()));
+                UnoTransition transition = apply(match.mode(), before, toRuleCommand(input, identity.userId()));
                 after = transition.state();
                 event = transition.event().name();
                 outcome = transition.challengeOutcome().name();
@@ -174,11 +182,11 @@ public class MatchService {
         String event;
         try {
             switch (before.phase()) {
-                case INITIAL_WILD_COLOR -> transition = rules.apply(before,
+                case INITIAL_WILD_COLOR -> transition = apply(match.mode(), before,
                         new UnoCommand.ChooseInitialColor(actor, UnoCard.Color.RED));
-                case TURN -> transition = rules.apply(before, new UnoCommand.Draw(actor));
-                case AFTER_DRAW -> transition = rules.apply(before, new UnoCommand.Pass(actor));
-                case DRAW_FOUR_RESPONSE -> transition = rules.apply(before, new UnoCommand.AcceptDrawFour(actor));
+                case TURN -> transition = apply(match.mode(), before, new UnoCommand.Draw(actor));
+                case AFTER_DRAW -> transition = apply(match.mode(), before, new UnoCommand.Pass(actor));
+                case DRAW_FOUR_RESPONSE -> transition = apply(match.mode(), before, new UnoCommand.AcceptDrawFour(actor));
                 case ROUND_OVER, MATCH_OVER -> {
                     jdbc.update("UPDATE game.matches SET deadline_at = NULL WHERE id = ?", matchId);
                     return null;
@@ -189,7 +197,7 @@ public class MatchService {
             drawn = transition.cardsDrawnBySeat();
             if (before.phase() == UnoState.Phase.TURN
                     && transition.state().phase() == UnoState.Phase.AFTER_DRAW) {
-                transition = rules.apply(transition.state(), new UnoCommand.Pass(actor));
+                transition = apply(match.mode(), transition.state(), new UnoCommand.Pass(actor));
                 event = "AUTO_DREW_AND_PASSED";
             }
         } catch (UnoRuleViolation violation) {
@@ -213,10 +221,14 @@ public class MatchService {
     }
 
     private MatchRow locked(UUID matchId) {
-        return one(jdbc.query("SELECT room_id, state, version, snapshot::text, deadline_at "
+        return one(jdbc.query("SELECT room_id, mode, state, version, snapshot::text, deadline_at "
                         + "FROM game.matches WHERE id = ? FOR UPDATE",
-                (rs, row) -> new MatchRow(rs.getObject("room_id", UUID.class), rs.getString("state"),
-                        rs.getLong("version"), rs.getString(4), instant(rs.getTimestamp(5))), matchId));
+                (rs, row) -> new MatchRow(rs.getObject("room_id", UUID.class), rs.getString("mode"), rs.getString("state"),
+                        rs.getLong("version"), rs.getString(5), instant(rs.getTimestamp(6))), matchId));
+    }
+
+    private UnoTransition apply(String mode, UnoState state, UnoCommand command) {
+        return "TEAM_2V2".equals(mode) ? teamRules.apply(state, command) : rules.apply(state, command);
     }
 
     private void persist(UUID matchId, UUID roomId, UUID actor, UUID commandId, String requestPayload,
@@ -322,7 +334,7 @@ public class MatchService {
     public record TimeoutResult(UUID matchId, long appliedVersion, String event) { }
     private record Room(String mode, String state, long version, UUID hostUserId, java.time.Instant expiresAt) { }
     private record Member(UUID userId, String nickname, boolean ready) { }
-    private record MatchRow(UUID roomId, String state, long version, String snapshot, Instant deadlineAt) { }
+    private record MatchRow(UUID roomId, String mode, String state, long version, String snapshot, Instant deadlineAt) { }
     private record StateRow(String snapshot, Instant deadlineAt) { }
     private record StoredReceipt(String requestPayload, long appliedVersion, String event, String outcome,
             String cardsDrawn, String privateEvidence) { }

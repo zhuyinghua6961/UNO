@@ -40,11 +40,11 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 房间响应含 `id,code,mode,maxPlayers,hostUserId,state,version,expiresAt,canStart,members`；成员含 `userId,nickname,seat,team,ready`。经典局 2–6 人，2v2 固定四人；座位从 0 开始，偶数为 A 队、奇数为 B 队。成员/设置改变会重置所有准备状态。邀请码在等待状态下 24 小时有效，同账号只能在一间房且只占一个席位。Web 写操作须先取 `/api/auth/csrf` 并携 Cookie、Origin 和 `X-CSRF-TOKEN`；原生 App 须用 `X-UNO-Client: APP` 与 Bearer 令牌。
 
-## 经典对局 HTTP（已实现初始切片）
+## 经典与 2v2 对局 HTTP（已实现初始切片）
 
 | 方法 | 路径 | 行为 |
 | --- | --- | --- |
-| POST | /api/rooms/{roomId}/start | 房主提交 `{expectedVersion}`；仅全员准备的经典房间可启动，返回 `{matchId,view,roomVersion,deadlineAt}`；重复启动返回原对局 |
+| POST | /api/rooms/{roomId}/start | 房主提交 `{expectedVersion}`；经典房间 2–6 人或 2v2 房间四人全员准备可启动，返回 `{matchId,view,roomVersion,deadlineAt}`；重复启动返回原对局 |
 | GET | /api/rooms/{roomId}/match | 对局成员发现进行中的对局并取回个人视图；没有则 204 |
 | GET | /api/matches/{matchId}/state | 仅对局成员可读；返回 `{view,deadlineAt}`，其中 `view` 是当前用户的 `UnoView`，其他人只见手牌数量 |
 | POST | /api/matches/{matchId}/commands | 成员提交 `{protocolVersion:1,commandId,expectedVersion,type,...}`；按规则执行，返回动作版本、事件、当前个人视图与仅本人可见的质疑证据 |
@@ -53,11 +53,11 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 普通回合从开始起计 30 秒；摸到可出的牌进入 `AFTER_DRAW` 时不重置这 30 秒。+4 回应窗口为 8 秒；窗口到期但尚未裁决的玩家新命令返回 409 `TURN_EXPIRED`，已落地的同一命令仍可重试取得回执。服务端在超时后按当前持久化状态执行默认动作：普通回合自动摸 1 张并结束（若规则引擎允许出刚摸的牌，会在同一事务自动 `PASS`，版本因此前进两次）；已摸牌等待选择时自动 `PASS`；+4 回应自动接受；开局万能牌选色默认红色。超时动作写入命令记录并推送个人快照，重复扫描不会重复摸牌或裁决。`SAY_UNO`、`CATCH_UNO` 与摸牌后等待选择不延长原截止时间。
 
-牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 房间不能启动对局。进行中的房间暂不能离开，避免席位与权威状态脱节。Web 与 Flutter 已接入经典牌桌；Android/Web 混合整局已验收，iOS 对局待验收。
+牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 单轮决胜，任一队员出完则同队获胜，`NEXT_ROUND` 不适用；队伍在 `match_players.team_snapshot` 固化，具体见 [团队规则](../rules-team-v1.md)。进行中的房间暂不能离开，避免席位与权威状态脱节。Web 与 Flutter 已接入双模式牌桌；Android/Web 混合经典整局已验收，2v2 混合设备和 iOS 对局待验收。
 
-## 个人经典战绩 HTTP（已实现初始切片）
+## 个人对局战绩 HTTP（已实现初始切片）
 
-`GET /api/matches/history?cursor=...&limit=20` 仅按当前认证身份返回自己参与且 `state=ENDED` 的经典对局，默认 20 条、最多 50 条；`nextCursor` 为不透明的稳定分页位置，末页为 `null`。每项包含 `matchId,mode,endedAt,rounds,winnerUserId,result,players`，`result` 为当前用户的 `WIN` 或 `LOSS`；玩家列表含开局时保存的昵称、座位和最终积分，不返回牌库或私有手牌。旧对局若没有昵称快照，`nickname` 为 `null`，客户端显示匿名席位。进行中和中断局不计入正常完赛历史；团队结果与统计仍待实现。Web/App 账号页均已接入，设备上的新 UI 尚未验收。
+`GET /api/matches/history?cursor=...&limit=20` 仅按当前认证身份返回自己参与且 `state=ENDED` 的经典或 2v2 对局，默认 20 条、最多 50 条；`nextCursor` 为不透明的稳定分页位置，末页为 `null`。每项包含 `matchId,mode,endedAt,rounds,winnerUserId,result,players`，`result` 为当前用户的 `WIN` 或 `LOSS`；2v2 中 `winnerUserId` 是实际出完牌的队员，胜负按开局队伍快照判断。玩家列表含开局时保存的昵称、座位和最终积分，不返回牌库或私有手牌。旧对局若没有昵称快照，`nickname` 为 `null`，客户端显示匿名席位。进行中和中断局不计入正常完赛历史；统计仍待实现。Web/App 账号页均已接入，设备上的新 UI 尚未验收。
 
 ## 房间文字 HTTP（已实现）
 

@@ -180,3 +180,95 @@ const afterLeave = await request(`/api/rooms/${room.id}/messages`, { token: gues
 assert.equal(afterLeave.status, 404, 'former member must lose chat access')
 
 console.log('PASS: containerized registration, Mailpit verification, App login, profile update, empty personal history, room join, bidirectional text, idempotency, and leave access.')
+
+if (process.env.SMOKE_TEAM_MATCH === 'true') {
+  const teamTokens = await Promise.all(['A1', 'B1', 'A2', 'B2'].map(label => account(`Smoke ${label}`)))
+  const teamUsers = await Promise.all(teamTokens.map(async token => {
+    const response = await request('/api/users/me', { token })
+    assert.equal(response.status, 200)
+    return response.body.id
+  }))
+  let waiting = await request('/api/rooms', {
+    method: 'POST', token: teamTokens[0], body: { mode: 'TEAM_2V2', maxPlayers: 4 },
+  })
+  assert.equal(waiting.status, 201, 'team room creation')
+  const teamRoomId = waiting.body.id
+  for (const token of teamTokens.slice(1)) {
+    waiting = await request('/api/rooms/join', {
+      method: 'POST', token, body: { code: waiting.body.code },
+    })
+    assert.equal(waiting.status, 200, 'team player join')
+  }
+  assert.deepEqual(waiting.body.members.map(member => member.team), ['A', 'B', 'A', 'B'])
+  for (const token of teamTokens) {
+    waiting = await request(`/api/rooms/${teamRoomId}/ready`, {
+      method: 'POST', token, body: { ready: true, expectedVersion: waiting.body.version },
+    })
+    assert.equal(waiting.status, 200, 'team player ready')
+  }
+  const started = await request(`/api/rooms/${teamRoomId}/start`, {
+    method: 'POST', token: teamTokens[0], body: { expectedVersion: waiting.body.version },
+  })
+  assert.equal(started.status, 200, `team start: ${started.body?.code ?? ''}`)
+  const teamMatchId = started.body.matchId
+  const byId = new Map(teamUsers.map((id, seat) => [id, teamTokens[seat]]))
+  let finalView
+  for (let actionNumber = 0; actionNumber < 800; actionNumber++) {
+    const hostState = await request(`/api/matches/${teamMatchId}/state`, { token: teamTokens[0] })
+    assert.equal(hostState.status, 200, 'team host state')
+    const publicView = hostState.body.view
+    if (publicView.phase === 'MATCH_OVER') { finalView = publicView; break }
+    assert.notEqual(publicView.phase, 'ROUND_OVER', 'team game finishes in one round')
+    const actorToken = byId.get(publicView.players[publicView.currentSeat].userId)
+    assert.ok(actorToken, 'team actor has credential')
+    const actorState = actorToken === teamTokens[0] ? hostState
+      : await request(`/api/matches/${teamMatchId}/state`, { token: actorToken })
+    assert.equal(actorState.status, 200, 'team actor state')
+    const view = actorState.body.view
+    const action = { protocolVersion: 1, commandId: randomUUID(), expectedVersion: view.version }
+    if (view.phase === 'INITIAL_WILD_COLOR') {
+      action.type = 'CHOOSE_INITIAL_COLOR'
+      action.chosenColor = 'RED'
+    } else if (view.phase === 'DRAW_FOUR_RESPONSE') action.type = 'ACCEPT_DRAW_FOUR'
+    else if (view.phase === 'AFTER_DRAW') {
+      action.type = 'PLAY'
+      action.cardId = view.drawnCardId
+    } else if (view.phase === 'TURN') {
+      const top = view.topCard
+      const playable = view.ownHand.find(card => card.color === null || card.color === view.activeColor
+        || (top.color !== null && card.kind === top.kind
+          && (card.kind !== 'NUMBER' || card.number === top.number)))
+      action.type = playable ? 'PLAY' : 'DRAW'
+      if (playable) action.cardId = playable.id
+    } else throw new Error(`Unexpected team phase: ${view.phase}`)
+    if (action.type === 'PLAY') {
+      const card = view.ownHand.find(item => item.id === action.cardId)
+      assert.ok(card)
+      if (card.color === null) action.chosenColor = 'RED'
+      action.callUno = view.ownHand.length === 2
+    }
+    const applied = await request(`/api/matches/${teamMatchId}/commands`, {
+      method: 'POST', token: actorToken, body: action,
+    })
+    if (applied.status === 409 && ['MATCH_CONFLICT', 'TURN_EXPIRED'].includes(applied.body?.code)) continue
+    assert.equal(applied.status, 200, `team action ${action.type}: ${applied.body?.code ?? ''}`)
+  }
+  assert.ok(finalView, 'team match must finish within 800 actions')
+  const winnerTeam = finalView.roundWinnerSeat % 2 === 0 ? 'A' : 'B'
+  assert.equal(finalView.players[0].score, finalView.players[2].score)
+  assert.equal(finalView.players[1].score, finalView.players[3].score)
+  for (let seat = 0; seat < 4; seat++) {
+    const result = await request('/api/matches/history', { token: teamTokens[seat] })
+    assert.equal(result.status, 200)
+    assert.equal(result.body.items[0].matchId, teamMatchId)
+    assert.equal(result.body.items[0].mode, 'TEAM_2V2')
+    assert.equal(result.body.items[0].result,
+      (seat % 2 === 0 ? 'A' : 'B') === winnerTeam ? 'WIN' : 'LOSS')
+    assert.ok(!JSON.stringify(result.body).includes('ownHand'))
+  }
+  const returned = await request(`/api/rooms/${teamRoomId}`, { token: teamTokens[0] })
+  assert.equal(returned.status, 200)
+  assert.equal(returned.body.state, 'WAITING')
+  assert.ok(returned.body.members.every(member => !member.ready))
+  console.log(`PASS: four real accounts finish team match; ${winnerTeam} wins, histories agree, room resets.`)
+}

@@ -64,6 +64,12 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
       view != null && status == MatchSocketStatus.connected && pending == null;
   bool get activeTurn =>
       myTurn && (view?.phase == 'TURN' || view?.phase == 'AFTER_DRAW');
+  bool get isTeam => widget.room.mode == 'TEAM_2V2';
+  String? get ownTeam => ownSeat < 0
+      ? null
+      : ownSeat.isEven
+      ? 'A'
+      : 'B';
 
   @override
   void initState() {
@@ -348,17 +354,28 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
     final winner = current.roundWinnerSeat == null
         ? null
         : current.players[current.roundWinnerSeat!];
+    final winningTeam = winner == null
+        ? null
+        : winner.seat.isEven
+        ? 'A'
+        : 'B';
     if (current.phase == 'MATCH_OVER') {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            winner?.userId == widget.session.user?.id
+            isTeam
+                ? '$winningTeam 队赢得对局${winningTeam == ownTeam ? '，你和队友胜利！' : '。'}'
+                : winner?.userId == widget.session.user?.id
                 ? '你赢得了对局！'
                 : '${winner == null ? '玩家' : _playerName(winner.userId)} 赢得了对局',
             style: Theme.of(context).textTheme.titleLarge,
           ),
-          Text('本轮得分 ${current.roundPoints} 分'),
+          Text(
+            isTeam
+                ? '${winner == null ? '一位队员' : _playerName(winner.userId)}先出完手牌 · 对手剩余手牌 ${current.roundPoints} 分'
+                : '本轮得分 ${current.roundPoints} 分',
+          ),
           const SizedBox(height: 12),
           FilledButton(
             onPressed: () => widget.onBackToRoom(true),
@@ -470,8 +487,15 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('经典牌桌', style: Theme.of(context).textTheme.headlineMedium),
-          Text('第 ${current?.roundNumber ?? '—'} 轮 · 服务器决定出牌与胜负'),
+          Text(
+            isTeam ? '双人组牌桌' : '经典牌桌',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          Text(
+            isTeam
+                ? '你在 ${ownTeam ?? '—'} 队 · 队友手牌不公开 · 服务器决定胜负'
+                : '第 ${current?.roundNumber ?? '—'} 轮 · 服务器决定出牌与胜负',
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -531,7 +555,7 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
                         if (player.seat != ownSeat)
                           Chip(
                             label: Text(
-                              '${_playerName(player.userId)} · ${player.handCount} 张 · ${player.score} 分',
+                              '${_playerName(player.userId)}${isTeam ? ' · ${player.seat.isEven ? 'A' : 'B'} 队${player.seat.isEven == ownSeat.isEven ? '（队友）' : ''}' : ''} · ${player.handCount} 张 · ${player.score} 分',
                             ),
                           ),
                     ],

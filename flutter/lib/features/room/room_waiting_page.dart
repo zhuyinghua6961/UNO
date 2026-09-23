@@ -97,7 +97,7 @@ class _RoomWaitingPageState extends State<RoomWaitingPage>
   }
 
   Future<void> _startMatch() async {
-    if (busy || !room.canStart || room.mode != 'CLASSIC') return;
+    if (busy || !room.canStart) return;
     setState(() {
       busy = true;
       error = '';
@@ -250,14 +250,14 @@ class _RoomWaitingPageState extends State<RoomWaitingPage>
                     ),
                 ],
                 if (room.state == 'PLAYING') ...[
-                  const Text('经典对局正在进行。'),
+                  const Text('对局正在进行。'),
                   FilledButton(
                     onPressed: openingMatch ? null : _discoverMatch,
                     child: const Text('继续当前对局'),
                   ),
                 ] else ...[
                   Text(room.canStart ? '所有人已准备，房主可以开始对局。' : '等待人齐并全部准备。'),
-                  if (host && room.mode == 'CLASSIC')
+                  if (host)
                     FilledButton(
                       onPressed: busy || !room.canStart ? null : _startMatch,
                       child: const Text('开始对局'),
@@ -272,7 +272,7 @@ class _RoomWaitingPageState extends State<RoomWaitingPage>
           child: const Text('离开房间'),
         ),
         RoomChat(roomId: room.id, api: widget.api),
-        const Text('经典局与房间文字已可使用；2v2 对局、队伍文字与语音仍在建设中。'),
+        const Text('经典局、2v2 对局与房间文字已可使用；队伍文字与语音仍在建设中。'),
       ],
     );
   }

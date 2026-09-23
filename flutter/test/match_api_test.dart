@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:uno_app/features/auth/auth_api.dart';
 import 'package:uno_app/features/auth/auth_session.dart';
 import 'package:uno_app/features/match/match_api.dart';
+import 'package:uno_app/features/match/match_history_models.dart';
 import 'package:uno_app/features/match/match_models.dart';
 
 import 'match_fixture.dart';
@@ -63,13 +64,30 @@ void main() {
         return http.Response('', 204);
       }
       if (request.url.path == '/api/matches/history') {
-        return http.Response(jsonEncode({
-          'items': [{
-            'matchId': matchId, 'mode': 'CLASSIC', 'endedAt': '2026-09-23T08:00:00Z',
-            'rounds': 3, 'winnerUserId': userId, 'result': 'WIN',
-            'players': [{'userId': userId, 'seat': 0, 'nickname': 'Alice', 'score': 500}],
-          }], 'nextCursor': null,
-        }), 200);
+        return http.Response(
+          jsonEncode({
+            'items': [
+              {
+                'matchId': matchId,
+                'mode': 'CLASSIC',
+                'endedAt': '2026-09-23T08:00:00Z',
+                'rounds': 3,
+                'winnerUserId': userId,
+                'result': 'WIN',
+                'players': [
+                  {
+                    'userId': userId,
+                    'seat': 0,
+                    'nickname': 'Alice',
+                    'score': 500,
+                  },
+                ],
+              },
+            ],
+            'nextCursor': null,
+          }),
+          200,
+        );
       }
       return http.Response(jsonEncode(matchSnapshot()), 200);
     });
@@ -114,5 +132,26 @@ void main() {
     final b = MatchCommand('DRAW', 4);
     expect(a.commandId, isNot(b.commandId));
     expect(a.toJson(), containsPair('expectedVersion', 4));
+  });
+
+  test('team history keeps its mode and team result', () {
+    final page = MatchHistoryPage.parse({
+      'items': [
+        {
+          'matchId': matchId,
+          'mode': 'TEAM_2V2',
+          'endedAt': '2026-09-24T08:00:00Z',
+          'rounds': 1,
+          'winnerUserId': userId,
+          'result': 'WIN',
+          'players': [
+            {'userId': userId, 'seat': 0, 'nickname': 'Alice', 'score': 27},
+          ],
+        },
+      ],
+      'nextCursor': null,
+    });
+    expect(page.items.single.mode, 'TEAM_2V2');
+    expect(page.items.single.result, 'WIN');
   });
 }

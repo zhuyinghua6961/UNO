@@ -38,13 +38,13 @@ onUnmounted(() => { disposed = true; revision++ })
 </script>
 
 <template>
-  <section class="history-panel" aria-label="经典对局战绩">
-    <div class="history-heading"><h2>经典对局战绩</h2><button class="button secondary small" :disabled="loading" @click="load(true)">刷新</button></div>
+  <section class="history-panel" aria-label="对局战绩">
+    <div class="history-heading"><h2>对局战绩</h2><button class="button secondary small" :disabled="loading" @click="load(true)">刷新</button></div>
     <p v-if="error" class="room-alert" role="alert">{{ error }} <button class="inline-action" @click="load()">重试</button></p>
-    <p v-if="loaded && items.length === 0" class="muted">还没有已完成的经典对局。</p>
+    <p v-if="loaded && items.length === 0" class="muted">还没有已完成的对局。</p>
     <ol v-if="items.length" class="history-list">
       <li v-for="item in items" :key="item.matchId">
-        <strong>{{ item.result === 'WIN' ? '胜利' : '未获胜' }}</strong>
+        <strong>{{ item.mode === 'TEAM_2V2' ? '2v2 · ' : '经典 · ' }}{{ item.result === 'WIN' ? '胜利' : '未获胜' }}</strong>
         <span>{{ new Date(item.endedAt).toLocaleString('zh-CN') }} · {{ item.rounds }} 轮</span>
         <small>{{ players(item) }}</small>
       </li>

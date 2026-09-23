@@ -37,4 +37,12 @@ describe('match HTTP contract', () => {
     expect(fetcher.mock.calls[0]).toMatchObject(['/api/matches/history?cursor=next%7Cpage',
       { credentials: 'same-origin', cache: 'no-store' }])
   })
+
+  it('accepts team results in the same private history contract', async () => {
+    const item = { matchId, mode: 'TEAM_2V2', endedAt: '2026-09-24T08:00:00Z',
+      rounds: 1, winnerUserId: matchId, result: 'WIN',
+      players: [{ userId: matchId, seat: 0, nickname: 'Alice', score: 27 }] }
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ items: [item], nextCursor: null }), { status: 200 }))
+    expect((await createMatchApi(fetcher).history()).items[0]).toMatchObject({ mode: 'TEAM_2V2', result: 'WIN' })
+  })
 })

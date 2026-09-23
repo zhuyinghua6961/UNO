@@ -130,6 +130,79 @@ class MatchServiceIT {
     }
 
     @Test
+    void teamMatchSnapshotsSeatsAndFinishesForBothTeammates() {
+        GameIdentity host = player("Host");
+        GameIdentity b = player("B");
+        GameIdentity partner = player("Partner");
+        GameIdentity d = player("D");
+        RoomView room = rooms.create(host, "TEAM_2V2", 4);
+        room = rooms.join(b, room.code());
+        room = rooms.join(partner, room.code());
+        room = rooms.join(d, room.code());
+        UUID roomId = room.id();
+        long unreadyVersion = room.version();
+        assertEquals(List.of("A", "B", "A", "B"), room.members().stream().map(RoomView.Member::team).toList());
+        assertEquals("MATCH_CONFLICT", assertThrows(MatchFailure.class,
+                () -> matches.start(roomId, host, unreadyVersion)).code());
+        for (GameIdentity player : List.of(host, b, partner, d))
+            room = rooms.ready(room.id(), player, true, room.version());
+        var started = matches.start(room.id(), host, room.version());
+        long playingVersion = room.version() + 1;
+        UUID matchId = started.matchId();
+        assertEquals("TEAM_2V2", jdbc.queryForObject("SELECT mode FROM game.matches WHERE id = ?", String.class, matchId));
+        assertEquals(List.of("A", "B", "A", "B"), jdbc.query(
+                "SELECT team_snapshot FROM game.match_players WHERE match_id = ? ORDER BY seat",
+                (rs, row) -> rs.getString(1), matchId));
+        assertEquals("ROOM_CONFLICT", assertThrows(RoomFailure.class,
+                () -> rooms.selectTeam(roomId, partner, "B", playingVersion)).code());
+        var partnerView = matches.state(matchId, partner);
+        assertEquals(7, partnerView.ownHand().size());
+        assertEquals(7, partnerView.players().get(0).handCount());
+
+        JsonMapper json = new JsonMapper();
+        UnoSnapshot old = json.readValue(jdbc.queryForObject(
+                "SELECT snapshot::text FROM game.matches WHERE id = ?", String.class, matchId), UnoSnapshot.class);
+        List<List<Integer>> hands = new ArrayList<>();
+        old.hands().forEach(hand -> hands.add(new ArrayList<>(hand)));
+        List<Integer> pile = new ArrayList<>(old.drawPile());
+        UnoCard.Color activeColor = old.activeColor() == null ? UnoCard.Color.RED : old.activeColor();
+        int card = hands.get(0).stream().filter(id -> UnoCard.of(id).color() == activeColor)
+                .findFirst().orElse(-1);
+        if (card < 0) {
+            card = pile.stream().filter(id -> UnoCard.of(id).color() == activeColor).findFirst().orElseThrow();
+            pile.remove(Integer.valueOf(card));
+            pile.addAll(hands.get(0));
+        } else {
+            int finishingCard = card;
+            hands.get(0).stream().filter(id -> id != finishingCard).forEach(pile::add);
+        }
+        hands.set(0, List.of(card));
+        UnoSnapshot prepared = new UnoSnapshot(old.players(), hands, pile, old.discardPile(), old.scores(),
+                old.dealerSeat(), 0, old.direction(), old.roundNumber(), old.version(),
+                UnoState.Phase.TURN, activeColor, null, null, null, null, 0);
+        UnoState.restore(prepared);
+        jdbc.update("UPDATE game.matches SET snapshot = CAST(? AS jsonb) WHERE id = ?",
+                json.writeValueAsString(prepared), matchId);
+        assertEquals("INVALID_MATCH_INPUT", assertThrows(MatchFailure.class,
+                () -> matches.command(matchId, host, new MatchCommandInput(1, UUID.randomUUID(), 1,
+                        MatchCommandInput.Type.NEXT_ROUND, null, null, null, false))).code());
+        var finished = matches.command(matchId, host, new MatchCommandInput(1, UUID.randomUUID(), 1,
+                MatchCommandInput.Type.PLAY, card, null, null, false));
+        assertEquals(UnoState.Phase.MATCH_OVER, finished.view().phase());
+        assertEquals(0, finished.view().roundWinnerSeat());
+        assertEquals(finished.view().players().get(0).score(), finished.view().players().get(2).score());
+        assertEquals("ENDED", jdbc.queryForObject("SELECT state FROM game.matches WHERE id = ?", String.class, matchId));
+        assertEquals("WAITING", rooms.get(room.id(), host).state());
+        assertEquals(UnoState.Phase.MATCH_OVER, matches.state(matchId, partner).phase());
+        MatchHistoryService history = application.getBean(MatchHistoryService.class);
+        assertEquals("WIN", history.history(host, null, 20).items().get(0).result());
+        assertEquals("WIN", history.history(partner, null, 20).items().get(0).result());
+        assertEquals("LOSS", history.history(b, null, 20).items().get(0).result());
+        assertEquals("LOSS", history.history(d, null, 20).items().get(0).result());
+        assertEquals("TEAM_2V2", history.history(partner, null, 20).items().get(0).mode());
+    }
+
+    @Test
     void seatsAreCompactForGameAfterSomeoneLeavesWaitingRoom() {
         GameIdentity host = player("Host");
         GameIdentity leaver = player("Leaver");

@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
-/** Completed classic results are derived from the immutable persisted match snapshot. */
+/** Completed results use persisted match and player snapshots, never mutable room seats. */
 @Service
 public class MatchHistoryService {
     private final JdbcTemplate jdbc;
@@ -26,9 +26,10 @@ public class MatchHistoryService {
     public Page history(GameIdentity identity, String cursorText, int limit) {
         if (limit < 1 || limit > 50) throw MatchFailure.invalid();
         Cursor cursor = decode(cursorText);
-        String sql = "SELECT m.id, m.ended_at, m.snapshot::text FROM game.matches m "
+        String sql = "SELECT m.id, m.mode, m.ended_at, m.snapshot::text, self.team_snapshot FROM game.matches m "
                 + "JOIN game.match_players self ON self.match_id = m.id "
-                + "WHERE self.user_id = ? AND m.mode = 'CLASSIC' AND m.state = 'ENDED' AND m.ended_at IS NOT NULL";
+                + "WHERE self.user_id = ? AND m.mode IN ('CLASSIC', 'TEAM_2V2') "
+                + "AND m.state = 'ENDED' AND m.ended_at IS NOT NULL";
         List<Object> arguments = new ArrayList<>();
         arguments.add(identity.userId());
         if (cursor != null) {
@@ -39,7 +40,8 @@ public class MatchHistoryService {
         sql += " ORDER BY m.ended_at DESC, m.id DESC LIMIT ?";
         arguments.add(limit + 1);
         List<Row> rows = jdbc.query(sql, (rs, row) -> new Row(rs.getObject(1, UUID.class),
-                rs.getTimestamp(2).toInstant(), rs.getString(3)), arguments.toArray());
+                rs.getString(2), rs.getTimestamp(3).toInstant(), rs.getString(4), rs.getString(5)),
+                arguments.toArray());
         boolean hasMore = rows.size() > limit;
         List<Summary> items = new ArrayList<>();
         for (Row row : rows.subList(0, Math.min(rows.size(), limit))) {
@@ -50,8 +52,11 @@ public class MatchHistoryService {
                             rs.getString("nickname_snapshot"), snapshot.scores().get(rs.getInt("seat"))), row.id());
             int winnerSeat = snapshot.roundWinnerSeat();
             UUID winner = snapshot.players().get(winnerSeat);
-            items.add(new Summary(row.id(), "CLASSIC", row.endedAt(), snapshot.roundNumber(),
-                    winner, identity.userId().equals(winner) ? "WIN" : "LOSS", List.copyOf(players)));
+            boolean won = "TEAM_2V2".equals(row.mode())
+                    ? (winnerSeat % 2 == 0 ? "A" : "B").equals(row.teamSnapshot())
+                    : identity.userId().equals(winner);
+            items.add(new Summary(row.id(), row.mode(), row.endedAt(), snapshot.roundNumber(),
+                    winner, won ? "WIN" : "LOSS", List.copyOf(players)));
         }
         String next = hasMore ? encode(rows.get(limit - 1)) : null;
         return new Page(List.copyOf(items), next);
@@ -80,5 +85,5 @@ public class MatchHistoryService {
             UUID winnerUserId, String result, List<Player> players) { }
     public record Player(UUID userId, int seat, String nickname, int score) { }
     private record Cursor(Instant endedAt, UUID matchId) { }
-    private record Row(UUID id, Instant endedAt, String snapshot) { }
+    private record Row(UUID id, String mode, Instant endedAt, String snapshot, String teamSnapshot) { }
 }
