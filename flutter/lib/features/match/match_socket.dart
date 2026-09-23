@@ -7,7 +7,7 @@ import '../auth/auth_session.dart';
 import 'match_api.dart';
 import 'match_models.dart';
 
-enum MatchSocketStatus { connecting, connected, disconnected, unauthorized }
+enum MatchSocketStatus { connecting, connected, disconnected, unauthorized, takenOver }
 
 typedef MatchWebSocketConnector = Future<WebSocket> Function(
   Uri uri,
@@ -109,7 +109,7 @@ class MatchSocket implements MatchTransport {
       _subscription = peer.listen(
         (data) => _handle(data, generation),
         onError: (_) {
-          if (!_closed && generation == _generation) {
+          if (!_closed && generation == _generation && _peer == peer) {
             onStatus(MatchSocketStatus.disconnected);
           }
         },
@@ -169,6 +169,10 @@ class MatchSocket implements MatchTransport {
     if (_closed || generation != _generation) return;
     _peer = null;
     _subscribed = false;
+    if (peer.closeCode == 4001 && peer.closeReason == 'TAKEN_OVER') {
+      onStatus(MatchSocketStatus.takenOver);
+      return;
+    }
     if (peer.closeCode == WebSocketStatus.policyViolation &&
         peer.closeReason != 'RATE_LIMITED') {
       if (++_policyFailures > 1) {

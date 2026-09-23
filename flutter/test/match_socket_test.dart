@@ -28,15 +28,17 @@ class _TokenStore implements TokenStore {
 }
 
 void main() {
-  test('native socket rechecks state after rate limit and policy close, then sends only deliberate command', () async {
+  test('native socket rechecks state, sends deliberate command, and stops after takeover', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final messages = <String>[];
     var connections = 0;
     var refreshes = 0;
     var now = DateTime.utc(2026, 9, 23);
     final connected = Completer<void>();
+    final takenOver = Completer<void>();
     final acknowledged = Completer<MatchReceipt>();
     final errors = <String>[];
+    WebSocket? activePeer;
     server.listen((request) async {
       expect(request.uri.path, '/ws/game');
       expect(request.headers.value('x-uno-client'), 'APP');
@@ -58,6 +60,7 @@ void main() {
             now = DateTime.utc(2026, 9, 23, 2);
             peer.close(WebSocketStatus.policyViolation, 'SESSION_EXPIRED');
           } else {
+            activePeer = peer;
             peer.add(
               jsonEncode({
                 'protocolVersion': 1,
@@ -146,6 +149,8 @@ void main() {
       onStatus: (status) {
         if (status == MatchSocketStatus.connected && !connected.isCompleted) {
           connected.complete();
+        } else if (status == MatchSocketStatus.takenOver && !takenOver.isCompleted) {
+          takenOver.complete();
         }
       },
       onSnapshot: (_) {},
@@ -168,6 +173,11 @@ void main() {
     expect(receipt.state.view.version, 5);
     expect(messages, ['SUBSCRIBE', 'SUBSCRIBE', 'SUBSCRIBE', 'COMMAND']);
     expect(errors, isEmpty);
+    await activePeer!.close(4001, 'TAKEN_OVER');
+    await takenOver.future.timeout(const Duration(seconds: 5));
+    expect(socket.send(MatchCommand('DRAW', 5)), false);
+    await Future<void>.delayed(const Duration(milliseconds: 750));
+    expect(connections, 3);
     socket.close();
     api.close();
     session.dispose();

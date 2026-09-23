@@ -179,13 +179,15 @@ class GameWebSocketIT {
                 assertEquals(timeoutVersion, restored.path("view").path("version").asLong());
                 assertEquals(guest.userId().toString(), restored.path("view").path("players").get(1)
                         .path("userId").asText());
+                Peer.CloseEvent displaced = guestPeer.nextCloseEvent();
+                assertEquals(4001, displaced.statusCode());
+                assertEquals("TAKEN_OVER", displaced.reason());
+                sessions.remove(GUEST_TOKEN);
+                application.getBean(GameWebSocketHandler.class).revalidateConnections();
+                assertEquals(1008, reconnected.nextClose());
             } finally {
                 reconnected.socket.abort();
             }
-
-            sessions.remove(GUEST_TOKEN);
-            application.getBean(GameWebSocketHandler.class).revalidateConnections();
-            assertEquals(1008, guestPeer.nextClose());
         } finally {
             hostPeer.socket.abort();
             guestPeer.socket.abort();

@@ -83,4 +83,24 @@ describe('match WebSocket transport', () => {
     expect(peers).toHaveLength(2)
     transport.close()
   })
+
+  it('stops retrying when another window takes over the match', () => {
+    vi.useFakeTimers()
+    const peers: FakeSocket[] = []
+    const statuses: MatchSocketStatus[] = []
+    const transport = connectMatchSocket(matchId, {
+      status: value => statuses.push(value), snapshot: () => {}, acknowledged: () => {},
+      rejected: () => {}, error: () => {},
+    }, () => { const peer = new FakeSocket(); peers.push(peer); return peer as unknown as WebSocket })
+    peers[0]!.open()
+    peers[0]!.message({ protocolVersion: 1, type: 'MATCH_SNAPSHOT', matchId, ...snapshot })
+    peers[0]!.disconnect(4001, 'TAKEN_OVER')
+    expect(statuses.at(-1)).toBe('taken_over')
+    peers[0]!.onerror?.()
+    expect(statuses.at(-1)).toBe('taken_over')
+    expect(transport.send({ protocolVersion: 1, commandId: 'late', expectedVersion: 4, type: 'DRAW' })).toBe(false)
+    vi.advanceTimersByTime(10000)
+    expect(peers).toHaveLength(1)
+    transport.close()
+  })
 })

@@ -136,6 +136,8 @@ async function openMatch() {
         if (nextStatus === 'unauthorized') {
           snapshot.value = null
           error.value = '对局会话已失效，请重新登录。'
+        } else if (nextStatus === 'taken_over') {
+          notice.value = '此牌局已在同一账号的另一窗口或设备接管。'
         }
       },
       snapshot: update => {
@@ -217,7 +219,7 @@ onUnmounted(() => { disposed = true; revision++; channel?.close(); clearInterval
     <div v-if="loading" class="room-panel"><p>正在读取牌局…</p></div>
     <div v-else-if="!view" class="room-panel"><p>暂时无法读取这场牌局。</p><button class="button dark small" @click="openMatch">重新读取</button></div>
     <template v-else>
-      <div class="match-meta"><span :class="['connection', status]">{{ status === 'connected' ? '实时连接' : status === 'connecting' ? '正在连接' : status === 'unauthorized' ? '会话失效' : '连接中断 · 正在重连' }}</span><span>{{ turnLabel }}</span><span v-if="secondsLeft !== null">剩余 {{ secondsLeft }} 秒</span><span>方向：{{ view.direction === 1 ? '顺时针 ↻' : '逆时针 ↺' }}</span></div>
+      <div class="match-meta"><span :class="['connection', status]">{{ status === 'connected' ? '实时连接' : status === 'connecting' ? '正在连接' : status === 'unauthorized' ? '会话失效' : status === 'taken_over' ? '已由另一窗口接管' : '连接中断 · 正在重连' }}</span><span>{{ turnLabel }}</span><span v-if="secondsLeft !== null">剩余 {{ secondsLeft }} 秒</span><span>方向：{{ view.direction === 1 ? '顺时针 ↻' : '逆时针 ↺' }}</span><button v-if="status === 'taken_over'" class="button secondary small" @click="openMatch">在此接管</button></div>
       <div class="live-layout">
         <section class="live-table" aria-label="实时经典牌桌">
           <div class="live-opponents"><div v-for="player in others" :key="player.userId" :class="['opponent-chip', { current: view.currentSeat === player.seat }]"><strong>{{ playerName(player.userId) }}</strong><span>{{ player.handCount }} 张 · {{ player.score }} 分</span></div></div>
@@ -245,4 +247,5 @@ onUnmounted(() => { disposed = true; revision++; channel?.close(); clearInterval
 @media(max-width:1000px){.live-layout{grid-template-columns:1fr}.match-controls{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.match-controls h2,.match-controls>.muted,.match-controls .round-result,.match-controls .sync-button{grid-column:1/-1}}
 @media(max-width:640px){.match-heading{align-items:start;flex-direction:column}.match-meta>span{font-size:11px;padding:5px 8px}.live-table{min-height:450px;padding:16px}.live-center{gap:12px}.pile img{height:95px}.turn-summary{min-width:100px}.turn-summary strong{font-size:20px}.hand-card img{width:55px}.match-controls{display:grid;grid-template-columns:1fr}.match-controls>*{grid-column:1/-1}}
 .color-name.red{color:#ffb1a0}.color-name.yellow{color:#ffe599}.color-name.green{color:#b9edbb}.color-name.blue{color:#b9d9ff}
+.connection.taken_over{color:#a44232}
 </style>

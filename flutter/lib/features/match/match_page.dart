@@ -153,6 +153,8 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
           if (next == MatchSocketStatus.unauthorized) {
             state = null;
             error = '对局会话已失效，请重新登录。';
+          } else if (next == MatchSocketStatus.takenOver) {
+            notice = '此牌局已在同一账号的另一窗口或设备接管。';
           }
         });
       },
@@ -481,8 +483,11 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
                   MatchSocketStatus.connecting => '正在连接',
                   MatchSocketStatus.disconnected => '连接中断 · 正在重连',
                   MatchSocketStatus.unauthorized => '会话失效',
+                  MatchSocketStatus.takenOver => '已由另一窗口接管',
                 }),
               ),
+              if (status == MatchSocketStatus.takenOver)
+                OutlinedButton(onPressed: _open, child: const Text('在此接管')),
               if (current != null) Chip(label: Text(turn)),
               if (secondsLeft != null) Chip(label: Text('剩余 $secondsLeft 秒')),
               if (current != null)

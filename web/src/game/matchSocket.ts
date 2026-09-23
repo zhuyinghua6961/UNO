@@ -1,6 +1,6 @@
 import { parseMatchReceipt, parseMatchSnapshot, type MatchCommand, type MatchReceipt, type MatchSnapshot } from '../api/matches'
 
-export type MatchSocketStatus = 'connecting' | 'connected' | 'disconnected' | 'unauthorized'
+export type MatchSocketStatus = 'connecting' | 'connected' | 'disconnected' | 'unauthorized' | 'taken_over'
 export type MatchSocketHandlers = {
   status: (status: MatchSocketStatus) => void
   snapshot: (snapshot: MatchSnapshot) => void
@@ -59,13 +59,17 @@ export function connectMatchSocket(matchId: string, handlers: MatchSocketHandler
       if (stopped || current !== generation) return
       socket = null
       subscribed = false
+      if (event.code === 4001 && event.reason === 'TAKEN_OVER') {
+        handlers.status('taken_over')
+        return
+      }
       if (event.code === 1008 && event.reason !== 'RATE_LIMITED') {
         handlers.status('unauthorized')
         return
       }
       scheduleRetry()
     }
-    peer.onerror = () => { if (!stopped && current === generation) handlers.status('disconnected') }
+    peer.onerror = () => { if (!stopped && current === generation && socket === peer) handlers.status('disconnected') }
   }
 
   function scheduleRetry() {

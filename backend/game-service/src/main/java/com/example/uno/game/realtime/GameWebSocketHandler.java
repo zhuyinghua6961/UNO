@@ -25,14 +25,18 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
     private static final int MAX_MESSAGE_BYTES = 8192;
     private static final int MAX_MESSAGES_PER_WINDOW = 30;
     private static final long WINDOW_NANOS = 10_000_000_000L;
+    private static final CloseStatus TAKEN_OVER = new CloseStatus(4001, "TAKEN_OVER");
     private final MatchService matches;
     private final HttpSessionVerifier verifier;
     private final JsonMapper json = new JsonMapper();
     private final ConcurrentHashMap<String, Client> clients = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<SubscriptionKey, Client> subscriptions = new ConcurrentHashMap<>();
+    private final Object[] subscriptionLocks = new Object[256];
 
     public GameWebSocketHandler(MatchService matches, HttpSessionVerifier verifier) {
         this.matches = matches;
         this.verifier = verifier;
+        for (int index = 0; index < subscriptionLocks.length; index++) subscriptionLocks[index] = new Object();
     }
 
     @Override
@@ -71,21 +75,37 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
         if ("SUBSCRIBE".equals(inbound.type())) {
             if (inbound.command() != null) { send(client, Map.of("type", "ERROR", "code", "BAD_MESSAGE")); return; }
             try {
-                var snapshot = matches.snapshot(inbound.matchId(), client.auth.identity());
-                client.matchId = inbound.matchId();
-                sendSnapshot(client, inbound.matchId(), snapshot);
+                SubscriptionKey key = new SubscriptionKey(inbound.matchId(), client.auth.identity().userId());
+                synchronized (lockFor(key)) {
+                    var snapshot = matches.snapshot(inbound.matchId(), client.auth.identity());
+                    SubscriptionKey previousKey = client.subscription;
+                    if (previousKey != null) subscriptions.remove(previousKey, client);
+                    client.matchId = inbound.matchId();
+                    client.subscription = key;
+                    Client displaced = subscriptions.put(key, client);
+                    if (displaced != null && displaced != client) close(displaced, TAKEN_OVER);
+                    sendSnapshot(client, inbound.matchId(), snapshot);
+                }
             } catch (MatchFailure failure) {
                 send(client, Map.of("type", "ERROR", "code", failure.code()));
             }
         } else if ("COMMAND".equals(inbound.type())) {
-            if (!inbound.matchId().equals(client.matchId) || inbound.command() == null
+            if (!inbound.matchId().equals(client.matchId)
+                    || subscriptions.get(client.subscription) != client || inbound.command() == null
                     || inbound.command().protocolVersion() != 1 || inbound.command().commandId() == null
                     || inbound.command().type() == null || inbound.command().expectedVersion() < 1) {
                 send(client, Map.of("type", "COMMAND_REJECTED", "code", "BAD_MESSAGE"));
                 return;
             }
             try {
-                var receipt = matches.command(inbound.matchId(), client.auth.identity(), inbound.command());
+                MatchService.CommandResult receipt;
+                synchronized (lockFor(client.subscription)) {
+                    if (subscriptions.get(client.subscription) != client) {
+                        close(client, TAKEN_OVER);
+                        return;
+                    }
+                    receipt = matches.command(inbound.matchId(), client.auth.identity(), inbound.command());
+                }
                 send(client, Map.of("type", "COMMAND_ACK", "matchId", inbound.matchId(), "result", receipt));
                 if (!receipt.duplicate()) broadcast(inbound.matchId(), client.session.getId());
             } catch (MatchFailure failure) {
@@ -150,13 +170,15 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
 
     private void close(Client client, CloseStatus status) {
         clients.remove(client.session.getId(), client);
+        if (client.subscription != null) subscriptions.remove(client.subscription, client);
         try { if (client.session.isOpen()) client.session.close(status); }
         catch (IOException ignored) { }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        clients.remove(session.getId());
+        Client client = clients.remove(session.getId());
+        if (client != null && client.subscription != null) subscriptions.remove(client.subscription, client);
     }
 
     @Override
@@ -166,11 +188,17 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     private record Inbound(int protocolVersion, String type, UUID matchId, MatchCommandInput command) { }
+    private record SubscriptionKey(UUID matchId, UUID userId) { }
+
+    private Object lockFor(SubscriptionKey key) {
+        return subscriptionLocks[Math.floorMod(key.hashCode(), subscriptionLocks.length)];
+    }
 
     private static final class Client {
         final WebSocketSession session;
         final GameWebSocketHandshake.SessionAuth auth;
         volatile UUID matchId;
+        volatile SubscriptionKey subscription;
         private long windowStarted = System.nanoTime();
         private int messages;
 
