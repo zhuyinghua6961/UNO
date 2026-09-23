@@ -29,6 +29,7 @@ class SecurityConfiguration {
                 .requestMatchers("/api/rooms", "/api/rooms/**").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.GET, "/api/matches/*/state").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.POST, "/api/matches/*/commands").hasAuthority("PLAYER")
+                .requestMatchers(HttpMethod.GET, "/ws/game").permitAll()
                 .anyRequest().denyAll())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .securityContext(context -> context.securityContextRepository(new NullSecurityContextRepository()))

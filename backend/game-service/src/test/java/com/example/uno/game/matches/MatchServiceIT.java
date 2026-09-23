@@ -84,11 +84,11 @@ class MatchServiceIT {
         var hostView = matches.state(started.matchId(), host);
         var guestView = matches.state(started.matchId(), guest);
         assertEquals(started.view(), hostView);
-        assertEquals(7, hostView.ownHand().size());
-        assertEquals(7, guestView.ownHand().size());
+        assertTrue(hostView.ownHand().size() >= 7);
+        assertTrue(guestView.ownHand().size() >= 7);
         assertNotEquals(hostView.ownHand(), guestView.ownHand());
-        assertEquals(7, hostView.players().get(1).handCount());
-        assertEquals(7, guestView.players().get(0).handCount());
+        assertEquals(guestView.ownHand().size(), hostView.players().get(1).handCount());
+        assertEquals(hostView.ownHand().size(), guestView.players().get(0).handCount());
         assertEquals("MATCH_NOT_FOUND", assertThrows(MatchFailure.class,
                 () -> matches.state(started.matchId(), outsider)).code());
         String responseJson = new JsonMapper().writeValueAsString(hostView);

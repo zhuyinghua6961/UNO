@@ -8,7 +8,8 @@ import java.util.UUID;
 /** Actor is derived from the verified session, never accepted from the request body. */
 public record MatchCommandInput(@Min(1) int protocolVersion, @NotNull UUID commandId,
         @Min(1) long expectedVersion, @NotNull Type type, Integer cardId,
-        UnoCard.Color chosenColor, UUID targetUserId, boolean callUno) {
+        UnoCard.Color chosenColor, UUID targetUserId, Boolean callUno) {
+    public MatchCommandInput { callUno = Boolean.TRUE.equals(callUno); }
     public enum Type { PLAY, DRAW, PASS, SAY_UNO, CATCH_UNO, ACCEPT_DRAW_FOUR,
         CHALLENGE_DRAW_FOUR, CHOOSE_INITIAL_COLOR, NEXT_ROUND }
 }

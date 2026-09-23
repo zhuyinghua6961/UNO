@@ -13,7 +13,7 @@
 | GET | /actuator/health/readiness | identity/game 直连探针，包含数据库；不可用返回503，仅含status |
 | GET | /actuator/health/liveness | identity/game 直连探针，不依赖数据库；仅含status |
 
-未登录访问受保护路径默认 401/403；没有开放示例账号或语音令牌。当前 `/ws/**` 仅配置网关预留路由，没有 WebSocket handler。
+未登录访问受保护路径默认 401/403；没有开放示例账号或语音令牌。`/ws/game` 已由 game-service 处理，其余 `/ws/**` 没有业务 handler。
 
 2026-09-07新增可关闭的identity认证后端及game会话校验，见 [账号与会话](../authentication.md) 和 [跨服务身份](../service-authentication.md)。bootstrap仍是scaffold，不因为身份可验证就宣称游戏可玩。
 
@@ -51,7 +51,7 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 动作 `type` 支持 `PLAY`（`cardId,chosenColor,callUno`）、`DRAW`、`PASS`、`SAY_UNO`、`CATCH_UNO`（`targetUserId`）、`ACCEPT_DRAW_FOUR`、`CHALLENGE_DRAW_FOUR`、`CHOOSE_INITIAL_COLOR`（`chosenColor`）、`NEXT_ROUND`。`actor` 从已验证会话推导，不能由客户端指定。对局行锁串行化动作；版本不符或同一 `commandId` 换内容返回 409，规则拒绝返回 422；同一动作重试返回 `duplicate:true` 且不重放效果。`view` 是响应时的最新个人视图，`appliedVersion` 是此命令首次落地的版本。
 
-牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 房间不能启动对局。进行中的房间暂不能离开，避免席位与权威状态脱节。当前只可通过 HTTP 轮询状态，尚无 WebSocket 推送、服务器计时和双端牌桌动作界面。
+牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 房间不能启动对局。进行中的房间暂不能离开，避免席位与权威状态脱节。WebSocket 已提供私有推送；服务器计时和双端牌桌动作界面尚未实现。
 
 ## 计划中的游戏 HTTP
 
@@ -60,29 +60,24 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 | GET | /api/rooms/{roomId}/messages | 按本人权限和游标取房间/队伍消息 |
 | POST | /api/voice/token | 从已认证身份和 matchId 推导队伍，返回受限短期媒体凭证 |
 
-Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷新、撤销和安全存储。WebSocket 使用同站会话或一次性短期连接票据，禁止在 URL 中放长期访问/刷新凭证。
+Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷新、撤销和安全存储。WebSocket 浏览器连接使用允许的 `Origin` 和会话 Cookie；原生 App 连接使用 `X-UNO-Client: APP` 和 Bearer 访问凭证。握手、每条消息及连接定期核验会话；URL 查询参数不允许携带凭证。
 
-## 实时指令草案
+## 经典对局 WebSocket（已实现）
 
-WebSocket 路径拟定 `/ws/game`；连接先认证，再执行每条动作的对象级授权。禁止传任意订阅目标或自选他人的私有队列。
+连接 `/ws/game` 后，发送订阅消息；服务端仅在当前身份属于该对局时返回 `MATCH_SNAPSHOT`。重新连接后重新订阅，从 PostgreSQL 恢复最新个人视图。每条消息和服务端响应均带 `protocolVersion: 1`。
 
 ```json
-{
-  "protocolVersion": 1,
-  "commandId": "client-generated-uuid",
-  "type": "CHAT_SEND",
-  "roomId": "server-issued-uuid",
-  "payload": {"channel": "TEAM", "content": "我来配合你"}
-}
+{"protocolVersion":1,"type":"SUBSCRIBE","matchId":"server-issued-uuid"}
+{"protocolVersion":1,"type":"COMMAND","matchId":"server-issued-uuid","command":{"protocolVersion":1,"commandId":"client-generated-uuid","expectedVersion":1,"type":"DRAW"}}
 ```
 
-聊天指令没有 senderId、teamId、接收者列表；服务端从会话和房间状态推导。消息幂等按身份/频道/commandId 处理，服务器分配消息 ID、时间与频道序号。
+动作内容与 HTTP `/api/matches/{matchId}/commands` 相同；`callUno` 缺省为 `false`。服务器只向提交者发送 `COMMAND_ACK`（含个人视图和可能的私有质疑证据）或 `COMMAND_REJECTED`（含 `commandId` 与错误代码）；动作成功后向同局其他已订阅连接分别发送各自的 `MATCH_SNAPSHOT`。重复命令只给提交者回执，不重新广播。非法订阅/格式返回 `ERROR`。
 
-对局指令另外携带 matchId、expectedVersion；类型计划包括 READY、SELECT_TEAM、START_MATCH、PLAY_CARD、DRAW_CARD、PASS_AFTER_DRAW、CALL_UNO、CATCH_UNO、CHALLENGE_DRAW_FOUR、ACCEPT_DRAW_FOUR。出万能牌和选色一次性提交。
+单条文本消息上限 8192 字节，每连接每 10 秒最多 30 条；超限关闭连接。每连接只订阅一局，不能指定其他身份或接收队列。服务端每次推送前重新核验会话；失效或撤销的连接会关闭。当前跨实例广播、服务器计时及断线自动裁决尚未完成。
 
-服务器事件计划包括 COMMAND_ACK、COMMAND_REJECTED、ROOM_SNAPSHOT、MATCH_SNAPSHOT、CHAT_MESSAGE、VOICE_ELIGIBILITY_CHANGED、MATCH_ENDED。公共视图和本人手牌分别生成，不广播全量秘密状态。
+## 后续聊天协议
 
-游戏状态与聊天使用不同的序号和补偿机制；聊天不应因为游戏 expectedVersion 改变而重复发送。网络重试不直接当作新操作。
+聊天指令和 `CHAT_MESSAGE` 事件尚未实现。聊天指令不能含 senderId、teamId、接收者列表；服务端须从会话和房间状态推导。消息幂等按身份/频道/commandId 处理，由服务器分配消息 ID、时间与频道序号。游戏状态与聊天使用不同序号和补偿机制；聊天不因游戏 expectedVersion 改变而重复发送。
 
 ## 语音准入草案
 
