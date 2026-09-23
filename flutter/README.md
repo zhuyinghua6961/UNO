@@ -11,11 +11,11 @@ flutter test
 flutter run
 ```
 
-当前已有大厅、模式选择、牌桌预览、真实账号入口和好友房等待室。账号页支持注册、邮箱验证/重发、登录、找回/重置密码与退出；好友房支持房间码加入、准备、选队、人数调整和离开。对局、消息和 LiveKit SDK 尚未接入；系统级邀请深链未配置。服务端默认关闭认证，需按 `../docs/authentication.md` 显式启用本地测试配置。
+当前已有大厅、模式选择、牌桌预览、真实账号入口、好友房等待室和经典牌桌。账号页支持注册、邮箱验证/重发、登录、找回/重置密码与退出；好友房支持房间码加入、准备、选队、人数调整和离开。经典房间可启动或恢复对局；原生 WebSocket 接收个人牌面并提交触控动作。2v2 对局、消息和 LiveKit SDK 尚未接入；系统级邀请深链未配置。服务端默认关闭认证，需按 `../docs/authentication.md` 显式启用本地测试配置。Android 模拟器与 Web 的混合整局、结算和第二局已验收；iOS 对局仍待验收，见 `../docs/verification-stage9-flutter.md`。
 
 本机可用 `dart analyze --format=machine` 完成静态检查；原有 Flutter LSP 异常见 `../docs/verification.md`。
 
-默认开发网关地址：Android 模拟器 `http://10.0.2.2:29080`，iOS 模拟器 `http://localhost:29080`。实机须传入设备可达的 HTTPS 地址，例如 `flutter run --dart-define=API_BASE_URL=https://your-test-host`。正式构建拒绝 HTTP 地址；调试版的 Android 明文流量仅在 debug manifest 放行，iOS 仅允许本地网络。账号接口使用 `X-UNO-Client: APP` 与 Bearer 凭证，不传 Cookie/Origin。网关未启动或认证开关关闭时会显示不可用，不模拟登录成功。
+默认开发网关地址：Android 模拟器 `http://10.0.2.2:29080`，iOS 模拟器 `http://localhost:29080`。实机须传入设备可达的 HTTPS 地址，例如 `flutter run --dart-define=API_BASE_URL=https://your-test-host`。正式构建拒绝 HTTP 地址；调试版的 Android 明文流量仅在 debug manifest 放行，iOS 仅允许本地网络。账号和对局接口使用 `X-UNO-Client: APP` 与 Bearer 凭证，不传 Cookie/Origin。网关未启动或认证开关关闭时会显示不可用，不模拟登录成功。实时连接在恢复时先同步权威牌面，再重新订阅；未确认动作不会自动重发。
 
 访问与刷新凭证作为单个记录保存在 Android Keystore/iOS Keychain 支撑的 `flutter_secure_storage` 中；Android 禁用应用备份，避免恢复加密数据后密钥不匹配。启动时读取记录并向后端确认身份，过期时串行刷新并保存轮换后的整组凭证；401 清除已失效会话，网络故障保留凭证供重试。退出只有在服务端确认或已失效时才清除本地凭证。密码及邮件凭证只用于当前提交，不持久保存。正式设备上的安全存储和双端同一用户联调仍待验收，见 `../docs/verification-stage4-flutter.md`。
 

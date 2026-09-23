@@ -5,6 +5,7 @@ import com.example.uno.game.auth.GameAuthSettings;
 import com.example.uno.game.auth.GameIdentity;
 import com.example.uno.game.auth.HttpSessionVerifier;
 import jakarta.servlet.http.Cookie;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,7 @@ public final class GameWebSocketHandshake implements HandshakeInterceptor {
         String token;
         String clientType;
         if (clientValues.size() == 1 && "APP".equals(clientValues.get(0))) {
-            if (!originValues.isEmpty() || !cookieValues.isEmpty()
+            if (!nativeOriginAllowed(request.getURI(), originValues) || !cookieValues.isEmpty()
                     || !headers.getOrEmpty("Sec-Fetch-Site").isEmpty() || authValues.size() != 1
                     || !authValues.get(0).startsWith("Bearer ")) return reject(response, HttpStatus.FORBIDDEN);
             token = authValues.get(0).substring(7);
@@ -78,6 +79,14 @@ public final class GameWebSocketHandshake implements HandshakeInterceptor {
         response.setStatusCode(status);
         response.getHeaders().setCacheControl("no-store");
         return false;
+    }
+
+    /** Reactor Netty adds the upstream endpoint Origin when proxying a native WebSocket. */
+    private boolean nativeOriginAllowed(URI endpoint, List<String> origins) {
+        if (origins.isEmpty()) return true;
+        if (origins.size() != 1) return false;
+        String scheme = "https".equalsIgnoreCase(endpoint.getScheme()) ? "https" : "http";
+        return (scheme + "://" + endpoint.getRawAuthority()).equals(origins.get(0));
     }
 
     public record SessionAuth(String token, String clientType, GameIdentity identity) {

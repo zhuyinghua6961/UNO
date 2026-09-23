@@ -109,7 +109,7 @@ class _LoginPageState extends State<LoginPage> {
             Text('邮箱：${user.email}'),
             Text('用户 ID：${user.id}'),
             const SizedBox(height: 18),
-            const Text('房间与对局尚未接入。', style: TextStyle(color: Colors.black54)),
+            const Text('经典房间与对局已接入；2v2 和通信仍在建设中。', style: TextStyle(color: Colors.black54)),
             const SizedBox(height: 18),
             FilledButton(
               onPressed: session.busy

@@ -3,20 +3,27 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../auth/auth_session.dart';
+import '../match/match_api.dart';
 import 'room_api.dart';
 
 class RoomWaitingPage extends StatefulWidget {
   const RoomWaitingPage({
     super.key,
     required this.api,
+    required this.matches,
     required this.session,
     required this.initialRoom,
     required this.onLeave,
+    required this.onOpenMatch,
+    this.autoEnterMatch = true,
   });
   final RoomApi api;
+  final MatchApi matches;
   final AuthSession session;
   final WaitingRoom initialRoom;
   final VoidCallback onLeave;
+  final ValueChanged<String> onOpenMatch;
+  final bool autoEnterMatch;
 
   @override
   State<RoomWaitingPage> createState() => _RoomWaitingPageState();
@@ -29,6 +36,7 @@ class _RoomWaitingPageState extends State<RoomWaitingPage>
   bool busy = false;
   bool refreshing = false;
   bool visible = true;
+  bool openingMatch = false;
   String error = '';
 
   @override
@@ -64,10 +72,48 @@ class _RoomWaitingPageState extends State<RoomWaitingPage>
           error = '';
         });
       }
+      if (mounted && next.state == 'PLAYING' && widget.autoEnterMatch) {
+        await _discoverMatch();
+      }
     } catch (failure) {
       if (mounted) setState(() => error = '$failure');
     } finally {
       refreshing = false;
+    }
+  }
+
+  Future<void> _discoverMatch() async {
+    if (openingMatch || !mounted) return;
+    openingMatch = true;
+    try {
+      final current = await widget.matches.current(room.id);
+      if (mounted && current != null) widget.onOpenMatch(current.matchId);
+    } catch (failure) {
+      if (mounted) setState(() => error = '$failure');
+    } finally {
+      openingMatch = false;
+    }
+  }
+
+  Future<void> _startMatch() async {
+    if (busy || !room.canStart || room.mode != 'CLASSIC') return;
+    setState(() {
+      busy = true;
+      error = '';
+    });
+    try {
+      final started = await widget.matches.start(room.id, room.version);
+      if (mounted) widget.onOpenMatch(started.matchId);
+    } catch (failure) {
+      if (mounted) setState(() => error = '$failure');
+      try {
+        final next = await widget.api.get(room.id);
+        if (mounted) setState(() => room = next);
+      } catch (_) {
+        // Keep the actionable start error.
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
     }
   }
 
@@ -202,7 +248,20 @@ class _RoomWaitingPageState extends State<RoomWaitingPage>
                       ],
                     ),
                 ],
-                Text(room.canStart ? '所有人已准备，等待后续对局功能接入。' : '等待人齐并全部准备。'),
+                if (room.state == 'PLAYING') ...[
+                  const Text('经典对局正在进行。'),
+                  FilledButton(
+                    onPressed: openingMatch ? null : _discoverMatch,
+                    child: const Text('继续当前对局'),
+                  ),
+                ] else ...[
+                  Text(room.canStart ? '所有人已准备，房主可以开始对局。' : '等待人齐并全部准备。'),
+                  if (host && room.mode == 'CLASSIC')
+                    FilledButton(
+                      onPressed: busy || !room.canStart ? null : _startMatch,
+                      child: const Text('开始对局'),
+                    ),
+                ],
               ],
             ),
           ),
@@ -211,7 +270,7 @@ class _RoomWaitingPageState extends State<RoomWaitingPage>
           onPressed: busy ? null : _leave,
           child: const Text('离开房间'),
         ),
-        const Text('当前阶段可组房、选队和准备；对局将在后续阶段接入。'),
+        const Text('经典局已可开桌；2v2 对局、文字与语音仍在建设中。'),
       ],
     );
   }

@@ -248,6 +248,29 @@ class GameWebSocketIT {
     }
 
     @Test
+    void nativeBearerAllowsOnlyGatewayUpstreamOrigin() {
+        sessions.put(HOST_TOKEN, player("AppHost"));
+        String sameOrigin = "http://" + endpoint.getHost() + ":" + endpoint.getPort();
+        Peer nativePeer = new Peer();
+        nativePeer.socket = HttpClient.newHttpClient().newWebSocketBuilder()
+                .header("X-UNO-Client", "APP")
+                .header("Authorization", "Bearer " + HOST_TOKEN)
+                .header("Origin", sameOrigin)
+                .buildAsync(endpoint, nativePeer).join();
+        try {
+            assertThrows(java.util.concurrent.CompletionException.class, () ->
+                    HttpClient.newHttpClient().newWebSocketBuilder()
+                            .header("X-UNO-Client", "APP")
+                            .header("Authorization", "Bearer " + HOST_TOKEN)
+                            .header("Origin", "http://evil.example")
+                            .buildAsync(endpoint, new Peer()).join());
+        } finally {
+            nativePeer.socket.abort();
+            sessions.clear();
+        }
+    }
+
+    @Test
     void finalPlayThroughTwoSocketsPersistsWinnerAndReturnsRoomToWaiting() throws Exception {
         GameIdentity host = player("FinalHost");
         GameIdentity guest = player("FinalGuest");

@@ -111,7 +111,7 @@ class CrossServiceAuthIT {
         }
         JsonNode bootstrap = json(app(gateway.base(), "GET", "/api/system/bootstrap", null, null));
         assertTrue(bootstrap.path("features").path("authentication").asBoolean());
-        assertFalse(bootstrap.path("features").path("gameplay").asBoolean());
+        assertTrue(bootstrap.path("features").path("gameplay").asBoolean());
     }
 
     @Test

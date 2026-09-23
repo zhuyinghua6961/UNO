@@ -6,6 +6,8 @@ import 'features/auth/login_page.dart';
 import 'features/auth/auth_api.dart';
 import 'features/auth/auth_session.dart';
 import 'features/lobby/lobby_page.dart';
+import 'features/match/match_api.dart';
+import 'features/match/match_page.dart';
 import 'features/room/room_preview_page.dart';
 import 'features/room/room_api.dart';
 import 'features/room/room_entry_panel.dart';
@@ -27,7 +29,10 @@ class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
   late final AuthSession session;
   late final bool ownsSession;
   late final RoomApi rooms;
+  late final MatchApi matches;
   WaitingRoom? activeRoom;
+  String? activeMatchId;
+  bool autoEnterMatch = true;
   String? pendingInviteCode;
   String? inviteCodeForEntry;
   String inviteError = '';
@@ -42,6 +47,7 @@ class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
         widget.authSession ??
         AuthSession(api: AuthApi(), store: SecureTokenStore());
     rooms = RoomApi(session: session);
+    matches = MatchApi(session: session);
     session.addListener(_sessionChanged);
     session.initialize();
   }
@@ -49,8 +55,11 @@ class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
   void _sessionChanged() {
     if (mounted &&
         session.state != SessionState.authenticated &&
-        activeRoom != null) {
-      setState(() => activeRoom = null);
+        (activeRoom != null || activeMatchId != null)) {
+      setState(() {
+        activeRoom = null;
+        activeMatchId = null;
+      });
     }
     if (session.state == SessionState.authenticated &&
         pendingInviteCode != null &&
@@ -90,6 +99,7 @@ class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     session.removeListener(_sessionChanged);
     rooms.close();
+    matches.close();
     if (ownsSession) {
       session.api.close();
       session.dispose();
@@ -130,11 +140,28 @@ class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
         ),
         body: SafeArea(
           child: switch (selectedPage) {
+            0 when activeRoom != null && activeMatchId != null => MatchPage(
+              key: ValueKey(activeMatchId),
+              api: matches,
+              session: session,
+              room: activeRoom!,
+              matchId: activeMatchId!,
+              onBackToRoom: (finished) => setState(() {
+                activeMatchId = null;
+                autoEnterMatch = finished;
+              }),
+            ),
             0 when activeRoom != null => RoomWaitingPage(
               api: rooms,
+              matches: matches,
               session: session,
               initialRoom: activeRoom!,
               onLeave: () => setState(() => activeRoom = null),
+              onOpenMatch: (id) => setState(() {
+                activeMatchId = id;
+                autoEnterMatch = true;
+              }),
+              autoEnterMatch: autoEnterMatch,
             ),
             0 => LobbyPage(
               mode: mode,
@@ -146,7 +173,11 @@ class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
                 mode: mode,
                 initialInviteCode: inviteCodeForEntry,
                 initialError: inviteError,
-                onOpen: (room) => setState(() => activeRoom = room),
+                onOpen: (room) => setState(() {
+                  activeRoom = room;
+                  activeMatchId = null;
+                  autoEnterMatch = true;
+                }),
                 onLogin: () => setState(() => selectedPage = 2),
                 onPendingInvite: (code) => setState(() {
                   pendingInviteCode = code;
@@ -162,10 +193,8 @@ class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
         ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: selectedPage,
-          onDestinationSelected: (selected) => setState(() {
-            selectedPage = selected;
-            if (selected == 0) activeRoom = null;
-          }),
+          onDestinationSelected: (selected) =>
+              setState(() => selectedPage = selected),
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.grid_view_rounded),

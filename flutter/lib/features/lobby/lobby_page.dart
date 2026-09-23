@@ -90,8 +90,8 @@ class LobbyPage extends StatelessWidget {
               title: Text(option.label),
               subtitle: Text(
                 option == GameMode.classic
-                    ? '2–6 人 · 房间文字聊天'
-                    : '4 人 2v2 · 队伍文字与队友语音',
+                    ? '2–6 人 · 真实经典对局'
+                    : '4 人 2v2 · 对局和队友通信建设中',
               ),
               trailing: Icon(
                 mode == option
@@ -104,7 +104,7 @@ class LobbyPage extends StatelessWidget {
         const SizedBox(height: 16),
         ?roomEntry,
         const Text(
-          '好友房已接入；对局和通信将在后续阶段实现。牌桌仍为交互预览。',
+          '经典好友房已可开桌。牌桌预览仅供体验；2v2、文字和语音仍在建设中。',
           style: TextStyle(fontSize: 12, color: Colors.black54),
         ),
       ],

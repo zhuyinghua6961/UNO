@@ -53,7 +53,7 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 普通回合从开始起计 30 秒；摸到可出的牌进入 `AFTER_DRAW` 时不重置这 30 秒。+4 回应窗口为 8 秒；窗口到期但尚未裁决的玩家新命令返回 409 `TURN_EXPIRED`，已落地的同一命令仍可重试取得回执。服务端在超时后按当前持久化状态执行默认动作：普通回合自动摸 1 张并结束（若规则引擎允许出刚摸的牌，会在同一事务自动 `PASS`，版本因此前进两次）；已摸牌等待选择时自动 `PASS`；+4 回应自动接受；开局万能牌选色默认红色。超时动作写入命令记录并推送个人快照，重复扫描不会重复摸牌或裁决。`SAY_UNO`、`CATCH_UNO` 与摸牌后等待选择不延长原截止时间。
 
-牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 房间不能启动对局。进行中的房间暂不能离开，避免席位与权威状态脱节。Web 已接入经典牌桌；Flutter 牌桌仍待实现。
+牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 房间不能启动对局。进行中的房间暂不能离开，避免席位与权威状态脱节。Web 与 Flutter 已接入经典牌桌；Android/Web 混合整局已验收，iOS 对局待验收。
 
 ## 计划中的游戏 HTTP
 
@@ -62,7 +62,7 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 | GET | /api/rooms/{roomId}/messages | 按本人权限和游标取房间/队伍消息 |
 | POST | /api/voice/token | 从已认证身份和 matchId 推导队伍，返回受限短期媒体凭证 |
 
-Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷新、撤销和安全存储。WebSocket 浏览器连接使用允许的 `Origin` 和会话 Cookie；原生 App 连接使用 `X-UNO-Client: APP` 和 Bearer 访问凭证。握手、每条消息及连接定期核验会话；URL 查询参数不允许携带凭证。
+Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷新、撤销和安全存储。WebSocket 浏览器连接使用允许的 `Origin` 和会话 Cookie；原生 App 连接使用 `X-UNO-Client: APP` 和 Bearer 访问凭证。Gateway 的 Reactor Netty 上游 WebSocket 会为原本无 `Origin` 的原生请求补充上游端点的同源 `Origin`，game-service 仅接受空值或与实际上游地址完全一致的值；其他来源、Cookie 或 Fetch Metadata 混用仍拒绝。握手、每条消息及连接定期核验会话；URL 查询参数不允许携带凭证。
 
 ## 经典对局 WebSocket（已实现）
 
