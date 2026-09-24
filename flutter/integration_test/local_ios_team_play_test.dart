@@ -269,13 +269,6 @@ void main() {
             'unexpected iOS turn phase ${state.view.phase}',
           ),
         };
-        await _tap(tester, find.text('同步最新状态'));
-        await _waitFor(
-          tester,
-          () => action.evaluate().isNotEmpty,
-          'iOS turn control for ${state.view.phase}',
-          attempts: 20,
-        );
         await _tap(tester, action);
         for (var check = 0; check < 40; check++) {
           final next = await matchApi.state(matchId);

@@ -9,10 +9,10 @@
 
 ## Web 与 iOS 同局验收
 
-2026-09-24：新增 `web/e2e/mixed-ios-team.cjs` 与 `flutter/integration_test/local_ios_team_play_test.dart`。在隔离的 `uno-stage17-check` Compose 栈、Chromium 和 iPhone 17 Pro iOS 26.5 模拟器上，三次通过四个随机账号的同局 2v2 验收。三名 Web 玩家从真实浏览器注册、邮箱验证、登录、加入/创建房间并准备；第四名 App 玩家从 iOS UI 登录、加入并准备。四人座位为 A/B/A/B；Web UI 与 iOS UI 各提交至少一次真实回合动作，其余回合由各自已认证的 API 自动玩家完成。后两次运行的 Web 自动回合也使用浏览器 Cookie 与 CSRF 会话。服务端达到 `MATCH_OVER`，三个 Web 浏览器均显示团队结算，iOS UI 也显示团队结算；四人的历史均指向同一场对局，A 队或 B 队各两人的胜负一致。第三次还按获胜队伍精确核对 iOS 战绩和结算文字。
+2026-09-24：新增 `web/e2e/mixed-ios-team.cjs` 与 `flutter/integration_test/local_ios_team_play_test.dart`。在隔离的 `uno-stage17-check` Compose 栈、Chromium 和 iPhone 17 Pro iOS 26.5 模拟器上，四次通过四个随机账号的同局 2v2 验收。三名 Web 玩家从真实浏览器注册、邮箱验证、登录、加入/创建房间并准备；第四名 App 玩家从 iOS UI 登录、加入并准备。四人座位为 A/B/A/B；Web UI 与 iOS UI 各提交至少一次真实回合动作，其余回合由各自已认证的 API 自动玩家完成。后续运行的 Web 自动回合也使用浏览器 Cookie 与 CSRF 会话。服务端达到 `MATCH_OVER`，三个 Web 浏览器均显示团队结算，iOS UI 也显示团队结算；四人的历史均指向同一场对局，A 队或 B 队各两人的胜负一致。后两次成功运行还按获胜队伍精确核对 iOS 战绩和结算文字。
 
-运行入口：`cd web && UNO_E2E_SIMULATOR_ID=<booted-simulator-id> npm run test:e2e:mixed-ios-team`；本机使用 `PATH=/tmp/uno-xcode-tools:$PATH DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` 选择 Xcode 工具。默认地址为 Web `127.0.0.1:8088`、Gateway `127.0.0.1:28080`、Mailpit `127.0.0.1:28025`，可用脚本顶部的 `UNO_E2E_*` 环境变量覆盖。运行前需启动本地认证 Compose 覆盖层和已启动的 iOS 模拟器；测试账号和对局留在隔离测试数据库。三次通过的对局 ID 分别为 `9c00a639-67ee-40ed-b793-3984929655fe`、`d51c4684-9f31-45e8-90c4-bee5d5dc9062` 和 `93bac118-6fce-449c-a036-2031aced00b7`。
+运行入口：`cd web && UNO_E2E_SIMULATOR_ID=<booted-simulator-id> npm run test:e2e:mixed-ios-team`；本机使用 `PATH=/tmp/uno-xcode-tools:$PATH DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` 选择 Xcode 工具。默认地址为 Web `127.0.0.1:8088`、Gateway `127.0.0.1:28080`、Mailpit `127.0.0.1:28025`，可用脚本顶部的 `UNO_E2E_*` 环境变量覆盖。运行前需启动本地认证 Compose 覆盖层和已启动的 iOS 模拟器；测试账号和对局留在隔离测试数据库。四次通过的对局 ID 分别为 `9c00a639-67ee-40ed-b793-3984929655fe`、`d51c4684-9f31-45e8-90c4-bee5d5dc9062`、`93bac118-6fce-449c-a036-2031aced00b7` 和 `d399eba2-1b84-414a-86d7-97436ca0f919`。
 
-iOS 测试在轮到自己时点击牌桌的“同步最新状态”，再通过界面提交回合；这验证了手动同步和原生 WebSocket 动作链路，不能据此宣称每个外部回合的实时推送都已被验证。后续回合经 API 自动推进，未逐张由人手操作。此项也不覆盖 Android 真机、iOS 真机麦克风、跨网或完整视觉验收。
+前三次成功运行在 iOS 回合前点击过“同步最新状态”；排查发现测试未滚动到长列表下方的动作控件，误把未渲染的屏幕外按钮当成状态未更新。第四次改为滚动到控件后直接操作，未点击同步按钮，成功完成整局。后续回合经 API 自动推进，未逐张由人手操作；此项仍不覆盖 Android 真机、iOS 真机麦克风、跨网或完整视觉验收。
 
 用户对团队规则的最终确认仍待答复。房间文字已可用；队伍文字与队友语音另属后续阶段。

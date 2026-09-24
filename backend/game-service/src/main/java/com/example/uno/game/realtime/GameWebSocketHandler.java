@@ -77,14 +77,20 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
             try {
                 SubscriptionKey key = new SubscriptionKey(inbound.matchId(), client.auth.identity().userId());
                 synchronized (lockFor(key)) {
-                    var snapshot = matches.snapshot(inbound.matchId(), client.auth.identity());
+                    matches.snapshot(inbound.matchId(), client.auth.identity());
                     SubscriptionKey previousKey = client.subscription;
                     if (previousKey != null) subscriptions.remove(previousKey, client);
                     client.matchId = inbound.matchId();
                     client.subscription = key;
                     Client displaced = subscriptions.put(key, client);
                     if (displaced != null && displaced != client) close(displaced, TAKEN_OVER);
-                    sendSnapshot(client, inbound.matchId(), snapshot);
+                    // A command can commit between the membership check and registration.
+                    // Refresh after registration so its broadcast cannot be the only copy.
+                    try {
+                        sendSnapshot(client, inbound.matchId(), matches.snapshot(inbound.matchId(), client.auth.identity()));
+                    } catch (MatchFailure failure) {
+                        close(client, CloseStatus.POLICY_VIOLATION);
+                    }
                 }
             } catch (MatchFailure failure) {
                 send(client, Map.of("type", "ERROR", "code", failure.code()));
