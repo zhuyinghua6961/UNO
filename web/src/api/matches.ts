@@ -10,7 +10,7 @@ export type MatchView = {
   unoVulnerableSeat: number | null; roundWinnerSeat: number | null; roundPoints: number
   canRespondToDrawFour: boolean; drawnCardId: number | null
 }
-export type MatchSnapshot = { view: MatchView; deadlineAt: string | null; status: 'PLAYING' | 'ENDED' | 'INTERRUPTED' }
+export type MatchSnapshot = { view: MatchView; deadlineAt: string | null; status: 'PLAYING' | 'ENDED' | 'INTERRUPTED'; interruptionReason: 'PLAYER_LEFT' | 'REPEATED_TURN_TIMEOUT' | null }
 export type MatchStart = MatchSnapshot & { matchId: string; roomVersion: number }
 export type MatchCommandType = 'PLAY' | 'DRAW' | 'PASS' | 'SAY_UNO' | 'CATCH_UNO'
   | 'ACCEPT_DRAW_FOUR' | 'CHALLENGE_DRAW_FOUR' | 'CHOOSE_INITIAL_COLOR' | 'NEXT_ROUND'
@@ -52,7 +52,9 @@ export function parseCard(value: unknown): Card {
 
 export function parseMatchSnapshot(value: unknown): MatchSnapshot {
   if (!record(value) || !record(value.view) || !deadline(value.deadlineAt)
-    || !['PLAYING', 'ENDED', 'INTERRUPTED'].includes(String(value.status))) throw invalid()
+    || !['PLAYING', 'ENDED', 'INTERRUPTED'].includes(String(value.status))
+    || !(value.interruptionReason === undefined || value.interruptionReason === null
+      || ['PLAYER_LEFT', 'REPEATED_TURN_TIMEOUT'].includes(String(value.interruptionReason)))) throw invalid()
   const view = value.view
   if (!integer(view.rulesVersion) || view.rulesVersion !== 1 || !integer(view.version) || view.version < 1
     || !integer(view.roundNumber) || !phases.includes(String(view.phase)) || !integer(view.currentSeat)
@@ -68,7 +70,8 @@ export function parseMatchSnapshot(value: unknown): MatchSnapshot {
   })
   if (view.currentSeat < 0 || view.currentSeat >= players.length) throw invalid()
   return { view: { ...view, topCard: parseCard(view.topCard), ownHand: view.ownHand.map(parseCard), players } as MatchView,
-    deadlineAt: value.deadlineAt as string | null, status: value.status as MatchSnapshot['status'] }
+    deadlineAt: value.deadlineAt as string | null, status: value.status as MatchSnapshot['status'],
+    interruptionReason: (value.interruptionReason ?? null) as MatchSnapshot['interruptionReason'] }
 }
 
 export function parseMatchStart(value: unknown): MatchStart {
@@ -156,6 +159,13 @@ export function createMatchApi(fetcher: typeof fetch = (...args) => fetch(...arg
       body: JSON.stringify(body) })
   }
 
+  async function post(path: string): Promise<unknown> {
+    const csrf = await request('/api/auth/csrf')
+    if (!record(csrf) || csrf.headerName !== 'X-CSRF-TOKEN' || typeof csrf.token !== 'string' || !csrf.token)
+      throw new MatchError(502, 'INVALID_CSRF', '无法取得安全凭证，请刷新页面重试。')
+    return request(path, { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf.token } })
+  }
+
   return {
     async start(roomId: string, expectedVersion: number): Promise<MatchStart> {
       return parseMatchStart(await mutate(`/api/rooms/${roomId}/start`, { expectedVersion }))
@@ -166,6 +176,9 @@ export function createMatchApi(fetcher: typeof fetch = (...args) => fetch(...arg
     },
     async state(matchId: string): Promise<MatchSnapshot> {
       return parseMatchSnapshot(await request(`/api/matches/${matchId}/state`))
+    },
+    async leave(matchId: string): Promise<MatchSnapshot> {
+      return parseMatchSnapshot(await post(`/api/matches/${matchId}/leave`))
     },
     async history(cursor?: string): Promise<HistoryPage> {
       const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''

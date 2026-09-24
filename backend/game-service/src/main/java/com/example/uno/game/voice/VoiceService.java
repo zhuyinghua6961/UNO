@@ -115,9 +115,10 @@ public class VoiceService {
     private void rotate(ActiveMatch match, Instant now) {
         jdbc.update("UPDATE game.matches SET voice_generation = ?, voice_reviewed_at = ? WHERE id = ?",
                 UUID.randomUUID(), Timestamp.from(now), match.id());
-        jdbc.update("INSERT INTO game.voice_cleanup(match_id, voice_generation, retain_until) VALUES (?, ?, ?) "
+        jdbc.update("INSERT INTO game.voice_cleanup(match_id, voice_generation, next_attempt_at, retain_until) "
+                        + "VALUES (?, ?, ?, ?) "
                         + "ON CONFLICT (match_id, voice_generation) DO NOTHING",
-                match.id(), match.generation(), Timestamp.from(now.plusSeconds(70)));
+                match.id(), match.generation(), Timestamp.from(now), Timestamp.from(now.plusSeconds(70)));
         try {
             media.deleteRoom(roomName(match.id(), match.generation(), "A"));
             media.deleteRoom(roomName(match.id(), match.generation(), "B"));

@@ -82,6 +82,6 @@ class GameWebSocketSubscriptionTest {
         UnoView view = new UnoView(1, version, 1, UnoState.Phase.TURN, 0, 1, UnoCard.of(0),
                 UnoCard.Color.RED, 80, 1, List.of(UnoCard.of(1)),
                 List.of(new UnoView.Player(playerId, 0, 1, 0)), null, null, 0, false, null);
-        return new MatchService.MatchState(view, Instant.now().plusSeconds(30), "PLAYING");
+        return new MatchService.MatchState(view, Instant.now().plusSeconds(30), "PLAYING", null);
     }
 }

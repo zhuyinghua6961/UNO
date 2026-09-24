@@ -24,6 +24,7 @@ const selectedId = ref<number | null>(null)
 const chosenColor = ref<CardColor | null>(null)
 const callUno = ref(false)
 const pending = ref<MatchCommand | null>(null)
+const leaving = ref(false)
 const now = ref(Date.now())
 const muted = ref(readMuted())
 let channel: ReturnType<typeof connectMatchSocket> | null = null
@@ -44,6 +45,9 @@ const winner = computed(() => view.value?.players.find(player => player.seat ===
 const isTeam = computed(() => room.value?.mode === 'TEAM_2V2')
 const ownTeam = computed(() => ownSeat.value < 0 ? null : ownSeat.value % 2 === 0 ? 'A' : 'B')
 const winnerTeam = computed(() => !winner.value ? null : winner.value.seat % 2 === 0 ? 'A' : 'B')
+const interruptionText = computed(() => snapshot.value?.interruptionReason === 'PLAYER_LEFT'
+  ? '有玩家主动退出，本局不计胜负。'
+  : '有玩家连续错过三次回合，本局不计胜负。')
 const turnLabel = computed(() => {
   if (!view.value) return ''
   if (snapshot.value?.status === 'INTERRUPTED') return '对局已中断'
@@ -207,6 +211,31 @@ function catchUno() {
   if (targetUserId) send('CATCH_UNO', { targetUserId })
 }
 
+async function leaveMatch() {
+  if (snapshot.value?.status !== 'PLAYING' || leaving.value) return
+  if (!window.confirm('退出会立即中断所有人的本局对局，且本局不计胜负。确定退出吗？')) return
+  leaving.value = true
+  error.value = ''
+  try {
+    const result = await matchApi.leave(matchId.value)
+    const currentRoom = await roomApi.current()
+    if (disposed) return
+    accept(result)
+    if (currentRoom && (!room.value || currentRoom.id === room.value.id)) {
+      room.value = currentRoom
+      notice.value = '对局已经结束，但你仍在房间中。请从等待室离开。'
+    } else {
+      room.value = null
+      await router.replace('/')
+    }
+  } catch (failure) {
+    if (!disposed) {
+      error.value = matchErrorMessage(failure)
+      await synchronize(false)
+    }
+  } finally { leaving.value = false }
+}
+
 watch(matchId, () => { void openMatch() }, { immediate: true })
 watch(() => auth.state, state => {
   if (state === 'guest') { snapshot.value = null; channel?.close(); void router.replace({ path: '/login', query: { next: route.path } }) }
@@ -218,7 +247,7 @@ onUnmounted(() => { disposed = true; revision++; channel?.close(); clearInterval
 
 <template>
   <section class="live-match" :data-version="view?.version ?? 0">
-    <div class="room-heading match-heading"><div><p class="eyebrow">{{ isTeam ? 'TEAM 2V2' : 'CLASSIC UNO' }} · LIVE TABLE</p><h1>{{ isTeam ? '双人组牌桌' : '经典牌桌' }}</h1><p class="muted">{{ isTeam ? `你在 ${ownTeam ?? '—'} 队 · 队友手牌不公开` : `第 ${view?.roundNumber ?? '—'} 轮` }} · 服务器决定出牌与胜负</p></div><div class="match-heading-actions"><button class="button secondary small" @click="toggleMute">{{ muted ? '开启音效' : '静音音效' }}</button><RouterLink class="button secondary small" to="/">返回大厅</RouterLink></div></div>
+    <div class="room-heading match-heading"><div><p class="eyebrow">{{ isTeam ? 'TEAM 2V2' : 'CLASSIC UNO' }} · LIVE TABLE</p><h1>{{ isTeam ? '双人组牌桌' : '经典牌桌' }}</h1><p class="muted">{{ isTeam ? `你在 ${ownTeam ?? '—'} 队 · 队友手牌不公开` : `第 ${view?.roundNumber ?? '—'} 轮` }} · 服务器决定出牌与胜负</p></div><div class="match-heading-actions"><button class="button secondary small" @click="toggleMute">{{ muted ? '开启音效' : '静音音效' }}</button><button v-if="snapshot?.status === 'PLAYING'" class="button secondary small" :disabled="leaving" @click="leaveMatch">{{ leaving ? '正在退出…' : '退出本局' }}</button><RouterLink class="button secondary small" to="/">返回大厅</RouterLink></div></div>
     <p v-if="error" class="room-alert" role="alert">{{ error }} <button v-if="!loading" class="inline-action" @click="synchronize()">同步状态</button></p>
     <p v-if="notice" class="room-notice" role="status">{{ notice }}</p>
     <div v-if="loading" class="room-panel"><p>正在读取牌局…</p></div>
@@ -232,7 +261,7 @@ onUnmounted(() => { disposed = true; revision++; channel?.close(); clearInterval
           <div class="own-zone"><div class="own-label"><strong>你的手牌 · {{ view.ownHand.length }} 张</strong><span>{{ view.players[ownSeat]?.score ?? 0 }} 分</span></div><div class="live-hand"><button v-for="card in view.ownHand" :key="card.id" type="button" :class="['hand-card', { selected: selectedId === card.id, drawn: view.drawnCardId === card.id }]" :disabled="!activeTurn || !canSend || (view.phase === 'AFTER_DRAW' && view.drawnCardId !== card.id)" :aria-label="`选择${cardName(card)}`" :aria-pressed="selectedId === card.id" @click="selectCard(card)"><img :src="cardImage(card)" :alt="cardName(card)" /></button></div></div>
         </section>
         <aside class="match-controls room-panel"><h2>本回合操作</h2><p class="muted">{{ snapshot?.status === 'INTERRUPTED' ? '本局已结束，牌面保留供查看。' : pending ? '等待服务器确认…' : status === 'connected' ? '选择卡牌后提交，结果以服务器返回为准。' : '重连后会同步当前局面。' }}</p>
-          <div v-if="snapshot?.status === 'INTERRUPTED'" class="round-result"><strong>对局已中断</strong><p>有玩家连续错过三次回合，本局不计胜负。</p><RouterLink v-if="room" class="button dark" :to="`/rooms/${room.id}`">返回等待室 · 再来一局</RouterLink><RouterLink class="button secondary" to="/">返回大厅</RouterLink></div>
+          <div v-if="snapshot?.status === 'INTERRUPTED'" class="round-result"><strong>对局已中断</strong><p>{{ interruptionText }}</p><RouterLink v-if="room" class="button dark" :to="`/rooms/${room.id}`">返回等待室 · 再来一局</RouterLink><RouterLink class="button secondary" to="/">返回大厅</RouterLink></div>
           <div v-else-if="view.phase === 'MATCH_OVER'" class="round-result"><strong>{{ isTeam ? `${winnerTeam ?? '获胜'} 队赢得对局${winnerTeam === ownTeam ? '，你和队友胜利！' : '。'}` : winner?.userId === auth.user?.id ? '你赢得了对局！' : `${winner ? playerName(winner.userId) : '玩家'} 赢得了对局` }}</strong><p v-if="isTeam">{{ winner ? playerName(winner.userId) : '一位队员' }}先出完手牌 · 对手剩余手牌 {{ view.roundPoints }} 分</p><p v-else>本轮得分 {{ view.roundPoints }} 分</p><RouterLink v-if="room" class="button dark" :to="`/rooms/${room.id}`">返回等待室 · 再来一局</RouterLink><RouterLink class="button secondary" to="/">返回大厅</RouterLink></div>
           <div v-else-if="view.phase === 'ROUND_OVER'" class="round-result"><strong>{{ winner?.userId === auth.user?.id ? '你赢得了本轮！' : `${winner ? playerName(winner.userId) : '玩家'} 赢得了本轮` }}</strong><p>本轮得分 {{ view.roundPoints }} 分</p><button class="button dark" :disabled="!canSend" @click="send('NEXT_ROUND')">开始下一轮</button></div>
           <div v-else-if="view.phase === 'INITIAL_WILD_COLOR' && myTurn" class="action-group"><strong>选择开局颜色</strong><div class="color-choices"><button v-for="color in colors" :key="color.value" :class="['color-choice', color.value.toLowerCase()]" :disabled="!canSend" @click="send('CHOOSE_INITIAL_COLOR', { chosenColor: color.value })">{{ color.label }}</button></div></div>

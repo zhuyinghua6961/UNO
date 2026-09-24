@@ -98,6 +98,17 @@ void main() {
           200,
         );
       }
+      if (request.url.path == '/api/matches/$matchId/leave') {
+        return http.Response(
+          jsonEncode({
+            ...matchSnapshot(),
+            'status': 'INTERRUPTED',
+            'deadlineAt': null,
+            'interruptionReason': 'PLAYER_LEFT',
+          }),
+          200,
+        );
+      }
       return http.Response(jsonEncode(matchSnapshot()), 200);
     });
     final session = AuthSession(
@@ -116,6 +127,7 @@ void main() {
     expect(started.state.view.ownHand.map((card) => card.id), [2, 104]);
     expect(await api.current(roomId), isNull);
     expect((await api.state(matchId)).view.version, 4);
+    expect((await api.leave(matchId)).interruptionReason, 'PLAYER_LEFT');
     expect((await api.history('next|page')).items.single.result, 'WIN');
     expect((await api.stats()).classic.summary, '2 胜 · 1 负 · 完赛胜率 67% · 1 场中断');
     expect(
@@ -132,6 +144,10 @@ void main() {
     expect(start.headers['authorization'], 'Bearer access');
     expect(start.headers['x-uno-client'], 'APP');
     expect(start.headers.containsKey('cookie'), false);
+    final leave = requests.firstWhere((r) => r.url.path.endsWith('/leave'));
+    expect(leave.method, 'POST');
+    expect(leave.headers['authorization'], 'Bearer access');
+    expect(leave.body, isEmpty);
     api.close();
     session.dispose();
   });

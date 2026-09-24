@@ -17,6 +17,19 @@ describe('match HTTP contract', () => {
     }])
   })
 
+  it('leaves a live match with CSRF and reads the interruption reason', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ headerName: 'X-CSRF-TOKEN', token: 'csrf' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...snapshot, status: 'INTERRUPTED',
+        deadlineAt: null, interruptionReason: 'PLAYER_LEFT' }), { status: 200 }))
+    const result = await createMatchApi(fetcher).leave(matchId)
+    expect(result).toMatchObject({ status: 'INTERRUPTED', interruptionReason: 'PLAYER_LEFT' })
+    expect(fetcher.mock.calls[1]).toMatchObject([`/api/matches/${matchId}/leave`, {
+      method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': 'csrf' },
+    }])
+    expect(() => parseMatchSnapshot({ ...snapshot, interruptionReason: 'UNKNOWN' })).toThrow(MatchError)
+  })
+
   it('keeps no active match distinct from a failed response', async () => {
     const api = createMatchApi(vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 })))
     expect(await api.current(roomId)).toBeNull()

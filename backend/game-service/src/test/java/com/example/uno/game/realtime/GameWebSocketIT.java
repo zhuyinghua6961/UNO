@@ -17,6 +17,8 @@ import com.example.uno.game.rooms.RoomService;
 import com.example.uno.game.rooms.RoomView;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.net.http.WebSocket;
 import java.time.Instant;
 import java.sql.Timestamp;
@@ -192,6 +194,55 @@ class GameWebSocketIT {
             hostPeer.socket.abort();
             guestPeer.socket.abort();
             outsiderPeer.socket.abort();
+            sessions.clear();
+        }
+    }
+
+    @Test
+    void nativeHttpDepartureBroadcastsReasonToBothPlayers() throws Exception {
+        GameIdentity host = player("LeavingHost");
+        GameIdentity guest = player("WaitingGuest");
+        sessions.put(HOST_TOKEN, host);
+        sessions.put(GUEST_TOKEN, guest);
+        RoomService rooms = application.getBean(RoomService.class);
+        MatchService matches = application.getBean(MatchService.class);
+        RoomView room = rooms.create(host, "CLASSIC", 2);
+        room = rooms.join(guest, room.code());
+        room = rooms.ready(room.id(), host, true, room.version());
+        room = rooms.ready(room.id(), guest, true, room.version());
+        UUID matchId = matches.start(room.id(), host, room.version()).matchId();
+        Peer hostPeer = connect(HOST_TOKEN);
+        Peer guestPeer = connect(GUEST_TOKEN);
+        try {
+            String subscribe = json.writeValueAsString(Map.of(
+                    "protocolVersion", 1, "type", "SUBSCRIBE", "matchId", matchId));
+            hostPeer.socket.sendText(subscribe, true).join();
+            guestPeer.socket.sendText(subscribe, true).join();
+            assertEquals("PLAYING", hostPeer.nextMessage().path("status").asText());
+            assertEquals("PLAYING", guestPeer.nextMessage().path("status").asText());
+
+            HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:"
+                            + application.getEnvironment().getProperty("local.server.port")
+                            + "/api/matches/" + matchId + "/leave"))
+                    .header("X-UNO-Client", "APP")
+                    .header("Authorization", "Bearer " + HOST_TOKEN)
+                    .POST(HttpRequest.BodyPublishers.noBody()).build();
+            HttpResponse<String> response = HttpClient.newHttpClient().send(request,
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, response.statusCode(), response.body());
+            assertEquals("PLAYER_LEFT", json.readTree(response.body()).path("interruptionReason").asText());
+            for (Peer peer : List.of(hostPeer, guestPeer)) {
+                JsonNode notice = peer.nextMessage();
+                assertEquals("MATCH_SNAPSHOT", notice.path("type").asText());
+                assertEquals("INTERRUPTED", notice.path("status").asText());
+                assertEquals("PLAYER_LEFT", notice.path("interruptionReason").asText());
+                assertTrue(notice.path("deadlineAt").isNull());
+            }
+            assertEquals("WAITING", rooms.get(room.id(), guest).state());
+            assertNull(rooms.current(host));
+        } finally {
+            hostPeer.socket.abort();
+            guestPeer.socket.abort();
             sessions.clear();
         }
     }

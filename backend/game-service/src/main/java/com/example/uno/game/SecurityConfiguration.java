@@ -31,6 +31,7 @@ class SecurityConfiguration {
                 .requestMatchers(HttpMethod.GET, "/api/matches/stats").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.GET, "/api/matches/*/state").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.POST, "/api/matches/*/commands").hasAuthority("PLAYER")
+                .requestMatchers(HttpMethod.POST, "/api/matches/*/leave").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.POST, "/api/voice/token").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.GET, "/ws/game", "/ws/chat").permitAll()
                 .anyRequest().denyAll())

@@ -20,6 +20,7 @@ class MatchPage extends StatefulWidget {
     required this.room,
     required this.matchId,
     required this.onBackToRoom,
+    required this.onLeaveMatch,
     this.transportFactory,
     this.audioPreference,
   });
@@ -29,6 +30,7 @@ class MatchPage extends StatefulWidget {
   final WaitingRoom room;
   final String matchId;
   final ValueChanged<bool> onBackToRoom;
+  final VoidCallback onLeaveMatch;
   final MatchTransport Function(MatchSocketHandlers handlers)? transportFactory;
   final MatchAudioPreference? audioPreference;
 
@@ -48,6 +50,7 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
   bool muted = false;
   bool audioChanged = false;
   bool visible = true;
+  bool leaving = false;
   String error = '';
   String notice = '';
   int generation = 0;
@@ -256,6 +259,51 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _leaveMatch() async {
+    if (state?.status != 'PLAYING' || leaving) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('退出本局？'),
+        content: const Text('退出会立即中断所有人的本局对局，且本局不计胜负。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('继续对局'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('确定退出'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true || state?.status != 'PLAYING') return;
+    setState(() {
+      leaving = true;
+      error = '';
+    });
+    try {
+      final result = await widget.api.leave(widget.matchId);
+      final currentRoom = await chatApi.current();
+      if (!mounted) return;
+      _accept(result);
+      if (currentRoom == null || currentRoom.id != widget.room.id) {
+        widget.onLeaveMatch();
+      } else {
+        setState(() => notice = '对局已经结束，但你仍在房间中。请从等待室离开。');
+      }
+    } catch (failure) {
+      if (mounted) {
+        setState(() {
+          leaving = false;
+          error = '$failure';
+        });
+        await _sync(clearError: false);
+      }
+    }
+  }
+
   void _send(
     String type, {
     int? cardId,
@@ -370,7 +418,11 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('对局已中断', style: Theme.of(context).textTheme.titleLarge),
-          const Text('有玩家连续错过三次回合，本局不计胜负。'),
+          Text(
+            state?.interruptionReason == 'PLAYER_LEFT'
+                ? '有玩家主动退出，本局不计胜负。'
+                : '有玩家连续错过三次回合，本局不计胜负。',
+          ),
           const SizedBox(height: 12),
           FilledButton(
             onPressed: () => widget.onBackToRoom(true),
@@ -700,6 +752,11 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
             onPressed: () => widget.onBackToRoom(false),
             child: const Text('返回等待室'),
           ),
+          if (state?.status == 'PLAYING')
+            OutlinedButton(
+              onPressed: leaving ? null : _leaveMatch,
+              child: Text(leaving ? '正在退出…' : '退出本局'),
+            ),
           RoomChat(
             roomId: widget.room.id,
             api: chatApi,

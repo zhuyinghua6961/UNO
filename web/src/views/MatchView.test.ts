@@ -82,6 +82,26 @@ describe('live Web table', () => {
     wrapper.unmount()
   })
 
+  it('confirms deliberate departure and distinguishes it from a timeout interruption', async () => {
+    const initial = parseMatchSnapshot(snapshot)
+    const wrapper = await showMatch(initial)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const leave = vi.spyOn(matchApi, 'leave').mockResolvedValue({ ...initial, status: 'INTERRUPTED',
+      deadlineAt: null, interruptionReason: 'PLAYER_LEFT' })
+    await wrapper.findAll('button').find(button => button.text() === '退出本局')!.trigger('click')
+    expect(leave).not.toHaveBeenCalled()
+    confirm.mockReturnValue(true)
+    await wrapper.findAll('button').find(button => button.text() === '退出本局')!.trigger('click')
+    await flushPromises()
+    expect(leave).toHaveBeenCalledWith(matchId)
+    wrapper.unmount()
+
+    const interrupted = await showMatch({ ...initial, status: 'INTERRUPTED',
+      deadlineAt: null, interruptionReason: 'PLAYER_LEFT' })
+    expect(interrupted.text()).toContain('有玩家主动退出，本局不计胜负。')
+    interrupted.unmount()
+  })
+
   it('submits the visible target user when catching a missed UNO', async () => {
     const initial = parseMatchSnapshot(snapshot)
     const vulnerable = { ...initial, view: { ...initial.view, unoVulnerableSeat: 1 } }

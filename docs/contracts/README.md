@@ -46,14 +46,15 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 | --- | --- | --- |
 | POST | /api/rooms/{roomId}/start | 房主提交 `{expectedVersion}`；经典房间 2–6 人或 2v2 房间四人全员准备可启动，返回 `{matchId,view,roomVersion,deadlineAt}`；重复启动返回原对局 |
 | GET | /api/rooms/{roomId}/match | 对局成员发现进行中的对局并取回个人视图；没有则 204 |
-| GET | /api/matches/{matchId}/state | 仅对局成员可读；返回 `{view,deadlineAt}`，其中 `view` 是当前用户的 `UnoView`，其他人只见手牌数量 |
+| GET | /api/matches/{matchId}/state | 仅对局成员可读；返回 `{view,deadlineAt,status,interruptionReason}`，其中 `view` 是当前用户的 `UnoView`，其他人只见手牌数量 |
 | POST | /api/matches/{matchId}/commands | 成员提交 `{protocolVersion:1,commandId,expectedVersion,type,...}`；按规则执行，返回动作版本、事件、当前个人视图与仅本人可见的质疑证据 |
+| POST | /api/matches/{matchId}/leave | 对局成员主动退出进行中对局；事务内中断本局、记 `PLAYER_LEFT`、释放房间并移除退出者，返回个人状态；重复请求不重复中断 |
 
 动作 `type` 支持 `PLAY`（`cardId,chosenColor,callUno`）、`DRAW`、`PASS`、`SAY_UNO`、`CATCH_UNO`（`targetUserId`）、`ACCEPT_DRAW_FOUR`、`CHALLENGE_DRAW_FOUR`、`CHOOSE_INITIAL_COLOR`（`chosenColor`）、`NEXT_ROUND`。`actor` 从已验证会话推导，不能由客户端指定。对局行锁串行化动作；版本不符或同一 `commandId` 换内容返回 409，规则拒绝返回 422；同一动作重试返回 `duplicate:true` 且不重放效果。`view` 是响应时的最新个人视图，`appliedVersion` 是此命令首次落地的版本。启动、当前对局、状态、动作回执及 WebSocket 快照均提供 UTC `deadlineAt`；回合结束或整局结束时为 `null`。
 
 普通回合从开始起计 30 秒；摸到可出的牌进入 `AFTER_DRAW` 时不重置这 30 秒。+4 回应窗口为 8 秒；窗口到期但尚未裁决的玩家新命令返回 409 `TURN_EXPIRED`，已落地的同一命令仍可重试取得回执。服务端在超时后按当前持久化状态执行默认动作：普通回合自动摸 1 张并结束（若规则引擎允许出刚摸的牌，会在同一事务自动 `PASS`，版本因此前进两次）；已摸牌等待选择时自动 `PASS`；+4 回应自动接受；开局万能牌选色默认红色。超时动作写入命令记录并推送个人快照，重复扫描不会重复摸牌或裁决。`SAY_UNO`、`CATCH_UNO` 与摸牌后等待选择不延长原截止时间。
 
-牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 单轮决胜，任一队员出完则同队获胜，`NEXT_ROUND` 不适用；队伍在 `match_players.team_snapshot` 固化，具体见 [团队规则](../rules-team-v1.md)。进行中的房间暂不能离开，避免席位与权威状态脱节。Web 与 Flutter 已接入双模式牌桌；Android/Web 混合经典整局已验收，2v2 混合设备和 iOS 对局待验收。
+牌堆、其他玩家手牌和加四质疑证据都只保存在服务器；质疑证据仅随质疑者的动作响应返回。2v2 单轮决胜，任一队员出完则同队获胜，`NEXT_ROUND` 不适用；队伍在 `match_players.team_snapshot` 固化，具体见 [团队规则](../rules-team-v1.md)。进行中的房间不能直接调用房间退房接口；玩家可通过对局退出接口中断本局，其他人回到等待室。Web 与 Flutter 已接入双模式牌桌；Web 与 iOS 模拟器同局 2v2 已验收，Android/iOS 真机联动仍待验收。
 
 ## 个人对局战绩 HTTP（已实现初始切片）
 
@@ -63,7 +64,7 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 ## 房间文字 HTTP（已实现）
 
-`POST /api/rooms/{roomId}/messages` 请求 `{clientMessageId,content}`；`GET /api/rooms/{roomId}/messages?after=0&limit=50` 按递增频道序号分页，`latest=true` 取最近 50 条并返回后续补取游标。默认 `ROOM` 频道；响应含服务器生成的消息 ID、发送者 ID/昵称、时间、序号和原样纯文本。请求不得指定发送者或收件人；每次发送和读取都要求有效会话及当前房间成员资格，重新加入后无法读取这次加入前的历史。同一发送者在同一房间重试相同 `clientMessageId` 与正文返回原消息，换正文返回 409。服务端每秒至多接受两条新消息，每条最多 500 个 Unicode 码点；默认 30 天后删除。Web 使用 Cookie/CSRF，App 使用 Bearer。当前双端用 2 秒游标补取；WebSocket 消息事件待实现。
+`POST /api/rooms/{roomId}/messages` 请求 `{clientMessageId,content}`；`GET /api/rooms/{roomId}/messages?after=0&limit=50` 按递增频道序号分页，`latest=true` 取最近 50 条并返回后续补取游标。默认 `ROOM` 频道；响应含服务器生成的消息 ID、发送者 ID/昵称、时间、序号和原样纯文本。请求不得指定发送者或收件人；每次发送和读取都要求有效会话及当前房间成员资格，重新加入后无法读取这次加入前的历史。同一发送者在同一房间重试相同 `clientMessageId` 与正文返回原消息，换正文返回 409。服务端每秒至多接受两条新消息，每条最多 500 个 Unicode 码点；默认 30 天后删除。Web 使用 Cookie/CSRF，App 使用 Bearer。双端以 WebSocket 实时接收，并用 HTTP 游标补偿断线期间的消息。
 
 2v2 房间可在发送体附 `channel:"TEAM"` 或在历史请求使用 `channel=TEAM`。服务器从当前成员席位推导实际 `TEAM_A` 或 `TEAM_B`，客户端不能指定 A/B、发送者或接收者；经典房间请求团队频道返回 400。房间与队伍各自维护序号和游标，换队/重新加入时的 `team_join_sequence` 阻止读取该队此前消息；同一消息 ID 不能跨频道重用。双端使用 WebSocket 实时接收和 2 秒 HTTP 游标补取，维护独立未读数。
 
@@ -88,9 +89,9 @@ Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷
 {"protocolVersion":1,"type":"COMMAND","matchId":"server-issued-uuid","command":{"protocolVersion":1,"commandId":"client-generated-uuid","expectedVersion":1,"type":"DRAW"}}
 ```
 
-动作内容与 HTTP `/api/matches/{matchId}/commands` 相同；`callUno` 缺省为 `false`。服务器只向 WebSocket 提交者发送 `COMMAND_ACK`（含个人视图和可能的私有质疑证据）或 `COMMAND_REJECTED`（含 `commandId` 与错误代码）；WebSocket 或 HTTP 动作成功后向同局已订阅连接分别发送各自的 `MATCH_SNAPSHOT`。开始响应、状态查询、动作回执及快照均含 `status: PLAYING|ENDED|INTERRUPTED` 和 `deadlineAt`。超时裁决后向同局全部已订阅连接推送私有快照。重复命令不重新广播。非法订阅/格式返回 `ERROR`。
+动作内容与 HTTP `/api/matches/{matchId}/commands` 相同；`callUno` 缺省为 `false`。服务器只向 WebSocket 提交者发送 `COMMAND_ACK`（含个人视图和可能的私有质疑证据）或 `COMMAND_REJECTED`（含 `commandId` 与错误代码）；WebSocket 或 HTTP 动作成功后向同局已订阅连接分别发送各自的 `MATCH_SNAPSHOT`。开始响应、状态查询、动作回执及快照均含 `status: PLAYING|ENDED|INTERRUPTED` 和 `deadlineAt`。状态查询与快照还含可空的 `interruptionReason`，目前为 `PLAYER_LEFT`、`REPEATED_TURN_TIMEOUT` 或 `null`。主动退出和超时裁决向同局全部已订阅连接推送私有快照。重复命令不重新广播。非法订阅/格式返回 `ERROR`。
 
-普通回合与开局选色限时 30 秒，+4 回应限时 8 秒。每位玩家第三次连续错过本人回合后，服务器将对局置为 `INTERRUPTED`、取消截止时间并释放房间；中断不计胜负，历史记录的 `result=INTERRUPTED` 且 `winnerUserId=null`。本人成功提交动作清零本人计数；+4 自动接受不计漏回合。经典局单轮结束 120 秒无人开始下一轮时由服务器自动开局。这些是产品超时策略，不是官方 UNO 规则。
+普通回合与开局选色限时 30 秒，+4 回应限时 8 秒。每位玩家第三次连续错过本人回合后，服务器将对局置为 `INTERRUPTED`、取消截止时间并释放房间；玩家主动退出也立即中断当前局并从房间移除，剩余玩家可重新准备。两种中断均不计胜负，历史记录的 `result=INTERRUPTED` 且 `winnerUserId=null`。本人成功提交动作清零本人计数；+4 自动接受不计漏回合。经典局单轮结束 120 秒无人开始下一轮时由服务器自动开局。这些是产品超时策略，不是官方 UNO 规则。
 
 单条文本消息上限 8192 字节，每连接每 10 秒最多 30 条；速率超限以 1008、`RATE_LIMITED` 关闭连接，客户端可重新订阅并同步状态，不能自动重发未确认命令。同一 game-service 实例中，同一用户对同一局的新订阅接管旧连接：旧连接以 4001、`TAKEN_OVER` 关闭且不能再发动作；Web/App 停止自动重连，用户可以手动在当前端重新接管。每连接同时只订阅一局，不能指定其他身份或接收队列。服务端每次推送前重新核验会话；失效或撤销的连接会关闭。超时扫描默认约每秒执行一次；跨实例接管/广播与完整断线策略尚未完成。HTTP 动作入口仍独立于 WebSocket 接管权。
 

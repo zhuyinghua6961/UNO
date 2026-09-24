@@ -118,6 +118,7 @@ void main() {
               room: room,
               matchId: matchId,
               onBackToRoom: (_) {},
+              onLeaveMatch: () {},
               audioPreference: audio,
               transportFactory: (handlers) =>
                   transport = _FakeTransport(handlers, initial),
@@ -197,15 +198,23 @@ void main() {
       await tester.pump();
       expect(audio.muted, true);
       expect(find.text('开启音效'), findsOneWidget);
+      await tester.ensureVisible(find.text('退出本局'));
+      await tester.pump();
+      await tester.tap(find.text('退出本局'));
+      await tester.pumpAndSettle();
+      expect(find.text('退出会立即中断所有人的本局对局，且本局不计胜负。'), findsOneWidget);
+      await tester.tap(find.text('继续对局'));
+      await tester.pumpAndSettle();
       transport.handlers.onSnapshot(
         MatchState.parse({
           ...matchSnapshot(version: 6),
           'status': 'INTERRUPTED',
           'deadlineAt': null,
+          'interruptionReason': 'PLAYER_LEFT',
         }),
       );
       await tester.pump();
-      expect(find.text('有玩家连续错过三次回合，本局不计胜负。'), findsOneWidget);
+      expect(find.text('有玩家主动退出，本局不计胜负。'), findsOneWidget);
       expect(find.text('摸 1 张'), findsNothing);
       expect(transport.sent, hasLength(3));
       await tester.pumpWidget(const SizedBox());

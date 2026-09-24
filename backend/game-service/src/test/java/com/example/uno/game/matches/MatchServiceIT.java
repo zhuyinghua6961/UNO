@@ -478,6 +478,9 @@ class MatchServiceIT {
 
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM game.voice_cleanup WHERE match_id = ?",
                 Integer.class, matchId));
+        Instant retainUntil = jdbc.queryForObject("SELECT retain_until FROM game.voice_cleanup WHERE match_id = ?",
+                (rs, row) -> rs.getTimestamp(1).toInstant(), matchId);
+        assertTrue(retainUntil.isAfter(Instant.now().plusSeconds(60)));
         assertEquals("WAITING", rooms.get(room.id(), host).state());
         var history = application.getBean(MatchHistoryService.class);
         for (GameIdentity player : List.of(host, b, partner, d)) {
@@ -485,6 +488,73 @@ class MatchServiceIT {
             assertEquals("TEAM_2V2", item.mode());
             assertEquals("INTERRUPTED", item.result());
             assertNull(item.winnerUserId());
+            assertEquals(new MatchHistoryService.ModeStats(0, 0, 1), history.stats(player).team2v2());
+        }
+    }
+
+    @Test
+    void deliberateHostDepartureInterruptsClassicMatchAndTransfersRoom() {
+        GameIdentity host = player("Host");
+        GameIdentity guest = player("Guest");
+        GameIdentity outsider = player("Outsider");
+        UUID matchId = startMatch(host, guest).matchId();
+        UUID roomId = jdbc.queryForObject("SELECT room_id FROM game.matches WHERE id = ?", UUID.class, matchId);
+        assertEquals("MATCH_NOT_FOUND", assertThrows(MatchFailure.class,
+                () -> matches.leave(matchId, outsider)).code());
+
+        var interrupted = matches.leave(matchId, host);
+        assertEquals("INTERRUPTED", interrupted.status());
+        assertEquals("PLAYER_LEFT", interrupted.interruptionReason());
+        assertNull(interrupted.deadlineAt());
+        assertEquals("PLAYER_LEFT", matches.snapshot(matchId, guest).interruptionReason());
+        assertEquals("PLAYER_LEFT", jdbc.queryForObject(
+                "SELECT interruption_reason FROM game.matches WHERE id = ?", String.class, matchId));
+        assertEquals("WAITING", rooms.get(roomId, guest).state());
+        assertEquals(guest.userId(), rooms.get(roomId, guest).hostUserId());
+        assertEquals(List.of(guest.userId()), rooms.get(roomId, guest).members().stream()
+                .map(RoomView.Member::userId).toList());
+        assertNull(rooms.current(host));
+        assertNull(matches.current(roomId, guest));
+        assertEquals("MATCH_CONFLICT", assertThrows(MatchFailure.class,
+                () -> matches.command(matchId, guest, new MatchCommandInput(1, UUID.randomUUID(),
+                        interrupted.view().version(), MatchCommandInput.Type.DRAW,
+                        null, null, null, false))).code());
+        assertNull(matches.resolveTimeout(matchId));
+        assertEquals("INTERRUPTED", matches.leave(matchId, host).status());
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM game.match_commands "
+                + "WHERE match_id = ? AND event = 'MATCH_INTERRUPTED'", Integer.class, matchId));
+
+        var history = application.getBean(MatchHistoryService.class);
+        for (GameIdentity player : List.of(host, guest)) {
+            var item = history.history(player, null, 20).items().get(0);
+            assertEquals("INTERRUPTED", item.result());
+            assertNull(item.winnerUserId());
+            assertEquals(new MatchHistoryService.ModeStats(0, 0, 1), history.stats(player).classic());
+        }
+    }
+
+    @Test
+    void deliberateTeamDepartureQueuesVoiceCleanupAndLeavesThreeWaitingPlayers() {
+        GameIdentity host = player("Host");
+        GameIdentity b = player("B");
+        GameIdentity partner = player("Partner");
+        GameIdentity d = player("D");
+        RoomView room = rooms.create(host, "TEAM_2V2", 4);
+        for (GameIdentity player : List.of(b, partner, d)) room = rooms.join(player, room.code());
+        for (GameIdentity player : List.of(host, b, partner, d))
+            room = rooms.ready(room.id(), player, true, room.version());
+        UUID matchId = matches.start(room.id(), host, room.version()).matchId();
+
+        assertEquals("PLAYER_LEFT", matches.leave(matchId, b).interruptionReason());
+        RoomView waiting = rooms.get(room.id(), host);
+        assertEquals("WAITING", waiting.state());
+        assertEquals(3, waiting.members().size());
+        assertTrue(waiting.members().stream().noneMatch(member -> member.ready() || member.userId().equals(b.userId())));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM game.voice_cleanup WHERE match_id = ?",
+                Integer.class, matchId));
+        var history = application.getBean(MatchHistoryService.class);
+        for (GameIdentity player : List.of(host, b, partner, d)) {
+            assertEquals("INTERRUPTED", history.history(player, null, 20).items().get(0).result());
             assertEquals(new MatchHistoryService.ModeStats(0, 0, 1), history.stats(player).team2v2());
         }
     }

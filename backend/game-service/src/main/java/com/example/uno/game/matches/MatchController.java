@@ -51,5 +51,12 @@ public class MatchController {
         return result;
     }
 
+    @PostMapping("/matches/{matchId}/leave")
+    MatchService.MatchState leave(@PathVariable UUID matchId, @AuthenticationPrincipal GameIdentity identity) {
+        MatchService.MatchState result = matches.leave(matchId, identity);
+        socket.publish(matchId);
+        return result;
+    }
+
     public record StartInput(@Min(1) long expectedVersion) { }
 }

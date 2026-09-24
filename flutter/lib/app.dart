@@ -150,6 +150,11 @@ class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
                 activeMatchId = null;
                 autoEnterMatch = finished;
               }),
+              onLeaveMatch: () => setState(() {
+                activeMatchId = null;
+                activeRoom = null;
+                autoEnterMatch = false;
+              }),
             ),
             0 when activeRoom != null => RoomWaitingPage(
               api: rooms,

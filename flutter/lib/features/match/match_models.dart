@@ -221,10 +221,16 @@ class MatchView {
 }
 
 class MatchState {
-  const MatchState(this.view, this.deadlineAt, this.status);
+  const MatchState(
+    this.view,
+    this.deadlineAt,
+    this.status,
+    this.interruptionReason,
+  );
   final MatchView view;
   final DateTime? deadlineAt;
   final String status;
+  final String? interruptionReason;
 
   factory MatchState.parse(Object? value) {
     final data = _object(value);
@@ -233,10 +239,19 @@ class MatchState {
     if (!const ['PLAYING', 'ENDED', 'INTERRUPTED'].contains(status)) {
       throw const MatchDataFailure();
     }
+    final interruptionReason = data['interruptionReason'];
+    if (interruptionReason != null &&
+        !const [
+          'PLAYER_LEFT',
+          'REPEATED_TURN_TIMEOUT',
+        ].contains(interruptionReason)) {
+      throw const MatchDataFailure();
+    }
     return MatchState(
       MatchView.parse(data['view']),
       _deadline(data['deadlineAt']),
       status,
+      interruptionReason as String?,
     );
   }
 }

@@ -148,7 +148,13 @@ class VoiceServiceIT {
         assertNotNull(matches.state(matchId, a));
         UUID generation = jdbc.queryForObject("SELECT voice_generation FROM game.matches WHERE id = ?",
                 UUID.class, matchId);
-        jdbc.update("INSERT INTO game.voice_cleanup(match_id, voice_generation) VALUES (?, ?)", matchId, generation);
+        Instant now = Instant.now();
+        jdbc.update("INSERT INTO game.voice_cleanup(match_id, voice_generation, next_attempt_at, retain_until) "
+                        + "VALUES (?, ?, ?, ?)",
+                matchId, generation, Timestamp.from(now), Timestamp.from(now.plusSeconds(70)));
+        Instant retainUntil = jdbc.queryForObject("SELECT retain_until FROM game.voice_cleanup WHERE match_id = ?",
+                (rs, row) -> rs.getTimestamp(1).toInstant(), matchId);
+        assertTrue(retainUntil.isAfter(now.plusSeconds(60)));
         media.failDelete = true;
         voice.cleanEndedMatch();
         assertEquals(1, jdbc.queryForObject("SELECT attempts FROM game.voice_cleanup WHERE match_id = ?",
