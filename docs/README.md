@@ -117,6 +117,7 @@
 - [stage15 Flutter 语音增量验收](verification-stage15-voice.md)：App SDK/UI、自动化生命周期与未完成的真机互听。
 - [stage16 经典战绩增量验收](verification-stage16-history.md)：终局快照、私有历史、双端账号页与容器整局核对。
 - [stage17 容器栈增量验收](verification-stage17-container.md)：独立 Compose 环境、镜像构建与真实账号/房间/文字流程。
+- [stage17 本地预览包验收](verification-stage17-preview-package.md)：干净提交构建、清单、校验和与未覆盖的发布门槛。
 - [Flutter账号增量验收](verification-stage4-flutter.md)：自动测试、原生构建与未完成的设备/跨端验证。
 - [工程基线与未决事项](engineering-baseline.md)：约定、前置决策、环境差异和复现路径。
 - [数据库、迁移与恢复](persistence.md)：配置、数据关系、集成测试和备份恢复步骤。
