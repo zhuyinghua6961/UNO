@@ -90,6 +90,7 @@ class GameWebSocketIT {
                 "--uno.auth.allowed-origins=http://localhost:5173",
                 "--uno.auth.identity-base-url=http://localhost:1",
                 "--uno.auth.allow-insecure-http=true",
+                "--uno.matches.snapshot-poll-ms=60000",
                 "--uno.auth.service-key=" + "a".repeat(64));
         endpoint = URI.create("ws://localhost:" + application.getEnvironment().getProperty("local.server.port")
                 + "/ws/game");
@@ -240,6 +241,63 @@ class GameWebSocketIT {
             }
             assertEquals("WAITING", rooms.get(room.id(), guest).state());
             assertNull(rooms.current(host));
+        } finally {
+            hostPeer.socket.abort();
+            guestPeer.socket.abort();
+            sessions.clear();
+        }
+    }
+
+    @Test
+    void databasePollingRepairsAnUpdateCommittedOutsideThisSocketHandler() throws Exception {
+        GameIdentity host = player("PollHost");
+        GameIdentity guest = player("PollGuest");
+        sessions.put(HOST_TOKEN, host);
+        sessions.put(GUEST_TOKEN, guest);
+        RoomService rooms = application.getBean(RoomService.class);
+        MatchService matches = application.getBean(MatchService.class);
+        RoomView room = rooms.create(host, "CLASSIC", 2);
+        room = rooms.join(guest, room.code());
+        room = rooms.ready(room.id(), host, true, room.version());
+        room = rooms.ready(room.id(), guest, true, room.version());
+        UUID matchId = matches.start(room.id(), host, room.version()).matchId();
+        Peer hostPeer = connect(HOST_TOKEN);
+        Peer guestPeer = connect(GUEST_TOKEN);
+        try {
+            String subscribe = json.writeValueAsString(Map.of(
+                    "protocolVersion", 1, "type", "SUBSCRIBE", "matchId", matchId));
+            hostPeer.socket.sendText(subscribe, true).join();
+            guestPeer.socket.sendText(subscribe, true).join();
+            JsonNode initial = hostPeer.nextMessage();
+            assertEquals(1, initial.path("view").path("version").asInt());
+            assertEquals(1, guestPeer.nextMessage().path("view").path("version").asInt());
+
+            GameIdentity actor = initial.path("view").path("players")
+                    .get(initial.path("view").path("currentSeat").asInt())
+                    .path("userId").asText().equals(host.userId().toString()) ? host : guest;
+            boolean chooseColor = initial.path("view").path("phase").asText().equals("INITIAL_WILD_COLOR");
+            matches.command(matchId, actor, new MatchCommandInput(1, UUID.randomUUID(), 1,
+                    chooseColor ? MatchCommandInput.Type.CHOOSE_INITIAL_COLOR : MatchCommandInput.Type.DRAW,
+                    null, chooseColor ? UnoCard.Color.RED : null, null, false));
+            // No controller or local WebSocket publish: the state changed via another instance.
+            GameWebSocketHandler handler = application.getBean(GameWebSocketHandler.class);
+            handler.pollSubscriptions();
+            for (Peer peer : List.of(hostPeer, guestPeer)) {
+                JsonNode updated = peer.nextMessage();
+                assertEquals("MATCH_SNAPSHOT", updated.path("type").asText());
+                assertEquals(2, updated.path("view").path("version").asInt());
+            }
+            handler.pollSubscriptions();
+            assertNull(hostPeer.messages.poll(200, TimeUnit.MILLISECONDS));
+            assertNull(guestPeer.messages.poll(200, TimeUnit.MILLISECONDS));
+            matches.leave(matchId, guest);
+            handler.pollSubscriptions();
+            for (Peer peer : List.of(hostPeer, guestPeer)) {
+                JsonNode interrupted = peer.nextMessage();
+                assertEquals(2, interrupted.path("view").path("version").asInt());
+                assertEquals("INTERRUPTED", interrupted.path("status").asText());
+                assertEquals("PLAYER_LEFT", interrupted.path("interruptionReason").asText());
+            }
         } finally {
             hostPeer.socket.abort();
             guestPeer.socket.abort();

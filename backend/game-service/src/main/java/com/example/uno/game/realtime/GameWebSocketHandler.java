@@ -112,7 +112,11 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
                     }
                     receipt = matches.command(inbound.matchId(), client.auth.identity(), inbound.command());
                 }
-                send(client, Map.of("type", "COMMAND_ACK", "matchId", inbound.matchId(), "result", receipt));
+                synchronized (client) {
+                    send(client, Map.of("type", "COMMAND_ACK", "matchId", inbound.matchId(), "result", receipt));
+                    client.lastSnapshot = new SnapshotMarker(receipt.view().version(), receipt.status(),
+                            receipt.deadlineAt(), null);
+                }
                 if (!receipt.duplicate()) broadcast(inbound.matchId(), client.session.getId());
             } catch (MatchFailure failure) {
                 send(client, Map.of("type", "COMMAND_REJECTED", "matchId", inbound.matchId(),
@@ -147,7 +151,33 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
         payload.put("deadlineAt", snapshot.deadlineAt());
         payload.put("status", snapshot.status());
         payload.put("interruptionReason", snapshot.interruptionReason());
-        send(client, payload);
+        synchronized (client) {
+            send(client, payload);
+            client.lastSnapshot = SnapshotMarker.of(snapshot);
+        }
+    }
+
+    /** Repairs updates committed by another Game instance or missed after a local publish. */
+    @Scheduled(fixedDelayString = "${uno.matches.snapshot-poll-ms:1000}")
+    public void pollSubscriptions() {
+        for (Client client : clients.values()) {
+            UUID matchId = client.matchId;
+            if (matchId == null || client.lastSnapshot != null && !"PLAYING".equals(client.lastSnapshot.status()))
+                continue;
+            try {
+                MatchService.MatchState current = matches.snapshot(matchId, client.auth.identity());
+                SnapshotMarker marker = SnapshotMarker.of(current);
+                if (marker.equals(client.lastSnapshot) || !verify(client)) continue;
+                synchronized (client) {
+                    if (matchId.equals(client.matchId) && !marker.equals(client.lastSnapshot))
+                        sendSnapshot(client, matchId, current);
+                }
+            } catch (MatchFailure failure) {
+                close(client, CloseStatus.POLICY_VIOLATION);
+            } catch (IOException | RuntimeException failure) {
+                close(client, CloseStatus.SERVER_ERROR);
+            }
+        }
     }
 
     /** Revoked or expired sessions stop receiving updates even while idle. */
@@ -197,6 +227,13 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
 
     private record Inbound(int protocolVersion, String type, UUID matchId, MatchCommandInput command) { }
     private record SubscriptionKey(UUID matchId, UUID userId) { }
+    private record SnapshotMarker(long version, String status, java.time.Instant deadlineAt,
+            String interruptionReason) {
+        static SnapshotMarker of(MatchService.MatchState state) {
+            return new SnapshotMarker(state.view().version(), state.status(), state.deadlineAt(),
+                    state.interruptionReason());
+        }
+    }
 
     private Object lockFor(SubscriptionKey key) {
         return subscriptionLocks[Math.floorMod(key.hashCode(), subscriptionLocks.length)];
@@ -207,6 +244,7 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
         final GameWebSocketHandshake.SessionAuth auth;
         volatile UUID matchId;
         volatile SubscriptionKey subscription;
+        volatile SnapshotMarker lastSnapshot;
         private long windowStarted = System.nanoTime();
         private int messages;
 

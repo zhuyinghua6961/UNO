@@ -96,8 +96,10 @@ describe('live Web table', () => {
     expect(leave).toHaveBeenCalledWith(matchId)
     wrapper.unmount()
 
-    const interrupted = await showMatch({ ...initial, status: 'INTERRUPTED',
-      deadlineAt: null, interruptionReason: 'PLAYER_LEFT' })
+    const interrupted = await showMatch(initial)
+    handlers.snapshot({ ...initial, status: 'INTERRUPTED', deadlineAt: null,
+      interruptionReason: 'PLAYER_LEFT' })
+    await flushPromises()
     expect(interrupted.text()).toContain('有玩家主动退出，本局不计胜负。')
     interrupted.unmount()
   })
