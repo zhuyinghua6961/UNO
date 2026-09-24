@@ -277,7 +277,7 @@ class _RoomWaitingPageState extends State<RoomWaitingPage>
           api: widget.api,
           teamEnabled: room.mode == 'TEAM_2V2',
         ),
-        const Text('经典局、2v2 对局和文字消息已可使用；队友语音仍在建设中。'),
+        const Text('经典局、2v2 对局和文字消息已可使用；2v2 牌桌可主动开启队友语音。'),
       ],
     );
   }

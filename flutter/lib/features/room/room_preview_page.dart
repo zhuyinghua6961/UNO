@@ -48,7 +48,7 @@ class _RoomPreviewPageState extends State<RoomPreviewPage> {
               ),
               const SizedBox(height: 30),
               const Text(
-                '发牌、出牌和回合同步待接入',
+                '这是布局示例；真实对局请创建房间',
                 style: TextStyle(color: Colors.white70, fontSize: 12),
               ),
             ],
@@ -73,13 +73,13 @@ class _RoomPreviewPageState extends State<RoomPreviewPage> {
           ],
         ),
         const SizedBox(height: 10),
-        Text(teamChannel && isTeam ? '只和队友交流，消息功能尚未接入。' : '和同桌的人聊聊，消息功能尚未接入。'),
+        Text(teamChannel && isTeam ? '真实牌桌可与队友聊天；预览页不发送消息。' : '真实牌桌可与同桌聊天；预览页不发送消息。'),
         const SizedBox(height: 12),
         const TextField(
           enabled: false,
           decoration: InputDecoration(
             border: OutlineInputBorder(),
-            hintText: '消息功能建设中',
+            hintText: '预览页不发送消息',
           ),
         ),
         const SizedBox(height: 22),
@@ -89,7 +89,7 @@ class _RoomPreviewPageState extends State<RoomPreviewPage> {
         FilledButton.icon(
           onPressed: null,
           icon: const Icon(Icons.mic_off_outlined),
-          label: Text(isTeam ? '语音接入中 · 麦克风关闭' : '当前模式不支持队友语音'),
+          label: Text(isTeam ? '预览页不开麦' : '当前模式不支持队友语音'),
         ),
       ],
     );

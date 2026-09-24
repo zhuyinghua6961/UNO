@@ -95,7 +95,7 @@ onUnmounted(() => { active = false; clearInterval(timer) })
       </div>
       <div class="room-panel"><div class="room-heading"><h2>玩家与座位</h2><span class="muted">{{ room.state === 'WAITING' ? '等待中' : room.state }}</span></div><ol class="member-list"><li v-for="member in room.members" :key="member.userId"><span class="seat-badge">{{ member.seat + 1 }}</span><span><strong>{{ member.nickname }}</strong><small v-if="member.userId === room.hostUserId">房主</small><small v-if="member.userId === auth.user?.id">我</small></span><span v-if="room.mode === 'TEAM_2V2'" class="team-badge">{{ member.team }} 队</span><span class="ready-badge" :class="{ ready: member.ready }">{{ member.ready ? '已准备' : '未准备' }}</span></li></ol><div v-if="me && room.state === 'WAITING'" class="room-actions"><button class="button dark" :disabled="busy" @click="change(current => roomApi.ready(current, !me!.ready))">{{ me.ready ? '取消准备' : '准备' }}</button><template v-if="room.mode === 'TEAM_2V2'"><button v-for="team in (['A','B'] as const)" :key="team" class="button secondary small" :disabled="busy || me.team === team" @click="change(current => roomApi.team(current, team))">加入 {{ team }} 队</button></template><button class="button secondary small" :disabled="busy" @click="leave">离开房间</button></div></div>
       <RoomChat :key="`${room.id}:${me?.team ?? 'none'}`" :room-id="room.id" :team-enabled="room.mode === 'TEAM_2V2'" />
-      <p class="room-footnote">经典局、2v2 对局和文字消息已可使用；队友语音仍在建设中。</p>
+      <p class="room-footnote">经典局、2v2 对局和文字消息已可使用；2v2 牌桌可主动开启队友语音。</p>
     </template>
   </section>
 </template>

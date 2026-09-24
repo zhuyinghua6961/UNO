@@ -14,14 +14,14 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Team voice never activates in a scaffold', (tester) async {
+  testWidgets('Preview never opens the microphone', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(body: RoomPreviewPage(mode: GameMode.team2v2)),
       ),
     );
     await tester.scrollUntilVisible(
-      find.text('语音接入中 · 麦克风关闭'),
+      find.text('预览页不开麦'),
       200,
       scrollable: find.byType(Scrollable).first,
     );

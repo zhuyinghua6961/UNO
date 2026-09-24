@@ -104,7 +104,7 @@ class LobbyPage extends StatelessWidget {
         const SizedBox(height: 16),
         ?roomEntry,
         const Text(
-          '经典局与 2v2 都可开桌，房间/队伍文字可用。牌桌预览仅供体验；队友语音仍在建设中。',
+          '经典局与 2v2 都可开桌，房间/队伍文字可用。牌桌预览仅供体验；队友语音可在 2v2 牌桌主动开启。',
           style: TextStyle(fontSize: 12, color: Colors.black54),
         ),
       ],
