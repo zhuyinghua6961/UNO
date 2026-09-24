@@ -149,10 +149,39 @@ class VoiceServiceIT {
         jdbc.update("UPDATE game.voice_cleanup SET next_attempt_at = ? WHERE match_id = ?",
                 Timestamp.from(Instant.now().minusSeconds(1)), matchId);
         voice.cleanEndedMatch();
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM game.voice_cleanup WHERE match_id = ?",
+                Integer.class, matchId));
+        assertEquals(0, jdbc.queryForObject("SELECT attempts FROM game.voice_cleanup WHERE match_id = ?",
+                Integer.class, matchId));
+        assertEquals(1, media.deleted.stream().filter(name -> name.equals(VoiceService.roomName(matchId, generation, "A"))).count());
+        assertEquals(1, media.deleted.stream().filter(name -> name.equals(VoiceService.roomName(matchId, generation, "B"))).count());
+        // A still-valid LiveKit JWT can recreate a deleted room; the retained task deletes it again.
+        jdbc.update("UPDATE game.voice_cleanup SET next_attempt_at = ?, retain_until = ? WHERE match_id = ?",
+                Timestamp.from(Instant.now().minusSeconds(1)), Timestamp.from(Instant.now().minusSeconds(1)), matchId);
+        voice.cleanEndedMatch();
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM game.voice_cleanup WHERE match_id = ?",
                 Integer.class, matchId));
-        assertTrue(media.deleted.contains(VoiceService.roomName(matchId, generation, "A")));
-        assertTrue(media.deleted.contains(VoiceService.roomName(matchId, generation, "B")));
+        assertEquals(2, media.deleted.stream().filter(name -> name.equals(VoiceService.roomName(matchId, generation, "A"))).count());
+        assertEquals(2, media.deleted.stream().filter(name -> name.equals(VoiceService.roomName(matchId, generation, "B"))).count());
+    }
+
+    @Test
+    void cleanupProcessesOtherMatchesWhenOneMediaRoomFails() {
+        UUID first = startTeam(player("First A"), player("First B"), player("First A2"), player("First B2"));
+        UUID second = startTeam(player("Second A"), player("Second B"), player("Second A2"), player("Second B2"));
+        UUID firstGeneration = jdbc.queryForObject("SELECT voice_generation FROM game.matches WHERE id = ?", UUID.class, first);
+        UUID secondGeneration = jdbc.queryForObject("SELECT voice_generation FROM game.matches WHERE id = ?", UUID.class, second);
+        jdbc.update("INSERT INTO game.voice_cleanup(match_id, voice_generation, retain_until) VALUES (?, ?, ?), (?, ?, ?)",
+                first, firstGeneration, Timestamp.from(Instant.now().minusSeconds(1)),
+                second, secondGeneration, Timestamp.from(Instant.now().minusSeconds(1)));
+        media.failRoom = VoiceService.roomName(first, firstGeneration, "A");
+
+        voice.cleanEndedMatch();
+
+        assertEquals(1, jdbc.queryForObject("SELECT attempts FROM game.voice_cleanup WHERE match_id = ?", Integer.class, first));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM game.voice_cleanup WHERE match_id = ?", Integer.class, second));
+        assertTrue(media.deleted.contains(VoiceService.roomName(second, secondGeneration, "A")));
+        assertTrue(media.deleted.contains(VoiceService.roomName(second, secondGeneration, "B")));
     }
 
     private UUID startTeam(GameIdentity a, GameIdentity b, GameIdentity c, GameIdentity d) {
@@ -180,6 +209,7 @@ class VoiceServiceIT {
         final List<String> deleted = new ArrayList<>();
         boolean failCreate;
         boolean failDelete;
+        String failRoom;
 
         @Override public void ensureRoom(String roomName) {
             if (failCreate) throw VoiceFailure.unavailable();
@@ -187,7 +217,7 @@ class VoiceServiceIT {
         }
 
         @Override public void deleteRoom(String roomName) {
-            if (failDelete) throw VoiceFailure.unavailable();
+            if (failDelete || roomName.equals(failRoom)) throw VoiceFailure.unavailable();
             deleted.add(roomName);
         }
     }

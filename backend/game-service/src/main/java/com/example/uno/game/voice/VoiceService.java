@@ -90,20 +90,26 @@ public class VoiceService {
     @Transactional
     public void cleanEndedMatch() {
         if (!settings.enabled()) return;
-        List<Cleanup> due = jdbc.query("SELECT match_id, voice_generation, attempts FROM game.voice_cleanup "
-                        + "WHERE next_attempt_at <= ? ORDER BY next_attempt_at LIMIT 1 FOR UPDATE SKIP LOCKED",
-                (rs, row) -> new Cleanup(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getInt(3)),
+        List<Cleanup> due = jdbc.query("SELECT match_id, voice_generation, attempts, retain_until FROM game.voice_cleanup "
+                        + "WHERE next_attempt_at <= ? ORDER BY next_attempt_at LIMIT 8 FOR UPDATE SKIP LOCKED",
+                (rs, row) -> new Cleanup(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class),
+                        rs.getInt(3), rs.getTimestamp(4).toInstant()),
                 Timestamp.from(clock.instant()));
-        if (due.isEmpty()) return;
-        Cleanup task = due.get(0);
-        try {
-            media.deleteRoom(roomName(task.matchId(), task.generation(), "A"));
-            media.deleteRoom(roomName(task.matchId(), task.generation(), "B"));
-            jdbc.update("DELETE FROM game.voice_cleanup WHERE match_id = ?", task.matchId());
-        } catch (VoiceFailure failure) {
-            long delay = Math.min(60, 1L << Math.min(task.attempts(), 5));
-            jdbc.update("UPDATE game.voice_cleanup SET attempts = attempts + 1, next_attempt_at = ? WHERE match_id = ?",
-                    Timestamp.from(clock.instant().plusSeconds(delay)), task.matchId());
+        for (Cleanup task : due) {
+            try {
+                media.deleteRoom(roomName(task.matchId(), task.generation(), "A"));
+                media.deleteRoom(roomName(task.matchId(), task.generation(), "B"));
+                if (!clock.instant().isBefore(task.retainUntil())) {
+                    jdbc.update("DELETE FROM game.voice_cleanup WHERE match_id = ?", task.matchId());
+                } else {
+                    jdbc.update("UPDATE game.voice_cleanup SET attempts = 0, next_attempt_at = ? WHERE match_id = ?",
+                            Timestamp.from(clock.instant().plusSeconds(3)), task.matchId());
+                }
+            } catch (VoiceFailure failure) {
+                long delay = Math.min(60, 1L << Math.min(task.attempts(), 5));
+                jdbc.update("UPDATE game.voice_cleanup SET attempts = attempts + 1, next_attempt_at = ? WHERE match_id = ?",
+                        Timestamp.from(clock.instant().plusSeconds(delay)), task.matchId());
+            }
         }
     }
 
@@ -113,5 +119,5 @@ public class VoiceService {
 
     public record VoiceToken(String url, String token, Instant expiresAt) { }
     private record VoiceSeat(UUID generation, String team) { }
-    private record Cleanup(UUID matchId, UUID generation, int attempts) { }
+    private record Cleanup(UUID matchId, UUID generation, int attempts, Instant retainUntil) { }
 }

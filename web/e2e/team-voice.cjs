@@ -1,13 +1,16 @@
 // Requires the local auth + voice Compose overlays and Chromium fake microphone support.
 const { chromium } = require('playwright')
 const { randomUUID } = require('node:crypto')
+const path = require('node:path')
 const assert = require('node:assert/strict')
 
 const origin = process.env.UNO_E2E_ORIGIN ?? 'http://127.0.0.1:8088'
+const apiOrigin = process.env.UNO_E2E_API_ORIGIN ?? 'http://127.0.0.1:28080'
 const mailpit = process.env.UNO_E2E_MAILPIT ?? 'http://127.0.0.1:28025'
 const users = ['A1', 'B1', 'A2', 'B2'].map(label => ({
   label, email: `uno-voice-${randomUUID()}@example.test`, password: `Voice-${randomUUID()}-1!`,
 }))
+const csrfTokens = new WeakMap()
 
 async function verificationToken(email) {
   for (let attempt = 0; attempt < 40; attempt++) {
@@ -24,16 +27,41 @@ async function verificationToken(email) {
 }
 
 async function mutate(page, path, body) {
-  return page.evaluate(async ({ path, body }) => {
-    const csrfResponse = await fetch('/api/auth/csrf', { credentials: 'same-origin' })
-    const csrf = await csrfResponse.json()
-    const response = await fetch(path, {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf.token },
-      body: JSON.stringify(body),
+  async function send(csrfToken) {
+    return page.evaluate(async ({ path, body, csrfToken }) => {
+      const response = await fetch(path, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+        body: JSON.stringify(body),
+      })
+      return { status: response.status, body: await response.json().catch(() => null) }
+    }, { path, body, csrfToken })
+  }
+  async function csrf() {
+    const token = await page.evaluate(async () => {
+      const response = await fetch('/api/auth/csrf', { credentials: 'same-origin' })
+      if (!response.ok) throw new Error(`CSRF service returned ${response.status}`)
+      return (await response.json()).token
     })
-    return { status: response.status, body: await response.json().catch(() => null) }
-  }, { path, body })
+    if (typeof token !== 'string' || !token) throw new Error('CSRF service returned no token')
+    csrfTokens.set(page, token)
+    return token
+  }
+  let result = await send(csrfTokens.get(page) ?? await csrf())
+  if (result.status === 403 && result.body?.code === 'REQUEST_NOT_ALLOWED') {
+    result = await send(await csrf())
+  }
+  if (path === '/api/auth/login') csrfTokens.delete(page)
+  return result
+}
+
+async function nativeMutation(path, token, body) {
+  const response = await fetch(`${apiOrigin}${path}`, {
+    method: 'POST',
+    headers: { 'X-UNO-Client': 'APP', Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return { status: response.status, body: await response.json().catch(() => null) }
 }
 
 async function main() {
@@ -42,6 +70,8 @@ async function main() {
   const contexts = []
   const pages = []
   const errors = []
+  const appTokens = []
+  let replayGrant = null
   try {
     for (const user of users) {
       const context = await browser.newContext({ permissions: ['microphone'] })
@@ -70,8 +100,19 @@ async function main() {
       assert.equal((await mutate(page, '/api/auth/login', {
         email: user.email, password: user.password,
       })).status, 200)
+      const appLogin = await fetch(`${apiOrigin}/api/auth/login`, {
+        method: 'POST', headers: { 'X-UNO-Client': 'APP', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, password: user.password }),
+      })
+      assert.equal(appLogin.status, 200)
+      appTokens.push((await appLogin.json()).accessToken)
     }
     const [a1, b1, a2, b2] = pages
+    a1.on('response', async response => {
+      if (response.url().endsWith('/api/voice/token') && response.status() === 200) {
+        replayGrant = await response.json()
+      }
+    })
     let room = await mutate(a1, '/api/rooms', { mode: 'TEAM_2V2', maxPlayers: 4 })
     assert.equal(room.status, 201)
     for (const page of [b1, a2, b2]) {
@@ -100,6 +141,7 @@ async function main() {
           throw failure
         })
     }
+    assert.ok(replayGrant, 'first teammate grant was captured')
     await a1.waitForFunction(() => document.querySelectorAll('.voice-audio audio').length === 1,
       null, { timeout: 20000 })
     assert.equal(await b1.locator('.voice-audio audio').count(), 0, 'opponent audio is isolated')
@@ -122,6 +164,11 @@ async function main() {
     for (let turn = 0; turn < 800; turn++) {
       const publicState = await a1.evaluate(async id => (await fetch(`/api/matches/${id}/state`)).json(), matchId)
       if (publicState.view.phase === 'MATCH_OVER') { ended = true; break }
+      if (Date.parse(replayGrant.expiresAt) - Date.now() < 20000) {
+        const refreshed = await mutate(a1, '/api/voice/token', { matchId })
+        assert.equal(refreshed.status, 200, `refresh replay grant: ${refreshed.body?.code}`)
+        replayGrant = refreshed.body
+      }
       const actorPage = pages[publicState.view.currentSeat]
       const actorState = await actorPage.evaluate(async id => (await fetch(`/api/matches/${id}/state`)).json(), matchId)
       const view = actorState.view
@@ -146,7 +193,7 @@ async function main() {
         if (card.color === null) action.chosenColor = 'RED'
         action.callUno = view.ownHand.length === 2
       }
-      const applied = await mutate(actorPage, `/api/matches/${matchId}/commands`, action)
+      const applied = await nativeMutation(`/api/matches/${matchId}/commands`, appTokens[publicState.view.currentSeat], action)
       if (applied.status === 409 && ['MATCH_CONFLICT', 'TURN_EXPIRED'].includes(applied.body?.code)) continue
       assert.equal(applied.status, 200, `game action ${action.type}: ${applied.body?.code}`)
     }
@@ -154,8 +201,24 @@ async function main() {
     await b1.locator('.team-voice').waitFor({ state: 'detached', timeout: 10000 })
     assert.equal(await b1.evaluate(() => window.__unoCapturedTracks.every(track => track.readyState === 'ended')),
       true, 'match end releases the remaining active microphone')
+    assert.ok(Date.parse(replayGrant.expiresAt) - Date.now() > 5000, 'old grant remains within its expiry window')
+    const replayPage = await contexts[0].newPage()
+    await replayPage.goto(origin)
+    await replayPage.addScriptTag({ path: path.join(__dirname, '../node_modules/livekit-client/dist/livekit-client.umd.js') })
+    const replayOutcome = await replayPage.evaluate(async grant => {
+      const room = new window.LivekitClient.Room()
+      await room.connect(grant.url, grant.token)
+      return await new Promise(resolve => {
+        const timeout = setTimeout(() => resolve('still-connected'), 12000)
+        room.on(window.LivekitClient.RoomEvent.Disconnected, () => {
+          clearTimeout(timeout)
+          resolve('deleted')
+        })
+      })
+    }, replayGrant)
+    assert.equal(replayOutcome, 'deleted', 'the retained cleanup task removes a room recreated by an old grant')
     assert.deepEqual(errors, [])
-    console.log('PASS: three Chromium players joined two isolated LiveKit rooms; capture starts on click, teammate audio subscribes, mute, exit and match end stop microphone tracks.')
+    console.log('PASS: team audio isolation and microphone lifecycle; a still-valid terminal grant can reconnect but retained cleanup deletes its room again.')
   } finally {
     await Promise.all(contexts.map(context => context.close()))
     await browser.close()
