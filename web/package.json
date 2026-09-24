@@ -12,6 +12,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "test:e2e:classic": "node e2e/classic-match.cjs",
+    "test:e2e:mixed-ios-team": "node e2e/mixed-ios-team.cjs",
     "test:e2e:voice": "node e2e/team-voice.cjs",
     "test:e2e:voice-revoke": "UNO_E2E_VOICE_REVOKE=1 node e2e/team-voice.cjs"
   },
