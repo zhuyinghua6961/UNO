@@ -43,6 +43,8 @@ class _RoomChatState extends State<RoomChat>
   String? retryId;
   String? retryContent;
   String sendError = '';
+  final reportedIds = <String>{};
+  String? reportingId;
 
   @override
   bool get wantKeepAlive => true;
@@ -78,6 +80,8 @@ class _RoomChatState extends State<RoomChat>
     retryId = null;
     retryContent = null;
     sendError = '';
+    reportedIds.clear();
+    reportingId = null;
     draft.clear();
     unawaited(_refresh(channel: 'ROOM', latest: true));
     if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM', latest: true));
@@ -232,6 +236,45 @@ class _RoomChatState extends State<RoomChat>
     }
   }
 
+  Future<void> _report(RoomChatMessage message) async {
+    if (reportingId != null || reportedIds.contains(message.id)) return;
+    final requestedGeneration = generation;
+    final roomId = widget.roomId;
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('举报消息'),
+        children: [
+          for (final (code, label) in [
+            ('ABUSE', '辱骂或骚扰'),
+            ('SPAM', '刷屏或垃圾信息'),
+            ('OTHER', '其他不当内容'),
+          ])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, code),
+              child: Text(label),
+            ),
+        ],
+      ),
+    );
+    if (reason == null || !mounted || generation != requestedGeneration) return;
+    setState(() => reportingId = message.id);
+    try {
+      await widget.api.reportMessage(roomId, message.id, reason);
+      if (!mounted || generation != requestedGeneration) return;
+      setState(() => reportedIds.add(message.id));
+    } catch (_) {
+      if (mounted && generation == requestedGeneration) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('举报提交失败，请稍后重试。')));
+      }
+    } finally {
+      if (mounted && generation == requestedGeneration) {
+        setState(() => reportingId = null);
+      }
+    }
+  }
+
   @override
   void dispose() {
     generation++;
@@ -288,12 +331,25 @@ class _RoomChatState extends State<RoomChat>
                   return ListTile(
                     dense: true,
                     title: Text(message.senderNickname),
-                    subtitle: Text(message.content),
-                    trailing: Text(
-                      TimeOfDay.fromDateTime(message.createdAt.toLocal())
-                          .format(context),
-                      style: Theme.of(context).textTheme.labelSmall,
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(message.content),
+                        Text(
+                          TimeOfDay.fromDateTime(message.createdAt.toLocal())
+                              .format(context),
+                        ),
+                      ],
                     ),
+                    trailing: reportedIds.contains(message.id)
+                        ? const Icon(Icons.check, semanticLabel: '已举报')
+                        : IconButton(
+                            tooltip: '举报',
+                            icon: const Icon(Icons.flag_outlined),
+                            onPressed: reportingId == null
+                                ? () => _report(message)
+                                : null,
+                          ),
                   );
                 },
               ),

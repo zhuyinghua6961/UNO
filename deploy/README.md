@@ -21,7 +21,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml logs --tail=100
 docker compose --env-file deploy/.env -f deploy/compose.yaml down
 ```
 
-不要随意增加 `-v`，以免删除启用基础设施后创建的数据库卷。启动完成仍要检查 bootstrap/auth 状态和真实业务链路。可运行 `EXPECT_AUTH_AVAILABLE=true EXPECT_GAME_AUTH_AVAILABLE=true node tools/smoke-api.mjs`；合并账号覆盖配置并启用 Mailpit 时，再运行 `node tools/smoke-auth-chat.mjs`。若需额外验证真实经典局从开局至战绩，运行 `SMOKE_FULL_MATCH=true node tools/smoke-auth-chat.mjs`，它会建立两个随机测试账号并执行整局。验证聊天 WebSocket 经 Gateway 的订阅、发送、ACK、在线广播和 HTTP 历史回读时，运行 `SMOKE_CHAT_WS=true node tools/smoke-auth-chat.mjs`；该可选检查需要本机 Dart SDK。Compose 健康检查只证明服务就绪，不能替代业务验收。
+不要随意增加 `-v`，以免删除启用基础设施后创建的数据库卷。启动完成仍要检查 bootstrap/auth 状态和真实业务链路。可运行 `EXPECT_AUTH_AVAILABLE=true EXPECT_GAME_AUTH_AVAILABLE=true node tools/smoke-api.mjs`；合并账号覆盖配置并启用 Mailpit 时，再运行 `node tools/smoke-auth-chat.mjs`。若需额外验证真实经典局从开局至战绩，运行 `SMOKE_FULL_MATCH=true node tools/smoke-auth-chat.mjs`，它会建立两个随机测试账号并执行整局。验证聊天 WebSocket 经 Gateway 的订阅、发送、ACK、在线广播和 HTTP 历史回读时，运行 `SMOKE_CHAT_WS=true node tools/smoke-auth-chat.mjs`；该可选检查需要本机 Dart SDK。验证玩家举报与运营禁言、解禁、停用一次性测试账号时，运行 `SMOKE_CHAT_MODERATION=true node tools/smoke-auth-chat.mjs`，需本机 Docker 命令并仅用于可写的本地测试库。Compose 健康检查只证明服务就绪，不能替代业务验收。
 
 ## 数据库与可选基础设施
 

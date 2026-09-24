@@ -245,6 +245,7 @@ class RoomApi {
           }
           final message = switch (response.statusCode) {
             401 => '登录已失效，请重新登录。',
+            403 when code == 'CHAT_MUTED' => '当前账号暂不能发送文字消息。',
             403 when code != 'ROOM_FORBIDDEN' => '安全校验未通过，请重试。',
             >= 500 => '房间服务暂不可用，请稍后重试。',
             _ => detail ?? '房间操作失败，请刷新后重试。',
@@ -350,6 +351,23 @@ class RoomApi {
       throw const AuthFailure(502, 'INVALID_RESPONSE', '消息频道异常，请稍后重试。');
     }
     return message;
+  }
+
+  Future<void> reportMessage(
+    String roomId,
+    String messageId,
+    String reason,
+  ) async {
+    final receipt = await _request(
+      '/api/rooms/$roomId/messages/$messageId/reports',
+      post: true,
+      body: {'reason': reason},
+    );
+    if (receipt case {'id': String id, 'status': String status}
+        when id.isNotEmpty && (status == 'OPEN' || status == 'RESOLVED')) {
+      return;
+    }
+    throw const AuthFailure(502, 'INVALID_RESPONSE', '举报结果异常，请稍后重试。');
   }
 
   void close() => _client.close();

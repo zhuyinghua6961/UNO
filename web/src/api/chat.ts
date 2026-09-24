@@ -5,6 +5,7 @@ export type ChatItem = {
 }
 export type ChatPage = { items: ChatItem[]; nextSequence: number; hasMore: boolean }
 export type ChatScope = 'ROOM' | 'TEAM'
+export type ChatReportReason = 'SPAM' | 'ABUSE' | 'OTHER'
 
 export class ChatError extends Error {
   constructor(public status: number, public code: string, message: string) {
@@ -55,7 +56,8 @@ export function createChatApi(fetcher: typeof fetch = (...args) => fetch(...args
       const payload: unknown = await response.json().catch(() => null)
       const code = object(payload) && typeof payload.code === 'string' ? payload.code : 'REQUEST_FAILED'
       const message = response.status === 401 ? '登录已失效，请重新登录。'
-        : response.status === 403 ? '安全校验未通过，请刷新页面重试。'
+        : code === 'CHAT_MUTED' ? '当前账号暂不能发送文字消息。'
+          : response.status === 403 ? '安全校验未通过，请刷新页面重试。'
           : response.status >= 500 ? '消息服务暂不可用，请稍后重试。'
             : object(payload) && typeof payload.message === 'string' ? payload.message : '消息操作失败，请稍后重试。'
       throw new ChatError(response.status, code, message)
@@ -82,6 +84,18 @@ export function createChatApi(fetcher: typeof fetch = (...args) => fetch(...args
       }))
       if (scope === 'ROOM' ? saved.channel !== 'ROOM' : saved.channel === 'ROOM') throw invalid()
       return saved
+    },
+    async report(roomId: string, messageId: string, reason: ChatReportReason): Promise<string> {
+      const csrf = await request('/api/auth/csrf')
+      if (!object(csrf) || csrf.headerName !== 'X-CSRF-TOKEN' || typeof csrf.token !== 'string' || !csrf.token)
+        throw new ChatError(502, 'INVALID_CSRF', '无法取得安全凭证，请刷新页面重试。')
+      const receipt = await request(`/api/rooms/${roomId}/messages/${messageId}/reports`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf.token },
+        body: JSON.stringify({ reason }),
+      })
+      if (!object(receipt) || !uuid.test(String(receipt.id)) || !['OPEN', 'RESOLVED'].includes(String(receipt.status)))
+        throw invalid()
+      return receipt.id as string
     },
   }
 }

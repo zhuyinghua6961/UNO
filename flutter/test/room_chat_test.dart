@@ -9,6 +9,7 @@ class ChatRoomApi implements RoomApi {
   final roomMessages = <RoomChatMessage>[];
   final teamMessages = <RoomChatMessage>[];
   final roomAfterValues = <int>[];
+  final reports = <(String, String, String)>[];
 
   @override
   Future<RoomChatPage> messages(
@@ -35,6 +36,15 @@ class ChatRoomApi implements RoomApi {
     String content, {
     String scope = 'ROOM',
   }) async => message(scope, 3);
+
+  @override
+  Future<void> reportMessage(
+    String roomId,
+    String messageId,
+    String reason,
+  ) async {
+    reports.add((roomId, messageId, reason));
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -68,6 +78,27 @@ RoomChatMessage message(String scope, int sequence) => RoomChatMessage(
 );
 
 void main() {
+  testWidgets('reports a visible message with the chosen reason', (
+    tester,
+  ) async {
+    final api = ChatRoomApi()..roomMessages.add(message('ROOM', 1));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RoomChat(roomId: 'room-id', api: api),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('举报'));
+    await tester.pump();
+    await tester.tap(find.text('辱骂或骚扰'));
+    await tester.pump();
+    expect(api.reports, [('room-id', 'message-ROOM-1', 'ABUSE')]);
+    expect(find.byIcon(Icons.check), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('scrolling the room keeps its draft and team unread count', (
     tester,
   ) async {

@@ -1,10 +1,18 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 
 const api = process.env.API_BASE_URL ?? 'http://127.0.0.1:28080'
 const mailpit = process.env.MAILPIT_BASE_URL ?? 'http://127.0.0.1:28025'
 const clientHeaders = { 'X-UNO-Client': 'APP' }
+
+function operatorSql(file, database, variable, value) {
+  execFileSync('docker', [
+    'compose', '--env-file', 'deploy/.env', '-f', 'deploy/compose.yaml',
+    'exec', '-T', 'postgres', 'psql', '-U', 'uno', '-d', database, '-v', `${variable}=${value}`,
+  ], { input: readFileSync(`deploy/moderation/${file}.sql`), stdio: ['pipe', 'inherit', 'inherit'] })
+}
 
 async function request(path, { method = 'GET', token, body } = {}) {
   const response = await fetch(`${api}${path}`, {
@@ -125,6 +133,36 @@ if (process.env.SMOKE_CHAT_WS === 'true') {
   assert.equal(history.body.items[0].content, 'Gateway chat WebSocket smoke')
 }
 
+if (process.env.SMOKE_CHAT_MODERATION === 'true') {
+  const report = await request(`/api/rooms/${room.id}/messages/${first.body.id}/reports`, {
+    method: 'POST', token: guest, body: { reason: 'SPAM' },
+  })
+  assert.equal(report.status, 200, 'visible message report')
+  const duplicate = await request(`/api/rooms/${room.id}/messages/${first.body.id}/reports`, {
+    method: 'POST', token: guest, body: { reason: 'SPAM' },
+  })
+  assert.equal(duplicate.body.id, report.body.id, 'one report per player and message')
+  operatorSql('mute-24h', 'uno_game', 'user_id', renamed.body.id)
+  const muted = await request(`/api/rooms/${room.id}/messages`, {
+    method: 'POST', token: host,
+    body: { clientMessageId: randomUUID(), content: 'Must be rejected while muted' },
+  })
+  assert.equal(muted.status, 403, 'mute blocks HTTP send')
+  assert.equal(muted.body.code, 'CHAT_MUTED')
+  operatorSql('resolve', 'uno_game', 'report_id', report.body.id)
+  const resolved = await request(`/api/rooms/${room.id}/messages/${first.body.id}/reports`, {
+    method: 'POST', token: guest, body: { reason: 'SPAM' },
+  })
+  assert.equal(resolved.body.status, 'RESOLVED', 'review state is durable')
+  operatorSql('unmute', 'uno_game', 'user_id', renamed.body.id)
+  await new Promise(resolve => setTimeout(resolve, 1100))
+  assert.equal((await request(`/api/rooms/${room.id}/messages`, {
+    method: 'POST', token: host,
+    body: { clientMessageId: randomUUID(), content: 'Allowed after unmute' },
+  })).status, 200, 'unmute restores chat send')
+  console.log('PASS: member report, idempotent receipt, operator mute/resolve/unmute and HTTP enforcement.')
+}
+
 if (process.env.SMOKE_FULL_MATCH === 'true') {
   let waiting = await request(`/api/rooms/${room.id}`, { token: host })
   assert.equal(waiting.status, 200)
@@ -208,6 +246,16 @@ const left = await request(`/api/rooms/${room.id}/leave`, { method: 'POST', toke
 assert.equal(left.status, 204, 'guest leave')
 const afterLeave = await request(`/api/rooms/${room.id}/messages`, { token: guest })
 assert.equal(afterLeave.status, 404, 'former member must lose chat access')
+
+if (process.env.SMOKE_CHAT_MODERATION === 'true') {
+  const guestProfile = await request('/api/users/me', { token: guest })
+  assert.equal(guestProfile.status, 200)
+  operatorSql('disable-account', 'uno_identity', 'user_id', guestProfile.body.id)
+  assert.equal((await request('/api/users/me', { token: guest })).status, 401,
+    'disabled account loses identity access')
+  assert.equal((await request(`/api/rooms/${room.id}/messages`, { token: guest })).status, 401,
+    'disabled account loses game access')
+}
 
 console.log('PASS: containerized registration, Mailpit verification, App login, profile update, empty personal history, room join, bidirectional text, idempotency, and leave access.')
 

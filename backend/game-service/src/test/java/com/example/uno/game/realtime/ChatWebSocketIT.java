@@ -132,6 +132,22 @@ class ChatWebSocketIT {
             for (Peer peer : List.of(pA1, pA2, pOutsider))
                 assertNull(peer.messages.poll(300, TimeUnit.MILLISECONDS));
 
+            URI reportEndpoint = URI.create("http://localhost:" + endpoint.getPort() + "/api/rooms/"
+                    + roomId + "/messages/" + bEvent.path("item").path("id").asText() + "/reports");
+            HttpRequest report = HttpRequest.newBuilder(reportEndpoint)
+                    .header("X-UNO-Client", "APP").header("Authorization", "Bearer d")
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString("{\"reason\":\"ABUSE\"}"))
+                    .build();
+            assertEquals(200, HttpClient.newHttpClient().send(report, HttpResponse.BodyHandlers.ofString()).statusCode());
+            HttpRequest wrongTeamReport = HttpRequest.newBuilder(reportEndpoint)
+                    .header("X-UNO-Client", "APP").header("Authorization", "Bearer a")
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString("{\"reason\":\"ABUSE\"}"))
+                    .build();
+            assertEquals(404, HttpClient.newHttpClient().send(wrongTeamReport,
+                    HttpResponse.BodyHandlers.ofString()).statusCode());
+
             UUID roomMessageId = UUID.randomUUID();
             HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + endpoint.getPort()
                             + "/api/rooms/" + roomId + "/messages"))

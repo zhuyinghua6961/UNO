@@ -34,6 +34,12 @@ public class ChatController {
         return saved;
     }
 
+    @PostMapping("/{messageId}/reports")
+    ChatService.ReportReceipt report(@PathVariable UUID roomId, @PathVariable UUID messageId,
+            @AuthenticationPrincipal GameIdentity identity, @Valid @RequestBody ReportInput input) {
+        return chat.report(roomId, identity, messageId, input.reason());
+    }
+
     @GetMapping
     ChatService.ChatPage history(@PathVariable UUID roomId, @AuthenticationPrincipal GameIdentity identity,
             @RequestParam(defaultValue = "0") long after, @RequestParam(defaultValue = "50") int limit,
@@ -43,4 +49,5 @@ public class ChatController {
     }
 
     public record SendInput(@NotNull UUID clientMessageId, @NotNull String content, String channel) { }
+    public record ReportInput(@NotNull String reason) { }
 }

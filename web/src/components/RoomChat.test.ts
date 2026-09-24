@@ -17,6 +17,20 @@ function message(scope: ChatScope, sequence: number): ChatItem {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('room chat channel awareness', () => {
+  it('reports a visible message and shows the submitted state', async () => {
+    vi.spyOn(chatApi, 'history').mockResolvedValue({ items: [message('ROOM', 1)], nextSequence: 1, hasMore: false })
+    const report = vi.spyOn(chatApi, 'report').mockResolvedValue('00b56130-9d24-4ee5-955b-75133254f659')
+    const wrapper = mount(RoomChat, { props: { roomId } })
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === '举报')!.trigger('click')
+    await wrapper.get('select').setValue('SPAM')
+    await wrapper.get('.chat-list form').trigger('submit')
+    await flushPromises()
+    expect(report).toHaveBeenCalledWith(roomId, message('ROOM', 1).id, 'SPAM')
+    expect(wrapper.text()).toContain('已提交举报')
+    wrapper.unmount()
+  })
+
   it('shows a pushed team message immediately and deduplicates the cursor replay', async () => {
     class Peer {
       onopen: (() => void) | null = null

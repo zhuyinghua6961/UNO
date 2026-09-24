@@ -49,4 +49,16 @@ describe('room chat HTTP contract', () => {
       clientMessageId: message.clientMessageId, content: message.content, channel: 'TEAM',
     }))
   })
+
+  it('submits a report with CSRF and accepts only a server receipt', async () => {
+    const reportId = '00b56130-9d24-4ee5-955b-75133254f659'
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ headerName: 'X-CSRF-TOKEN', token: 'csrf' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: reportId, status: 'OPEN' }), { status: 200 }))
+    expect(await createChatApi(fetcher).report(roomId, message.id, 'ABUSE')).toBe(reportId)
+    expect(fetcher.mock.calls[1]).toMatchObject([
+      `/api/rooms/${roomId}/messages/${message.id}/reports`,
+      { method: 'POST', credentials: 'same-origin', body: JSON.stringify({ reason: 'ABUSE' }) },
+    ])
+  })
 })

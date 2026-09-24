@@ -49,7 +49,8 @@ class ChatServiceIT {
 
     @BeforeEach
     void empty() {
-        jdbc.update("TRUNCATE game.chat_messages, game.chat_channel_sequences, game.voice_cleanup, "
+        jdbc.update("TRUNCATE game.chat_reports, game.chat_mutes, game.chat_messages, "
+                + "game.chat_channel_sequences, game.voice_cleanup, "
                 + "game.voice_token_issuance, game.match_commands, "
                 + "game.match_players, game.matches, game.room_members, game.rooms");
     }
@@ -182,6 +183,62 @@ class ChatServiceIT {
                 Integer.class, room.id()));
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM game.chat_channel_sequences WHERE room_id = ?",
                 Integer.class, room.id()));
+    }
+
+    @Test
+    void reportsRequireCurrentVisibilityAndOperatorMuteBlocksNewSends() {
+        GameIdentity a1 = player("A1");
+        GameIdentity b1 = player("B1");
+        GameIdentity a2 = player("A2");
+        GameIdentity b2 = player("B2");
+        RoomView room = rooms.create(a1, "TEAM_2V2", 4);
+        rooms.join(b1, room.code());
+        rooms.join(a2, room.code());
+        rooms.join(b2, room.code());
+        UUID sentId = UUID.randomUUID();
+        var sent = chat.send(room.id(), b1, sentId, "reported text", "TEAM");
+        assertEquals("CHAT_MESSAGE_NOT_FOUND", assertThrows(ChatFailure.class,
+                () -> chat.report(room.id(), a1, sent.id(), "ABUSE")).code());
+        assertEquals("INVALID_CHAT_INPUT", assertThrows(ChatFailure.class,
+                () -> chat.report(room.id(), b2, sent.id(), "UNKNOWN")).code());
+        var report = chat.report(room.id(), b2, sent.id(), "ABUSE");
+        assertEquals(report, chat.report(room.id(), b2, sent.id(), "ABUSE"));
+        assertEquals("OPEN", report.status());
+        assertEquals(b1.userId(), jdbc.queryForObject("SELECT reported_user_id FROM game.chat_reports "
+                + "WHERE id = ?", UUID.class, report.id()));
+        assertEquals("reported text", jdbc.queryForObject("SELECT content_snapshot FROM game.chat_reports "
+                + "WHERE id = ?", String.class, report.id()));
+
+        var another = chat.send(room.id(), b1, UUID.randomUUID(), "second team text", "TEAM");
+        for (int index = 0; index < 19; index++) {
+            jdbc.update("INSERT INTO game.chat_reports(id, room_id, message_id, reporter_user_id, "
+                    + "reported_user_id, reason, content_snapshot, created_at, expires_at) "
+                    + "VALUES (?, ?, ?, ?, ?, 'SPAM', 'snapshot', ?, ?)",
+                    UUID.randomUUID(), room.id(), UUID.randomUUID(), b2.userId(), b1.userId(),
+                    Timestamp.from(Instant.now()), Timestamp.from(Instant.now().plusSeconds(3600)));
+        }
+        assertEquals("CHAT_RATE_LIMITED", assertThrows(ChatFailure.class,
+                () -> chat.report(room.id(), b2, another.id(), "SPAM")).code());
+
+        jdbc.update("INSERT INTO game.chat_mutes(user_id, muted_until, reason, updated_at) "
+                + "VALUES (?, ?, ?, ?)", b1.userId(), Timestamp.from(Instant.now().plusSeconds(3600)),
+                "Operator review", Timestamp.from(Instant.now()));
+        assertEquals("CHAT_MUTED", assertThrows(ChatFailure.class,
+                () -> chat.send(room.id(), b1, UUID.randomUUID(), "new", "TEAM")).code());
+        assertEquals(sent.id(), chat.send(room.id(), b1, sentId, "reported text", "TEAM").id());
+        rooms.leave(room.id(), b2);
+        assertEquals("CHAT_ROOM_NOT_FOUND", assertThrows(ChatFailure.class,
+                () -> chat.report(room.id(), b2, sent.id(), "ABUSE")).code());
+        jdbc.update("UPDATE game.chat_reports SET created_at = ?, expires_at = ? WHERE id = ?",
+                Timestamp.from(Instant.now().minusSeconds(172800)),
+                Timestamp.from(Instant.now().minusSeconds(86400)), report.id());
+        jdbc.update("UPDATE game.chat_mutes SET muted_until = ? WHERE user_id = ?",
+                Timestamp.from(Instant.now().minusSeconds(31L * 86400)), b1.userId());
+        chat.deleteExpired();
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM game.chat_reports WHERE id = ?",
+                Integer.class, report.id()));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM game.chat_mutes WHERE user_id = ?",
+                Integer.class, b1.userId()));
     }
 
     private static GameIdentity player(String nickname) {

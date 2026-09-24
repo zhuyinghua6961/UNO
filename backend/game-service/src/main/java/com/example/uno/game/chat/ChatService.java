@@ -47,6 +47,9 @@ public class ChatService {
             if (!existing.content().equals(content) || !existing.channel().equals(channel)) throw ChatFailure.conflict();
             return existing;
         }
+        Boolean muted = jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM game.chat_mutes "
+                + "WHERE user_id = ? AND muted_until > ?)", Boolean.class, identity.userId(), Timestamp.from(now));
+        if (Boolean.TRUE.equals(muted)) throw ChatFailure.muted();
         Integer sentInSecond = jdbc.queryForObject("SELECT count(*) FROM game.chat_messages "
                         + "WHERE sender_user_id = ? AND created_at > ?", Integer.class,
                 identity.userId(), Timestamp.from(now.minusSeconds(1)));
@@ -110,8 +113,43 @@ public class ChatService {
         return page.items().stream().anyMatch(candidate -> candidate.id().equals(item.id()));
     }
 
+    /** A report is accepted only for a message the current member may read. */
+    @Transactional
+    public ReportReceipt report(UUID roomId, GameIdentity identity, UUID messageId, String reason) {
+        if (reason == null || !List.of("SPAM", "ABUSE", "OTHER").contains(reason)) throw ChatFailure.invalid();
+        ChatItem target = one(jdbc.query("SELECT id, room_id, channel, sequence, sender_user_id, "
+                        + "sender_nickname, client_message_id, content, created_at "
+                        + "FROM game.chat_messages WHERE room_id = ? AND id = ? AND expires_at > ?",
+                (rs, row) -> item(rs), roomId, messageId, Timestamp.from(clock.instant())));
+        if (target == null || !visibleTo(target, identity)) throw ChatFailure.reportNotFound();
+        ReportReceipt existing = one(jdbc.query("SELECT id, status FROM game.chat_reports "
+                        + "WHERE message_id = ? AND reporter_user_id = ?",
+                (rs, row) -> new ReportReceipt(rs.getObject("id", UUID.class), rs.getString("status")),
+                messageId, identity.userId()));
+        if (existing != null) return existing;
+        Instant now = clock.instant();
+        Integer recent = jdbc.queryForObject("SELECT count(*) FROM game.chat_reports "
+                + "WHERE reporter_user_id = ? AND created_at > ?", Integer.class,
+                identity.userId(), Timestamp.from(now.minus(Duration.ofDays(1))));
+        if (recent != null && recent >= 20) throw ChatFailure.rateLimited();
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO game.chat_reports(id, room_id, message_id, reporter_user_id, "
+                        + "reported_user_id, reason, content_snapshot, created_at, expires_at) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (message_id, reporter_user_id) DO NOTHING",
+                id, roomId, messageId, identity.userId(), target.senderUserId(), reason, target.content(),
+                Timestamp.from(now), Timestamp.from(now.plus(RETENTION)));
+        ReportReceipt saved = one(jdbc.query("SELECT id, status FROM game.chat_reports "
+                        + "WHERE message_id = ? AND reporter_user_id = ?",
+                (rs, row) -> new ReportReceipt(rs.getObject("id", UUID.class), rs.getString("status")),
+                messageId, identity.userId()));
+        return saved;
+    }
+
     @Scheduled(fixedDelay = 3_600_000)
     public void deleteExpired() {
+        jdbc.update("DELETE FROM game.chat_reports WHERE expires_at <= ?", Timestamp.from(clock.instant()));
+        jdbc.update("DELETE FROM game.chat_mutes WHERE muted_until <= ?",
+                Timestamp.from(clock.instant().minus(RETENTION)));
         jdbc.update("DELETE FROM game.chat_messages WHERE expires_at <= ?", Timestamp.from(clock.instant()));
         jdbc.update("DELETE FROM game.chat_channel_sequences seq "
                 + "WHERE NOT EXISTS (SELECT 1 FROM game.rooms r WHERE r.id = seq.room_id) "
@@ -153,6 +191,7 @@ public class ChatService {
     public record ChatPage(List<ChatItem> items, long nextSequence, boolean hasMore) {
         public ChatPage { items = List.copyOf(items); }
     }
+    public record ReportReceipt(UUID id, String status) { }
     private record Member(String nickname, Instant joinedAt, int seat, long teamJoinSequence,
             String mode, String state, Instant expiresAt) { }
 }

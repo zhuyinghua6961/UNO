@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { chatApi, chatErrorMessage, type ChatItem, type ChatScope } from '../api/chat'
+import { chatApi, chatErrorMessage, type ChatItem, type ChatReportReason, type ChatScope } from '../api/chat'
 import { connectChatSocket } from '../api/chatSocket'
 
 const props = defineProps<{ roomId: string; teamEnabled?: boolean }>()
@@ -14,6 +14,11 @@ const sendError = ref('')
 const draft = ref('')
 const sending = ref(false)
 const retry = ref<{ id: string; content: string } | null>(null)
+const reportTarget = ref<string | null>(null)
+const reportReason = ref<ChatReportReason>('ABUSE')
+const reportBusy = ref(false)
+const reportError = ref('')
+const reported = ref<string[]>([])
 let active = true
 let generation = 0
 let timer: ReturnType<typeof setInterval> | undefined
@@ -96,7 +101,25 @@ function selectScope(next: ChatScope) {
   draft.value = ''
   retry.value = null
   sendError.value = ''
+  reportTarget.value = null
+  reportError.value = ''
   void refresh(next, !channels[next].initialized)
+}
+
+async function submitReport() {
+  const messageId = reportTarget.value
+  if (!messageId || reportBusy.value) return
+  const requestedGeneration = generation
+  reportBusy.value = true
+  reportError.value = ''
+  try {
+    await chatApi.report(props.roomId, messageId, reportReason.value)
+    if (!active || requestedGeneration !== generation) return
+    reported.value = [...reported.value, messageId]
+    reportTarget.value = null
+  } catch (failure) {
+    if (active && requestedGeneration === generation) reportError.value = chatErrorMessage(failure)
+  } finally { if (requestedGeneration === generation) reportBusy.value = false }
 }
 
 watch(() => props.roomId, () => {
@@ -108,6 +131,10 @@ watch(() => props.roomId, () => {
   draft.value = ''
   retry.value = null
   sendError.value = ''
+  reportTarget.value = null
+  reportError.value = ''
+  reported.value = []
+  reportBusy.value = false
   sending.value = false
   void refresh('ROOM', true)
   if (props.teamEnabled) void refresh('TEAM', true)
@@ -136,6 +163,18 @@ onUnmounted(() => { active = false; generation++; clearInterval(timer); socket?.
         <strong>{{ message.senderNickname }}</strong>
         <time :datetime="message.createdAt">{{ new Date(message.createdAt).toLocaleTimeString() }}</time>
         <p>{{ message.content }}</p>
+        <span v-if="reported.includes(message.id)" class="muted">已提交举报</span>
+        <button v-else type="button" class="button secondary small" @click="reportTarget = reportTarget === message.id ? null : message.id; reportError = ''">举报</button>
+        <form v-if="reportTarget === message.id" @submit.prevent="submitReport">
+          <label :for="`chat-report-reason-${message.id}`">举报原因</label>
+          <select :id="`chat-report-reason-${message.id}`" v-model="reportReason">
+            <option value="ABUSE">辱骂或骚扰</option>
+            <option value="SPAM">刷屏或垃圾信息</option>
+            <option value="OTHER">其他不当内容</option>
+          </select>
+          <button type="submit" class="button secondary small" :disabled="reportBusy">{{ reportBusy ? '提交中…' : '提交举报' }}</button>
+          <p v-if="reportError" role="alert">{{ reportError }}</p>
+        </form>
       </li>
     </ol>
     <p v-if="error" class="room-alert" role="alert">{{ error }}</p>
