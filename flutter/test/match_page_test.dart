@@ -197,6 +197,17 @@ void main() {
       await tester.pump();
       expect(audio.muted, true);
       expect(find.text('开启音效'), findsOneWidget);
+      transport.handlers.onSnapshot(
+        MatchState.parse({
+          ...matchSnapshot(version: 6),
+          'status': 'INTERRUPTED',
+          'deadlineAt': null,
+        }),
+      );
+      await tester.pump();
+      expect(find.text('有玩家连续错过三次回合，本局不计胜负。'), findsOneWidget);
+      expect(find.text('摸 1 张'), findsNothing);
+      expect(transport.sent, hasLength(3));
       await tester.pumpWidget(const SizedBox());
       expect(transport.closed, true);
       api.close();

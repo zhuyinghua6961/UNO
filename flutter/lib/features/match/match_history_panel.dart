@@ -97,7 +97,11 @@ class _MatchHistoryPanelState extends State<MatchHistoryPanel> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(
-                '${item.mode == 'TEAM_2V2' ? '2v2' : '经典'} · ${item.result == 'WIN' ? '胜利' : '未获胜'}',
+                '${item.mode == 'TEAM_2V2' ? '2v2' : '经典'} · ${item.result == 'WIN'
+                    ? '胜利'
+                    : item.result == 'INTERRUPTED'
+                    ? '中断 · 不计胜负'
+                    : '未获胜'}',
               ),
               subtitle: Text(
                 '${item.endedAt.toString().substring(0, 16)} · ${item.rounds} 轮\n'

@@ -25,7 +25,7 @@ class GameDatabaseIT {
                     "--spring.datasource.username=" + database.getUsername(),
                     "--spring.datasource.password=" + database.getPassword())) {
                 var jdbc = application.getBean(JdbcTemplate.class);
-                assertEquals(11, jdbc.queryForObject(
+                assertEquals(12, jdbc.queryForObject(
                         "SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class));
                 assertEquals(1, jdbc.queryForObject(
                         "SELECT count(*) FROM information_schema.schemata WHERE schema_name = 'game'", Integer.class));

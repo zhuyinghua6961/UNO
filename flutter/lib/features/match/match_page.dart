@@ -62,9 +62,14 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
       -1;
   bool get myTurn => view != null && view!.currentSeat == ownSeat;
   bool get canSend =>
-      view != null && status == MatchSocketStatus.connected && pending == null;
+      view != null &&
+      state?.status == 'PLAYING' &&
+      status == MatchSocketStatus.connected &&
+      pending == null;
   bool get activeTurn =>
-      myTurn && (view?.phase == 'TURN' || view?.phase == 'AFTER_DRAW');
+      state?.status == 'PLAYING' &&
+      myTurn &&
+      (view?.phase == 'TURN' || view?.phase == 'AFTER_DRAW');
   bool get isTeam => widget.room.mode == 'TEAM_2V2';
   String? get ownTeam => ownSeat < 0
       ? null
@@ -360,6 +365,20 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
         : winner.seat.isEven
         ? 'A'
         : 'B';
+    if (state?.status == 'INTERRUPTED') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('对局已中断', style: Theme.of(context).textTheme.titleLarge),
+          const Text('有玩家连续错过三次回合，本局不计胜负。'),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: () => widget.onBackToRoom(true),
+            child: const Text('返回等待室 · 再来一局'),
+          ),
+        ],
+      );
+    }
     if (current.phase == 'MATCH_OVER') {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -473,6 +492,8 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
     final secondsLeft = remaining?.clamp(0, 3600);
     final turn = current == null
         ? ''
+        : state?.status == 'INTERRUPTED'
+        ? '对局已中断'
         : current.phase == 'MATCH_OVER'
         ? '对局结束'
         : current.phase == 'ROUND_OVER'
@@ -684,7 +705,7 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
             api: chatApi,
             teamEnabled: widget.room.mode == 'TEAM_2V2',
           ),
-          if (isTeam && view != null && view!.phase != 'MATCH_OVER')
+          if (isTeam && view != null && state?.status == 'PLAYING')
             TeamVoicePanel(
               key: ValueKey('voice-${widget.matchId}'),
               matchId: widget.matchId,

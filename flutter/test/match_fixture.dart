@@ -8,6 +8,7 @@ Map<String, Object?> matchSnapshot({
   String phase = 'TURN',
   int currentSeat = 0,
 }) => {
+  'status': 'PLAYING',
   'deadlineAt': '2026-09-23T10:00:00Z',
   'view': {
     'rulesVersion': 1,

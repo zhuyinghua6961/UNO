@@ -43,7 +43,7 @@ class MatchHistoryItem {
         value['endedAt'] is! String ||
         value['rounds'] is! int ||
         value['rounds'] < 1 ||
-        !const ['WIN', 'LOSS'].contains(value['result']) ||
+        !const ['WIN', 'LOSS', 'INTERRUPTED'].contains(value['result']) ||
         value['players'] is! List) {
       throw const MatchDataFailure();
     }

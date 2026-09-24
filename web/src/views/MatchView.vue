@@ -34,8 +34,8 @@ let disposed = false
 const view = computed(() => snapshot.value?.view ?? null)
 const ownSeat = computed(() => view.value?.players.find(player => player.userId === auth.user?.id)?.seat ?? -1)
 const myTurn = computed(() => !!view.value && view.value.currentSeat === ownSeat.value)
-const canSend = computed(() => status.value === 'connected' && !pending.value && !!view.value)
-const activeTurn = computed(() => myTurn.value && ['TURN', 'AFTER_DRAW', 'INITIAL_WILD_COLOR'].includes(view.value?.phase ?? ''))
+const canSend = computed(() => status.value === 'connected' && !pending.value && snapshot.value?.status === 'PLAYING' && !!view.value)
+const activeTurn = computed(() => snapshot.value?.status === 'PLAYING' && myTurn.value && ['TURN', 'AFTER_DRAW', 'INITIAL_WILD_COLOR'].includes(view.value?.phase ?? ''))
 const selectedCard = computed(() => view.value?.ownHand.find(card => card.id === selectedId.value) ?? null)
 const secondsLeft = computed(() => snapshot.value?.deadlineAt
   ? Math.max(0, Math.ceil((Date.parse(snapshot.value.deadlineAt) - now.value) / 1000)) : null)
@@ -46,6 +46,7 @@ const ownTeam = computed(() => ownSeat.value < 0 ? null : ownSeat.value % 2 === 
 const winnerTeam = computed(() => !winner.value ? null : winner.value.seat % 2 === 0 ? 'A' : 'B')
 const turnLabel = computed(() => {
   if (!view.value) return ''
+  if (snapshot.value?.status === 'INTERRUPTED') return '对局已中断'
   if (view.value.phase === 'ROUND_OVER') return '本轮结束'
   if (view.value.phase === 'MATCH_OVER') return '对局结束'
   return myTurn.value ? '轮到你' : `轮到 ${playerName(view.value.players[view.value.currentSeat]!.userId)}`
@@ -227,11 +228,12 @@ onUnmounted(() => { disposed = true; revision++; channel?.close(); clearInterval
       <div class="live-layout">
         <section class="live-table" :aria-label="isTeam ? '实时双人组牌桌' : '实时经典牌桌'">
           <div class="live-opponents"><div v-for="player in others" :key="player.userId" :class="['opponent-chip', { current: view.currentSeat === player.seat }]"><strong>{{ playerName(player.userId) }}{{ isTeam ? ` · ${player.seat % 2 === 0 ? 'A' : 'B'} 队${player.seat % 2 === ownSeat % 2 ? '（队友）' : ''}` : '' }}</strong><span>{{ player.handCount }} 张 · {{ player.score }} 分</span></div></div>
-          <div class="live-center"><div class="pile"><img src="/game-assets/cards/back.png" alt="牌堆" /><small>牌堆 {{ view.drawCount }} 张</small></div><div class="pile discard"><img :src="cardImage(view.topCard)" :alt="`弃牌堆顶：${cardName(view.topCard)}`" /><small>弃牌堆 {{ view.discardCount }} 张</small></div><div class="turn-summary"><span class="eyebrow">CURRENT COLOR</span><strong :class="['color-name', view.activeColor?.toLowerCase()]">{{ colorName(view.activeColor) }}</strong><p>{{ view.phase === 'DRAW_FOUR_RESPONSE' ? '等待 +4 接受或质疑' : view.phase === 'AFTER_DRAW' ? '刚摸的牌可出或放弃' : view.phase === 'INITIAL_WILD_COLOR' ? '选择开局颜色' : view.phase === 'ROUND_OVER' ? '本轮结束' : view.phase === 'MATCH_OVER' ? '对局结束' : '按颜色、数字或符号出牌' }}</p></div></div>
+          <div class="live-center"><div class="pile"><img src="/game-assets/cards/back.png" alt="牌堆" /><small>牌堆 {{ view.drawCount }} 张</small></div><div class="pile discard"><img :src="cardImage(view.topCard)" :alt="`弃牌堆顶：${cardName(view.topCard)}`" /><small>弃牌堆 {{ view.discardCount }} 张</small></div><div class="turn-summary"><span class="eyebrow">CURRENT COLOR</span><strong :class="['color-name', view.activeColor?.toLowerCase()]">{{ colorName(view.activeColor) }}</strong><p>{{ snapshot?.status === 'INTERRUPTED' ? '对局已中断' : view.phase === 'DRAW_FOUR_RESPONSE' ? '等待 +4 接受或质疑' : view.phase === 'AFTER_DRAW' ? '刚摸的牌可出或放弃' : view.phase === 'INITIAL_WILD_COLOR' ? '选择开局颜色' : view.phase === 'ROUND_OVER' ? '本轮结束' : view.phase === 'MATCH_OVER' ? '对局结束' : '按颜色、数字或符号出牌' }}</p></div></div>
           <div class="own-zone"><div class="own-label"><strong>你的手牌 · {{ view.ownHand.length }} 张</strong><span>{{ view.players[ownSeat]?.score ?? 0 }} 分</span></div><div class="live-hand"><button v-for="card in view.ownHand" :key="card.id" type="button" :class="['hand-card', { selected: selectedId === card.id, drawn: view.drawnCardId === card.id }]" :disabled="!activeTurn || !canSend || (view.phase === 'AFTER_DRAW' && view.drawnCardId !== card.id)" :aria-label="`选择${cardName(card)}`" :aria-pressed="selectedId === card.id" @click="selectCard(card)"><img :src="cardImage(card)" :alt="cardName(card)" /></button></div></div>
         </section>
-        <aside class="match-controls room-panel"><h2>本回合操作</h2><p class="muted">{{ pending ? '等待服务器确认…' : status === 'connected' ? '选择卡牌后提交，结果以服务器返回为准。' : '重连后会同步当前局面。' }}</p>
-          <div v-if="view.phase === 'MATCH_OVER'" class="round-result"><strong>{{ isTeam ? `${winnerTeam ?? '获胜'} 队赢得对局${winnerTeam === ownTeam ? '，你和队友胜利！' : '。'}` : winner?.userId === auth.user?.id ? '你赢得了对局！' : `${winner ? playerName(winner.userId) : '玩家'} 赢得了对局` }}</strong><p v-if="isTeam">{{ winner ? playerName(winner.userId) : '一位队员' }}先出完手牌 · 对手剩余手牌 {{ view.roundPoints }} 分</p><p v-else>本轮得分 {{ view.roundPoints }} 分</p><RouterLink v-if="room" class="button dark" :to="`/rooms/${room.id}`">返回等待室 · 再来一局</RouterLink><RouterLink class="button secondary" to="/">返回大厅</RouterLink></div>
+        <aside class="match-controls room-panel"><h2>本回合操作</h2><p class="muted">{{ snapshot?.status === 'INTERRUPTED' ? '本局已结束，牌面保留供查看。' : pending ? '等待服务器确认…' : status === 'connected' ? '选择卡牌后提交，结果以服务器返回为准。' : '重连后会同步当前局面。' }}</p>
+          <div v-if="snapshot?.status === 'INTERRUPTED'" class="round-result"><strong>对局已中断</strong><p>有玩家连续错过三次回合，本局不计胜负。</p><RouterLink v-if="room" class="button dark" :to="`/rooms/${room.id}`">返回等待室 · 再来一局</RouterLink><RouterLink class="button secondary" to="/">返回大厅</RouterLink></div>
+          <div v-else-if="view.phase === 'MATCH_OVER'" class="round-result"><strong>{{ isTeam ? `${winnerTeam ?? '获胜'} 队赢得对局${winnerTeam === ownTeam ? '，你和队友胜利！' : '。'}` : winner?.userId === auth.user?.id ? '你赢得了对局！' : `${winner ? playerName(winner.userId) : '玩家'} 赢得了对局` }}</strong><p v-if="isTeam">{{ winner ? playerName(winner.userId) : '一位队员' }}先出完手牌 · 对手剩余手牌 {{ view.roundPoints }} 分</p><p v-else>本轮得分 {{ view.roundPoints }} 分</p><RouterLink v-if="room" class="button dark" :to="`/rooms/${room.id}`">返回等待室 · 再来一局</RouterLink><RouterLink class="button secondary" to="/">返回大厅</RouterLink></div>
           <div v-else-if="view.phase === 'ROUND_OVER'" class="round-result"><strong>{{ winner?.userId === auth.user?.id ? '你赢得了本轮！' : `${winner ? playerName(winner.userId) : '玩家'} 赢得了本轮` }}</strong><p>本轮得分 {{ view.roundPoints }} 分</p><button class="button dark" :disabled="!canSend" @click="send('NEXT_ROUND')">开始下一轮</button></div>
           <div v-else-if="view.phase === 'INITIAL_WILD_COLOR' && myTurn" class="action-group"><strong>选择开局颜色</strong><div class="color-choices"><button v-for="color in colors" :key="color.value" :class="['color-choice', color.value.toLowerCase()]" :disabled="!canSend" @click="send('CHOOSE_INITIAL_COLOR', { chosenColor: color.value })">{{ color.label }}</button></div></div>
           <div v-else-if="view.phase === 'DRAW_FOUR_RESPONSE' && myTurn" class="action-group"><strong>你收到了 +4</strong><p class="muted">8 秒内可质疑；超时自动接受。</p><button class="button dark" :disabled="!canSend" @click="send('ACCEPT_DRAW_FOUR')">接受 · 摸 4 张</button><button class="button secondary" :disabled="!canSend" @click="send('CHALLENGE_DRAW_FOUR')">质疑 +4</button></div>
@@ -242,7 +244,7 @@ onUnmounted(() => { disposed = true; revision++; channel?.close(); clearInterval
         </aside>
       </div>
       <RoomChat v-if="room" :room-id="room.id" :team-enabled="room.mode === 'TEAM_2V2'" />
-      <TeamVoice v-if="isTeam && view.phase !== 'MATCH_OVER'" :key="matchId" :match-id="matchId" />
+      <TeamVoice v-if="isTeam && snapshot?.status === 'PLAYING'" :key="matchId" :match-id="matchId" />
     </template>
   </section>
 </template>

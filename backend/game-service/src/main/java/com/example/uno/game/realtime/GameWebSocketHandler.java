@@ -139,6 +139,7 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
         payload.put("matchId", matchId);
         payload.put("view", snapshot.view());
         payload.put("deadlineAt", snapshot.deadlineAt());
+        payload.put("status", snapshot.status());
         send(client, payload);
     }
 

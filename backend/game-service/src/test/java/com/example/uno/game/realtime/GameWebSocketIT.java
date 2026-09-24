@@ -197,6 +197,49 @@ class GameWebSocketIT {
     }
 
     @Test
+    void repeatedTimeoutsBroadcastAnInterruptedStatusWithoutAFalseWinner() throws Exception {
+        GameIdentity host = player("InterruptedHost");
+        GameIdentity guest = player("InterruptedGuest");
+        sessions.put(HOST_TOKEN, host);
+        sessions.put(GUEST_TOKEN, guest);
+        RoomService rooms = application.getBean(RoomService.class);
+        MatchService matches = application.getBean(MatchService.class);
+        RoomView room = rooms.create(host, "CLASSIC", 2);
+        room = rooms.join(guest, room.code());
+        room = rooms.ready(room.id(), host, true, room.version());
+        room = rooms.ready(room.id(), guest, true, room.version());
+        UUID matchId = matches.start(room.id(), host, room.version()).matchId();
+        Peer hostPeer = connect(HOST_TOKEN);
+        Peer guestPeer = connect(GUEST_TOKEN);
+        try {
+            String subscribe = json.writeValueAsString(Map.of(
+                    "protocolVersion", 1, "type", "SUBSCRIBE", "matchId", matchId));
+            hostPeer.socket.sendText(subscribe, true).join();
+            guestPeer.socket.sendText(subscribe, true).join();
+            assertEquals("PLAYING", hostPeer.nextMessage().path("status").asText());
+            assertEquals("PLAYING", guestPeer.nextMessage().path("status").asText());
+            JsonNode latest = null;
+            for (int missed = 0; missed < 6; missed++) {
+                application.getBean(JdbcTemplate.class).update("UPDATE game.matches SET deadline_at = ? WHERE id = ?",
+                        Timestamp.from(Instant.now().minusSeconds(1)), matchId);
+                application.getBean(MatchDeadlineWorker.class).resolveDueMatches();
+                latest = hostPeer.nextMessage();
+                JsonNode other = guestPeer.nextMessage();
+                assertEquals(latest.path("status").asText(), other.path("status").asText());
+                if ("INTERRUPTED".equals(latest.path("status").asText())) break;
+            }
+            assertNotNull(latest);
+            assertEquals("INTERRUPTED", latest.path("status").asText());
+            assertTrue(latest.path("deadlineAt").isNull());
+            assertEquals("WAITING", rooms.get(room.id(), host).state());
+        } finally {
+            hostPeer.socket.abort();
+            guestPeer.socket.abort();
+            sessions.clear();
+        }
+    }
+
+    @Test
     void rateLimitedConnectionProvidesARecoverableCloseReason() throws Exception {
         sessions.put(HOST_TOKEN, player("RateLimited"));
         Peer peer = connect(HOST_TOKEN);

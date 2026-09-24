@@ -8,7 +8,7 @@ import java.util.UUID;
 public record UnoTransition(UnoState state, Event event, Map<Integer, Integer> cardsDrawnBySeat,
         ChallengeOutcome challengeOutcome, Map<UUID, List<UnoCard>> privateReveals) {
     public enum Event { PLAYED, DREW, DRAW_UNAVAILABLE, PASSED, UNO_DECLARED, UNO_CAUGHT, DRAW_FOUR_ACCEPTED,
-        DRAW_FOUR_CHALLENGED, INITIAL_COLOR_CHOSEN }
+        DRAW_FOUR_CHALLENGED, INITIAL_COLOR_CHOSEN, ROUND_STARTED }
     public enum ChallengeOutcome { NOT_APPLICABLE, OFFENDER_GUILTY, OFFENDER_INNOCENT }
 
     public UnoTransition {

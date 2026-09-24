@@ -221,16 +221,22 @@ class MatchView {
 }
 
 class MatchState {
-  const MatchState(this.view, this.deadlineAt);
+  const MatchState(this.view, this.deadlineAt, this.status);
   final MatchView view;
   final DateTime? deadlineAt;
+  final String status;
 
   factory MatchState.parse(Object? value) {
     final data = _object(value);
     if (!data.containsKey('deadlineAt')) throw const MatchDataFailure();
+    final status = _text(data['status']);
+    if (!const ['PLAYING', 'ENDED', 'INTERRUPTED'].contains(status)) {
+      throw const MatchDataFailure();
+    }
     return MatchState(
       MatchView.parse(data['view']),
       _deadline(data['deadlineAt']),
+      status,
     );
   }
 }

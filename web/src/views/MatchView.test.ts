@@ -121,4 +121,17 @@ describe('live Web table', () => {
     expect(wrapper.text()).toContain('你的手牌 · 1 张')
     wrapper.unmount()
   })
+
+  it('shows an interrupted match and rejects further card actions', async () => {
+    const initial = parseMatchSnapshot(snapshot)
+    const wrapper = await showMatch(initial)
+    handlers.snapshot({ ...initial, status: 'INTERRUPTED', deadlineAt: null })
+    await flushPromises()
+    expect(wrapper.text()).toContain('对局已中断')
+    expect(wrapper.text()).toContain('本局不计胜负')
+    expect(wrapper.get('.hand-card').attributes('disabled')).toBeDefined()
+    await wrapper.get('.hand-card').trigger('click')
+    expect(send).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
 })

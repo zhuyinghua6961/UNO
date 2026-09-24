@@ -1,6 +1,7 @@
 export const matchId = '9c766d3d-7918-46e2-a96e-5967b70c13aa'
 export const userId = 'c4d75d7d-117c-45e3-a289-8e38a2fed8cc'
 export const snapshot = {
+  status: 'PLAYING',
   deadlineAt: '2026-09-23T10:00:00Z',
   view: {
     rulesVersion: 1, version: 4, roundNumber: 1, phase: 'TURN', currentSeat: 0,

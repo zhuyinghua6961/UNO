@@ -352,6 +352,136 @@ class MatchServiceIT {
     }
 
     @Test
+    void repeatedMissedTurnsInterruptWithoutAwardingVictoryAndFreeTheRoom() {
+        GameIdentity host = player("Host");
+        GameIdentity guest = player("Guest");
+        var started = startMatch(host, guest);
+        UUID matchId = started.matchId();
+        UUID roomId = jdbc.queryForObject("SELECT room_id FROM game.matches WHERE id = ?", UUID.class, matchId);
+        int resolved = 0;
+        while ("PLAYING".equals(jdbc.queryForObject("SELECT state FROM game.matches WHERE id = ?", String.class, matchId))
+                && resolved < 10) {
+            jdbc.update("UPDATE game.matches SET deadline_at = ? WHERE id = ?",
+                    Timestamp.from(Instant.now().minusSeconds(1)), matchId);
+            assertNotNull(matches.resolveTimeout(matchId));
+            resolved++;
+        }
+        assertTrue(resolved <= 6, "one of two seats must miss three turns within six timed actions");
+        assertEquals("INTERRUPTED", matches.snapshot(matchId, host).status());
+        assertNull(matches.snapshot(matchId, host).deadlineAt());
+        assertEquals("REPEATED_TURN_TIMEOUT", jdbc.queryForObject(
+                "SELECT interruption_reason FROM game.matches WHERE id = ?", String.class, matchId));
+        assertEquals("WAITING", rooms.get(roomId, host).state());
+        assertNull(matches.current(roomId, host));
+        assertNull(matches.resolveTimeout(matchId));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM game.match_commands "
+                + "WHERE match_id = ? AND event = 'MATCH_INTERRUPTED'", Integer.class, matchId));
+        var history = application.getBean(MatchHistoryService.class).history(host, null, 20).items().get(0);
+        assertEquals("INTERRUPTED", history.result());
+        assertNull(history.winnerUserId());
+        assertEquals("MATCH_CONFLICT", assertThrows(MatchFailure.class,
+                () -> matches.command(matchId, host, new MatchCommandInput(1, UUID.randomUUID(),
+                        started.view().version(), MatchCommandInput.Type.DRAW, null, null, null, false))).code());
+    }
+
+    @Test
+    void aRealPlayerActionResetsOnlyThatPlayersMissedTurnCount() {
+        GameIdentity host = player("Host");
+        GameIdentity guest = player("Guest");
+        var started = startMatch(host, guest);
+        UUID matchId = started.matchId();
+        UUID firstActor = started.view().players().get(started.view().currentSeat()).userId();
+        jdbc.update("UPDATE game.matches SET deadline_at = ? WHERE id = ?",
+                Timestamp.from(Instant.now().minusSeconds(1)), matchId);
+        matches.resolveTimeout(matchId);
+        assertEquals(1, jdbc.queryForObject("SELECT consecutive_timeouts FROM game.match_players "
+                + "WHERE match_id = ? AND user_id = ?", Integer.class, matchId, firstActor));
+        for (int attempts = 0; attempts < 3; attempts++) {
+            var view = matches.snapshot(matchId, host).view();
+            if (view.players().get(view.currentSeat()).userId().equals(firstActor)) break;
+            jdbc.update("UPDATE game.matches SET deadline_at = ? WHERE id = ?",
+                    Timestamp.from(Instant.now().minusSeconds(1)), matchId);
+            matches.resolveTimeout(matchId);
+        }
+        var view = matches.snapshot(matchId, host).view();
+        assertEquals(firstActor, view.players().get(view.currentSeat()).userId());
+        GameIdentity actor = firstActor.equals(host.userId()) ? host : guest;
+        MatchCommandInput.Type action = switch (view.phase()) {
+            case INITIAL_WILD_COLOR -> MatchCommandInput.Type.CHOOSE_INITIAL_COLOR;
+            case AFTER_DRAW -> MatchCommandInput.Type.PASS;
+            default -> MatchCommandInput.Type.DRAW;
+        };
+        matches.command(matchId, actor, new MatchCommandInput(1, UUID.randomUUID(), view.version(),
+                action, null, action == MatchCommandInput.Type.CHOOSE_INITIAL_COLOR ? UnoCard.Color.RED : null,
+                null, false));
+        assertEquals(0, jdbc.queryForObject("SELECT consecutive_timeouts FROM game.match_players "
+                + "WHERE match_id = ? AND user_id = ?", Integer.class, matchId, firstActor));
+    }
+
+    @Test
+    void aFinishedClassicRoundAutomaticallyStartsTheNextRoundAfterItsDeadline() {
+        GameIdentity host = player("Host");
+        GameIdentity guest = player("Guest");
+        UUID matchId = startMatch(host, guest).matchId();
+        JsonMapper json = new JsonMapper();
+        UnoSnapshot old = json.readValue(jdbc.queryForObject(
+                "SELECT snapshot::text FROM game.matches WHERE id = ?", String.class, matchId), UnoSnapshot.class);
+        List<List<Integer>> hands = new ArrayList<>();
+        old.hands().forEach(hand -> hands.add(new ArrayList<>(hand)));
+        List<Integer> pile = new ArrayList<>(old.drawPile());
+        pile.addAll(hands.get(0));
+        hands.set(0, List.of());
+        UnoSnapshot roundOver = new UnoSnapshot(old.players(), hands, pile, old.discardPile(), old.scores(),
+                old.dealerSeat(), old.currentSeat(), old.direction(), old.roundNumber(), old.version(),
+                UnoState.Phase.ROUND_OVER, old.activeColor() == null ? UnoCard.Color.RED : old.activeColor(),
+                null, null, null, 0, 25);
+        UnoState.restore(roundOver);
+        jdbc.update("UPDATE game.matches SET snapshot = CAST(? AS jsonb), deadline_at = ? WHERE id = ?",
+                json.writeValueAsString(roundOver), Timestamp.from(Instant.now().minusSeconds(1)), matchId);
+
+        var result = matches.resolveTimeout(matchId);
+
+        assertEquals("AUTO_NEXT_ROUND_STARTED", result.event());
+        assertEquals(2, matches.snapshot(matchId, host).view().roundNumber());
+        assertEquals("PLAYING", matches.snapshot(matchId, host).status());
+        assertNotNull(matches.snapshot(matchId, host).deadlineAt());
+        assertEquals(0, jdbc.queryForObject("SELECT sum(consecutive_timeouts) FROM game.match_players "
+                + "WHERE match_id = ?", Integer.class, matchId));
+    }
+
+    @Test
+    void interruptedTeamMatchSchedulesVoiceCleanupAndGivesAllSeatsNeutralHistory() {
+        GameIdentity host = player("Host");
+        GameIdentity b = player("B");
+        GameIdentity partner = player("Partner");
+        GameIdentity d = player("D");
+        RoomView room = rooms.create(host, "TEAM_2V2", 4);
+        for (GameIdentity player : List.of(b, partner, d)) room = rooms.join(player, room.code());
+        for (GameIdentity player : List.of(host, b, partner, d))
+            room = rooms.ready(room.id(), player, true, room.version());
+        UUID matchId = matches.start(room.id(), host, room.version()).matchId();
+        var view = matches.snapshot(matchId, host).view();
+        UUID actor = view.players().get(view.currentSeat()).userId();
+        jdbc.update("UPDATE game.match_players SET consecutive_timeouts = 2 WHERE match_id = ? AND user_id = ?",
+                matchId, actor);
+        jdbc.update("UPDATE game.matches SET deadline_at = ? WHERE id = ?",
+                Timestamp.from(Instant.now().minusSeconds(1)), matchId);
+
+        assertEquals("MATCH_INTERRUPTED", matches.resolveTimeout(matchId).event());
+
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM game.voice_cleanup WHERE match_id = ?",
+                Integer.class, matchId));
+        assertEquals("WAITING", rooms.get(room.id(), host).state());
+        var history = application.getBean(MatchHistoryService.class);
+        for (GameIdentity player : List.of(host, b, partner, d)) {
+            var item = history.history(player, null, 20).items().get(0);
+            assertEquals("TEAM_2V2", item.mode());
+            assertEquals("INTERRUPTED", item.result());
+            assertNull(item.winnerUserId());
+        }
+    }
+
+    @Test
     void drawFourResponseGetsEightSecondsAndTimeoutAcceptsIt() {
         GameIdentity host = player("Host");
         GameIdentity guest = player("Guest");

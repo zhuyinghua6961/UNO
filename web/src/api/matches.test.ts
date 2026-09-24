@@ -45,4 +45,15 @@ describe('match HTTP contract', () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ items: [item], nextCursor: null }), { status: 200 }))
     expect((await createMatchApi(fetcher).history()).items[0]).toMatchObject({ mode: 'TEAM_2V2', result: 'WIN' })
   })
+
+  it('parses interrupted matches without inventing a winner', async () => {
+    const item = { matchId, mode: 'CLASSIC', endedAt: '2026-09-24T08:00:00Z',
+      rounds: 2, winnerUserId: null, result: 'INTERRUPTED',
+      players: [{ userId: matchId, seat: 0, nickname: 'Alice', score: 14 }] }
+    const api = createMatchApi(vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      items: [item], nextCursor: null,
+    }), { status: 200 })))
+    expect((await api.history()).items[0]).toMatchObject({ result: 'INTERRUPTED', winnerUserId: null })
+    expect(() => parseMatchSnapshot({ ...snapshot, status: 'unknown' })).toThrow(MatchError)
+  })
 })

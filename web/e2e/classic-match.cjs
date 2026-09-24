@@ -147,9 +147,6 @@ async function main() {
         await current.getByRole('button', { name: '红色' }).first().click()
       } else if (view.phase === 'DRAW_FOUR_RESPONSE') {
         await current.getByRole('button', { name: '接受 · 摸 4 张' }).click()
-      } else if (current === guest) {
-        if (view.phase === 'AFTER_DRAW') await current.getByRole('button', { name: '不出刚摸的牌 · 结束回合' }).click()
-        else await current.getByRole('button', { name: '摸 1 张' }).click()
       } else {
         const playable = card => card.color === null || card.color === view.activeColor ||
           (view.topCard.color !== null && card.kind === view.topCard.kind &&

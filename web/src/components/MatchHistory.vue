@@ -44,7 +44,7 @@ onUnmounted(() => { disposed = true; revision++ })
     <p v-if="loaded && items.length === 0" class="muted">还没有已完成的对局。</p>
     <ol v-if="items.length" class="history-list">
       <li v-for="item in items" :key="item.matchId">
-        <strong>{{ item.mode === 'TEAM_2V2' ? '2v2 · ' : '经典 · ' }}{{ item.result === 'WIN' ? '胜利' : '未获胜' }}</strong>
+        <strong>{{ item.mode === 'TEAM_2V2' ? '2v2 · ' : '经典 · ' }}{{ item.result === 'WIN' ? '胜利' : item.result === 'INTERRUPTED' ? '中断 · 不计胜负' : '未获胜' }}</strong>
         <span>{{ new Date(item.endedAt).toLocaleString('zh-CN') }} · {{ item.rounds }} 轮</span>
         <small>{{ players(item) }}</small>
       </li>

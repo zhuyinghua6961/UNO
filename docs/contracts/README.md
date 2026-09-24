@@ -82,7 +82,9 @@ Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷
 {"protocolVersion":1,"type":"COMMAND","matchId":"server-issued-uuid","command":{"protocolVersion":1,"commandId":"client-generated-uuid","expectedVersion":1,"type":"DRAW"}}
 ```
 
-动作内容与 HTTP `/api/matches/{matchId}/commands` 相同；`callUno` 缺省为 `false`。服务器只向 WebSocket 提交者发送 `COMMAND_ACK`（含个人视图和可能的私有质疑证据）或 `COMMAND_REJECTED`（含 `commandId` 与错误代码）；WebSocket 或 HTTP 动作成功后向同局已订阅连接分别发送各自的 `MATCH_SNAPSHOT`。超时裁决后向同局全部已订阅连接推送 `MATCH_SNAPSHOT`，含 `deadlineAt`。重复命令不重新广播。非法订阅/格式返回 `ERROR`。
+动作内容与 HTTP `/api/matches/{matchId}/commands` 相同；`callUno` 缺省为 `false`。服务器只向 WebSocket 提交者发送 `COMMAND_ACK`（含个人视图和可能的私有质疑证据）或 `COMMAND_REJECTED`（含 `commandId` 与错误代码）；WebSocket 或 HTTP 动作成功后向同局已订阅连接分别发送各自的 `MATCH_SNAPSHOT`。开始响应、状态查询、动作回执及快照均含 `status: PLAYING|ENDED|INTERRUPTED` 和 `deadlineAt`。超时裁决后向同局全部已订阅连接推送私有快照。重复命令不重新广播。非法订阅/格式返回 `ERROR`。
+
+普通回合与开局选色限时 30 秒，+4 回应限时 8 秒。每位玩家第三次连续错过本人回合后，服务器将对局置为 `INTERRUPTED`、取消截止时间并释放房间；中断不计胜负，历史记录的 `result=INTERRUPTED` 且 `winnerUserId=null`。本人成功提交动作清零本人计数；+4 自动接受不计漏回合。经典局单轮结束 120 秒无人开始下一轮时由服务器自动开局。这些是产品超时策略，不是官方 UNO 规则。
 
 单条文本消息上限 8192 字节，每连接每 10 秒最多 30 条；速率超限以 1008、`RATE_LIMITED` 关闭连接，客户端可重新订阅并同步状态，不能自动重发未确认命令。同一 game-service 实例中，同一用户对同一局的新订阅接管旧连接：旧连接以 4001、`TAKEN_OVER` 关闭且不能再发动作；Web/App 停止自动重连，用户可以手动在当前端重新接管。每连接同时只订阅一局，不能指定其他身份或接收队列。服务端每次推送前重新核验会话；失效或撤销的连接会关闭。超时扫描默认约每秒执行一次；跨实例接管/广播与完整断线策略尚未完成。HTTP 动作入口仍独立于 WebSocket 接管权。
 

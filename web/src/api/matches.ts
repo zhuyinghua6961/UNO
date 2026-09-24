@@ -10,7 +10,7 @@ export type MatchView = {
   unoVulnerableSeat: number | null; roundWinnerSeat: number | null; roundPoints: number
   canRespondToDrawFour: boolean; drawnCardId: number | null
 }
-export type MatchSnapshot = { view: MatchView; deadlineAt: string | null }
+export type MatchSnapshot = { view: MatchView; deadlineAt: string | null; status: 'PLAYING' | 'ENDED' | 'INTERRUPTED' }
 export type MatchStart = MatchSnapshot & { matchId: string; roomVersion: number }
 export type MatchCommandType = 'PLAY' | 'DRAW' | 'PASS' | 'SAY_UNO' | 'CATCH_UNO'
   | 'ACCEPT_DRAW_FOUR' | 'CHALLENGE_DRAW_FOUR' | 'CHOOSE_INITIAL_COLOR' | 'NEXT_ROUND'
@@ -24,7 +24,7 @@ export type MatchReceipt = MatchSnapshot & {
 }
 export type HistoryPlayer = { userId: string; seat: number; nickname: string | null; score: number }
 export type HistoryItem = { matchId: string; mode: 'CLASSIC' | 'TEAM_2V2'; endedAt: string; rounds: number;
-  winnerUserId: string; result: 'WIN' | 'LOSS'; players: HistoryPlayer[] }
+  winnerUserId: string | null; result: 'WIN' | 'LOSS' | 'INTERRUPTED'; players: HistoryPlayer[] }
 export type HistoryPage = { items: HistoryItem[]; nextCursor: string | null }
 
 export class MatchError extends Error {
@@ -49,7 +49,8 @@ export function parseCard(value: unknown): Card {
 }
 
 export function parseMatchSnapshot(value: unknown): MatchSnapshot {
-  if (!record(value) || !record(value.view) || !deadline(value.deadlineAt)) throw invalid()
+  if (!record(value) || !record(value.view) || !deadline(value.deadlineAt)
+    || !['PLAYING', 'ENDED', 'INTERRUPTED'].includes(String(value.status))) throw invalid()
   const view = value.view
   if (!integer(view.rulesVersion) || view.rulesVersion !== 1 || !integer(view.version) || view.version < 1
     || !integer(view.roundNumber) || !phases.includes(String(view.phase)) || !integer(view.currentSeat)
@@ -65,7 +66,7 @@ export function parseMatchSnapshot(value: unknown): MatchSnapshot {
   })
   if (view.currentSeat < 0 || view.currentSeat >= players.length) throw invalid()
   return { view: { ...view, topCard: parseCard(view.topCard), ownHand: view.ownHand.map(parseCard), players } as MatchView,
-    deadlineAt: value.deadlineAt as string | null }
+    deadlineAt: value.deadlineAt as string | null, status: value.status as MatchSnapshot['status'] }
 }
 
 export function parseMatchStart(value: unknown): MatchStart {
@@ -91,8 +92,9 @@ export function parseHistoryPage(value: unknown): HistoryPage {
   const items = value.items.map(item => {
     if (!record(item) || !uuid.test(String(item.matchId)) || !['CLASSIC', 'TEAM_2V2'].includes(String(item.mode))
       || typeof item.endedAt !== 'string' || !Number.isFinite(Date.parse(item.endedAt))
-      || !integer(item.rounds) || !uuid.test(String(item.winnerUserId))
-      || !['WIN', 'LOSS'].includes(String(item.result)) || !Array.isArray(item.players)) throw invalid()
+      || !integer(item.rounds) || !['WIN', 'LOSS', 'INTERRUPTED'].includes(String(item.result))
+      || (item.result === 'INTERRUPTED' ? item.winnerUserId !== null : !uuid.test(String(item.winnerUserId)))
+      || !Array.isArray(item.players)) throw invalid()
     const players = item.players.map(player => {
       if (!record(player) || !uuid.test(String(player.userId)) || !integer(player.seat)
         || !(player.nickname === null || typeof player.nickname === 'string')
