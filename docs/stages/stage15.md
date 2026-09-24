@@ -2,7 +2,7 @@
 
 [返回总索引](../README.md)
 
-- 状态：进行中；Flutter LiveKit 接入、仅收听、自动化生命周期检查与 Android/iOS 调试编译已完成；iOS 模拟器信令已接通，真机互听待验收。
+- 状态：进行中；Flutter LiveKit 接入、仅收听、自动化生命周期检查与 Android/iOS 调试编译已完成；Android/iOS 模拟器信令已接通，真机互听待验收。
 - 前置依赖：stage9、stage13；跨端互通验收依赖 stage14。
 - 目标：App 队友语音可用，并完成 Web/App 混合队伍的互听验证。
 
@@ -38,3 +38,5 @@
 Flutter `livekit_client` 2.13.0 已接入；API 请求、主动加入、静音/换房、退后台、页面销毁及加入中退出通过注入式自动化检查。设备系统、混合端互听、音频中断和真实采集行为仍待记录，见 [stage15 增量验收](../verification-stage15-voice.md)。
 
 2026-09-24 增量：App 增加“仅收听”入口，用户可先加入队友频道而不采集麦克风，再主动开麦。iOS 模拟器经真实服务完成仅收听加入、退出及后续跨端 2v2 整局；模拟器在启用音频输入或收到 Web 音轨时出现系统 `AURemoteIO` 超时崩溃，不能将此项视为互听验收。证据和运行命令见 [stage15 增量验收](../verification-stage15-voice.md)。
+
+2026-09-24 Android 增量：首次蓝牙授权弹窗曾触发 `inactive`，语音面板误作退后台并退出；现只在 `hidden`、`paused`、`detached` 退出，长牌桌滚动离屏时保留语音面板状态。Android API 36.1 模拟器经系统蓝牙授权后，真实 LiveKit 仅收听加入、退出与 Web 混合 2v2 完赛通过。仍未验证 Android 音频采集、播放或真机互听；详见 [stage15 增量验收](../verification-stage15-voice.md)。

@@ -16,6 +16,7 @@
     "test:e2e:mixed-ios-team": "UNO_E2E_PLATFORM=iOS node e2e/mixed-mobile-team.cjs",
     "test:e2e:mixed-android-team": "UNO_E2E_PLATFORM=Android node e2e/mixed-mobile-team.cjs",
     "test:e2e:ios-voice-signaling": "UNO_E2E_PLATFORM=iOS UNO_E2E_MOBILE_VOICE=1 node e2e/mixed-mobile-team.cjs",
+    "test:e2e:android-voice-signaling": "UNO_E2E_PLATFORM=Android UNO_E2E_MOBILE_VOICE=1 node e2e/mixed-mobile-team.cjs",
     "test:e2e:voice": "node e2e/team-voice.cjs",
     "test:e2e:voice-revoke": "UNO_E2E_VOICE_REVOKE=1 node e2e/team-voice.cjs"
   },

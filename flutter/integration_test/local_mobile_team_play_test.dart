@@ -214,6 +214,8 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await tester.enterText(find.widgetWithText(TextField, '10 位房间码'), roomCode);
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
     await _tap(tester, find.widgetWithText(OutlinedButton, '加入房间'));
     await _waitFor(
       tester,
@@ -289,13 +291,16 @@ void main() {
       try {
         await _waitFor(
           tester,
-          () => find.text('已加入 · 麦克风关闭').evaluate().isNotEmpty,
+          () => find
+              .text('已加入 · 麦克风关闭', skipOffstage: false)
+              .evaluate()
+              .isNotEmpty,
           'live listen-only team channel',
-          attempts: 80,
+          attempts: 240,
         );
       } on TestFailure {
         final labels = tester
-            .widgetList<Text>(find.byType(Text))
+            .widgetList<Text>(find.byType(Text, skipOffstage: false))
             .map((text) => text.data)
             .whereType<String>()
             .take(80)
@@ -310,11 +315,11 @@ void main() {
         'left listen-only channel',
       );
       debugPrint('UNO_MOBILE_VOICE_LEFT');
-      await tester.scrollUntilVisible(
-        find.text('双人组牌桌'),
-        -220,
-        scrollable: find.byType(Scrollable).first,
-      );
+      tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .jumpTo(0);
+      await tester.pump();
     }
 
     var acted = false;

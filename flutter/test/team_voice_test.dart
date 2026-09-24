@@ -99,12 +99,14 @@ class _FakeTransport implements VoiceTransport {
 }
 
 class _FakeDevicePermission implements VoiceDevicePermission {
-  _FakeDevicePermission(this.allowed);
+  _FakeDevicePermission(this.allowed, {this.gate});
   final bool allowed;
+  final Completer<void>? gate;
   int calls = 0;
   @override
   Future<bool> prepareBluetooth() async {
     calls++;
+    await gate?.future;
     return allowed;
   }
 }
@@ -215,6 +217,87 @@ void main() {
       session.dispose();
     },
   );
+
+  testWidgets('a transient permission dialog does not cancel voice joining', (
+    tester,
+  ) async {
+    final session = _session();
+    final api = _FakeVoiceApi(session);
+    final transport = _FakeTransport();
+    final permissionGate = Completer<void>();
+    final permission = _FakeDevicePermission(true, gate: permissionGate);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TeamVoicePanel(
+            matchId: 'match-1',
+            session: session,
+            api: api,
+            transportFactory: () => transport,
+            devicePermission: permission,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('仅收听'));
+    await tester.pump();
+    expect(permission.calls, 1);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    expect(transport.leaves, 0);
+    permissionGate.complete();
+    await tester.pump();
+    expect(transport.joinMicrophones, [false]);
+    expect(find.text('已加入 · 麦克风关闭'), findsOneWidget);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    expect(transport.leaves, 1);
+    await tester.pumpWidget(const SizedBox());
+    api.close();
+    session.dispose();
+  });
+
+  testWidgets('scrolling the match table keeps the voice connection', (
+    tester,
+  ) async {
+    final session = _session();
+    final api = _FakeVoiceApi(session);
+    final transport = _FakeTransport();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: [
+              const SizedBox(height: 1200, child: Text('牌桌顶部')),
+              TeamVoicePanel(
+                matchId: 'match-1',
+                session: session,
+                api: api,
+                transportFactory: () => transport,
+                devicePermission: _FakeDevicePermission(true),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(find.text('仅收听'), 300);
+    await tester.tap(find.text('仅收听'));
+    await tester.pump();
+    expect(find.text('已加入 · 麦克风关闭'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, 1300));
+    await tester.pumpAndSettle();
+    expect(transport.disposed, false);
+    expect(transport.leaves, 0);
+    await tester.drag(find.byType(ListView), const Offset(0, -1300));
+    await tester.pumpAndSettle();
+    expect(find.text('已加入 · 麦克风关闭'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    api.close();
+    session.dispose();
+  });
 
   testWidgets(
     'voice opens only on click, mute survives reconnect, background and disposal release it',

@@ -25,6 +25,12 @@
 
 测试入口改为移动端通用文件后再次在相同 iOS 模拟器通过，仅收听加入、退出及完整混合 2v2 均成功，对局 ID `72e4bc31-272d-4b34-b5fc-42212454a9c3`；媒体播放和采集范围仍同上。
 
+权限弹窗生命周期与滚动保活修复后，iOS 26.5 模拟器再次通过同一仅收听信令与 Web 混合整局，对局 ID `cfc032fb-7f1d-4ee9-8138-7f8842503ccc`。E2E 自动回合现与正式 Web 客户端一样逐次获取新 CSRF 令牌；系统键盘在输入房间码后由测试主动收起。仍未验证 iOS 音轨收发。
+
+Android API 36.1 `Medium_Phone_API_36.1` 模拟器增量：App 首次加入仅收听时触发系统“附近设备”蓝牙权限弹窗，Flutter 生命周期短暂进入 `inactive`。原面板将任何非 `resumed` 状态误判为退后台，授权尚未结束就退出；已调整为 `hidden`、`paused`、`detached` 才退出。另用 `AutomaticKeepAliveClientMixin` 保持长牌桌滚动离屏的语音连接；Widget 测试分别覆盖权限弹窗与滚动，`flutter test test/team_voice_test.dart` 8 项、全量 `flutter test` 29 项及 `dart analyze lib test integration_test` 均通过。加入状态文字改为“正在连接语音…”，避免仅收听时误提示申请麦克风。
+
+隔离 Compose 栈下，Android 模拟器通过 ADB 反向转发 `tcp:28080`、`tcp:28025`、`tcp:7880` 和 `tcp:7881` 接入 Gateway、Mailpit、LiveKit。运行 `cd web && UNO_E2E_DEVICE_ID=emulator-5554 npm run test:e2e:android-voice-signaling`，在系统“附近设备”权限弹窗出现后点击“Allow”，测试通过：App 界面显示“已加入 · 麦克风关闭”，随后主动退出；与三名 Web 浏览器玩家完成同场 2v2，四份战绩一致。对局 ID `fe2c8bde-61ea-4c08-bff1-2263b9d7a1b9`。本测试没有发布或接收音轨，不能证明 Android 扬声器或麦克风实际工作；真机、非队友音频隔离和网络切换仍需验收。
+
 媒体试验边界：同一模拟器上尝试 iOS 开麦时，面板曾返回权限拒绝；手动安装 Runner 后用 `simctl privacy grant microphone com.example.unoApp` 授权，模拟器 TCC 记录显示允许，但启用麦克风仍使 Runner 在系统 `AURemoteIO::Initialize` 超时处中止。仅收听状态下让 Web 队友发布音轨，也触发同类系统崩溃（本机诊断报告 `Runner-2026-09-24-141431.ips`、`Runner-2026-09-24-141920.ips`）。这些失败没有证明真机上的同一故障，也没有形成音频互听证据；必须在目标真机与可达媒体网络重新验证。
 
 - Android/iOS 真实设备上与 App、Web 队友双向听见声音，并确认非队友无法订阅；本机 `127.0.0.1` LiveKit 媒体地址不适合外部设备。

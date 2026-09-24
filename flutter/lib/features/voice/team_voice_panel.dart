@@ -32,7 +32,7 @@ class TeamVoicePanel extends StatefulWidget {
 }
 
 class _TeamVoicePanelState extends State<TeamVoicePanel>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, AutomaticKeepAliveClientMixin<TeamVoicePanel> {
   late final VoiceApi api;
   late final bool ownsApi;
   late final VoiceTransport transport;
@@ -47,6 +47,9 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
   String notice = '';
   int generation = 0;
   bool mutedByUser = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -80,7 +83,9 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed &&
+    if ((state == AppLifecycleState.hidden ||
+            state == AppLifecycleState.paused ||
+            state == AppLifecycleState.detached) &&
         voiceState != TeamVoiceState.idle) {
       unawaited(_leave(message: '已在后台退出语音，返回牌桌后可重新加入。'));
     }
@@ -285,13 +290,14 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final connected = [
       TeamVoiceState.joined,
       TeamVoiceState.muted,
       TeamVoiceState.reconnecting,
     ].contains(voiceState);
     final status = switch (voiceState) {
-      TeamVoiceState.joining => '正在连接并申请麦克风…',
+      TeamVoiceState.joining => '正在连接语音…',
       TeamVoiceState.joined => '已加入 · 麦克风开启',
       TeamVoiceState.muted => '已加入 · 麦克风关闭',
       TeamVoiceState.reconnecting => '语音正在重连…',

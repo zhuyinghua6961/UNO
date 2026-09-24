@@ -14,7 +14,6 @@ const voiceEnabled = process.env.UNO_E2E_MOBILE_VOICE === '1'
 const users = ['Web A1', 'Web B1', 'Web A2'].map(label => ({
   label, email: `uno-mixed-${randomUUID()}@example.test`, password: `Mixed-${randomUUID()}-1!`,
 }))
-const csrfTokens = new WeakMap()
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 async function verificationToken(email) {
@@ -37,7 +36,6 @@ async function mutate(page, url, body) {
     assert.equal(response.status, 200, `CSRF request failed: ${response.body?.code}`)
     const token = response.body?.token
     assert.equal(typeof token, 'string')
-    csrfTokens.set(page, token)
     return token
   }
   async function send(token) {
@@ -48,9 +46,8 @@ async function mutate(page, url, body) {
       return { status: response.status, body: await response.json().catch(() => null) }
     }, { url, body, token })
   }
-  let result = await send(csrfTokens.get(page) ?? await csrf())
+  let result = await send(await csrf())
   if (result.status === 403 && result.body?.code === 'REQUEST_NOT_ALLOWED') result = await send(await csrf())
-  if (url === '/api/auth/login') csrfTokens.delete(page)
   return result
 }
 
@@ -179,7 +176,7 @@ async function main() {
       await page.getByRole('heading', { name: '双人组牌桌' }).waitFor()
     }
     if (voiceEnabled) {
-      for (let attempt = 0; attempt < 60; attempt++) {
+      for (let attempt = 0; attempt < 180; attempt++) {
         if (mobile.failure) throw mobile.failure
         if (mobile.output.some(line => line.includes('UNO_MOBILE_VOICE_LEFT'))) break
         await delay(500)
@@ -219,7 +216,7 @@ async function main() {
       const action = automaticAction(state.view)
       const result = await mutate(actor, `/api/matches/${matchId}/commands`, action)
       if (result.status === 409) continue
-      assert.equal(result.status, 200, `action ${action.type}: ${result.body?.code}`)
+      assert.equal(result.status, 200, `action ${action.type}: ${JSON.stringify(result.body)} from ${actor.url()}`)
     }
     assert.equal(ended, true, 'team match did not finish')
     assert.equal(webActed, true, 'a Web UI turn was not submitted')
