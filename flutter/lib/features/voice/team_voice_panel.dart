@@ -6,6 +6,7 @@ import '../auth/auth_api.dart';
 import '../auth/auth_session.dart';
 import 'livekit_voice_transport.dart';
 import 'voice_api.dart';
+import 'voice_device_permission.dart';
 import 'voice_transport.dart';
 
 enum TeamVoiceState { idle, joining, joined, muted, reconnecting, error }
@@ -17,12 +18,14 @@ class TeamVoicePanel extends StatefulWidget {
     required this.session,
     this.api,
     this.transportFactory,
+    this.devicePermission,
   });
 
   final String matchId;
   final AuthSession session;
   final VoiceApi? api;
   final VoiceTransport Function()? transportFactory;
+  final VoiceDevicePermission? devicePermission;
 
   @override
   State<TeamVoicePanel> createState() => _TeamVoicePanelState();
@@ -33,6 +36,7 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
   late final VoiceApi api;
   late final bool ownsApi;
   late final VoiceTransport transport;
+  late final VoiceDevicePermission devicePermission;
   StreamSubscription<VoiceEvent>? subscription;
   TeamVoiceState voiceState = TeamVoiceState.idle;
   bool available = false;
@@ -49,6 +53,8 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
     ownsApi = widget.api == null;
     api = widget.api ?? VoiceApi(session: widget.session);
     transport = widget.transportFactory?.call() ?? LiveKitVoiceTransport();
+    devicePermission =
+        widget.devicePermission ?? const NativeVoiceDevicePermission();
     subscription = transport.events.listen(_onEvent);
     widget.session.addListener(_sessionChanged);
     WidgetsBinding.instance.addObserver(this);
@@ -137,6 +143,11 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
       notice = '';
     });
     try {
+      final bluetoothReady = await devicePermission.prepareBluetooth();
+      if (!mounted || current != generation) return;
+      if (!bluetoothReady) {
+        setState(() => notice = '蓝牙权限未开放；可继续尝试使用手机扬声器。');
+      }
       final grant = await api.token(widget.matchId);
       if (!mounted || current != generation) return;
       await transport.join(grant);

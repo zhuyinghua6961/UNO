@@ -9,6 +9,7 @@ import 'package:uno_app/features/auth/auth_api.dart';
 import 'package:uno_app/features/auth/auth_session.dart';
 import 'package:uno_app/features/voice/team_voice_panel.dart';
 import 'package:uno_app/features/voice/voice_api.dart';
+import 'package:uno_app/features/voice/voice_device_permission.dart';
 import 'package:uno_app/features/voice/voice_transport.dart';
 
 class _TokenStore implements TokenStore {
@@ -95,6 +96,17 @@ class _FakeTransport implements VoiceTransport {
   void emit(VoiceEventKind kind) => controller.add(VoiceEvent(kind));
 }
 
+class _FakeDevicePermission implements VoiceDevicePermission {
+  _FakeDevicePermission(this.allowed);
+  final bool allowed;
+  int calls = 0;
+  @override
+  Future<bool> prepareBluetooth() async {
+    calls++;
+    return allowed;
+  }
+}
+
 void main() {
   test(
     'voice API uses APP bearer identity and only matchId in the grant request',
@@ -173,6 +185,7 @@ void main() {
       final session = _session();
       final api = _FakeVoiceApi(session);
       final transport = _FakeTransport();
+      final permission = _FakeDevicePermission(false);
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -181,6 +194,7 @@ void main() {
               session: session,
               api: api,
               transportFactory: () => transport,
+              devicePermission: permission,
             ),
           ),
         ),
@@ -189,11 +203,14 @@ void main() {
       expect(api.tokenCalls, 0);
       expect(transport.joins, 0);
       expect(transport.mic, false);
+      expect(permission.calls, 0);
       await tester.tap(find.text('加入队友语音'));
       await tester.pump();
       expect(api.tokenCalls, 1);
       expect(transport.joins, 1);
       expect(transport.mic, true);
+      expect(permission.calls, 1);
+      expect(find.text('蓝牙权限未开放；可继续尝试使用手机扬声器。'), findsOneWidget);
       await tester.tap(find.text('关闭麦克风'));
       await tester.pump();
       expect(transport.micCalls, [false]);
@@ -229,6 +246,7 @@ void main() {
       final session = _session();
       final api = _FakeVoiceApi(session);
       final transport = _FakeTransport()..joinGate = Completer<void>();
+      final permission = _FakeDevicePermission(true);
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -237,6 +255,7 @@ void main() {
               session: session,
               api: api,
               transportFactory: () => transport,
+              devicePermission: permission,
             ),
           ),
         ),

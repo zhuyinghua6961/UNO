@@ -19,7 +19,7 @@ flutter run
 
 访问与刷新凭证作为单个记录保存在 Android Keystore/iOS Keychain 支撑的 `flutter_secure_storage` 中；Android 禁用应用备份，避免恢复加密数据后密钥不匹配。启动时读取记录并向后端确认身份，过期时串行刷新并保存轮换后的整组凭证；401 清除已失效会话，网络故障保留凭证供重试。退出只有在服务端确认或已失效时才清除本地凭证。密码及邮件凭证只用于当前提交，不持久保存。正式设备上的安全存储和双端同一用户联调仍待验收，见 `../docs/verification-stage4-flutter.md`。
 
-Android 声明 INTERNET/RECORD_AUDIO，iOS 声明 NSMicrophoneUsageDescription；声明权限不表示会自动录音。LiveKit 只在点击加入队友语音后申请权限并开麦，退后台即退出语音，拒绝权限不会阻止游戏。真实权限、设备切换和媒体采集生命周期仍须设备验收。
+Android 声明 INTERNET/RECORD_AUDIO 和语音路由所需网络/音频/蓝牙权限，iOS 声明 NSMicrophoneUsageDescription；声明权限不表示会自动录音。点击加入队友语音时，Android 12+ 才申请蓝牙连接权限，LiveKit 随后申请麦克风并开麦；蓝牙权限拒绝会提示，仍可尝试扬声器语音。退后台即退出语音，拒绝权限不会阻止游戏。真实权限、设备切换和媒体采集生命周期仍须设备验收。
 
 应用标识暂为 com.example.*，不是正式包名。已移除工具自动填入的个人 Apple team，未使用签名证书、未生成 IPA。正式构建需确认包名、签名、隐私说明、服务地址和麦克风流程。
 
