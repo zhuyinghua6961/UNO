@@ -52,7 +52,11 @@ public class AuthHttpFilter extends OncePerRequestFilter {
                 if (protectedPath) throw AuthFailure.invalidCredentials();
                 throw AuthFailure.unavailable();
             }
-            limiter.acquire("ip", request.getRemoteAddr(), settings.ipLimit());
+            // Gameplay fetches a fresh CSRF token for each Web command. Keep the
+            // shared IP abuse budget for authentication operations only.
+            if (path.startsWith("/api/auth/") && !path.equals("/api/auth/csrf")) {
+                limiter.acquire("ip", request.getRemoteAddr(), settings.ipLimit());
+            }
             HttpServletRequest effective = request;
             if (mutation) {
                 effective = RequestBodies.bounded(request, 16384);

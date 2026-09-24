@@ -330,6 +330,25 @@ class AuthIT {
     }
 
     @Test
+    void gameplayCsrfAndIdentityRequestsDoNotExhaustAuthenticationIpLimit() throws Exception {
+        String email = "long-game@example.test";
+        createVerified(email);
+        String accessToken = login(email).path("accessToken").asText();
+        String ipBucket = Secrets.digest("ip:127.0.0.1");
+        jdbc.update("UPDATE auth_rate_limits SET attempts = 10000 WHERE bucket_key = ?", ipBucket);
+
+        for (int turn = 0; turn < 3; turn++) {
+            var csrf = CLIENT.send(request("GET", "/api/auth/csrf", null).build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, csrf.statusCode(), csrf.body());
+            assertTrue(json(csrf).path("token").asText().length() > 10);
+        }
+        assertEquals(200, app("GET", "/api/users/me", null, accessToken).statusCode());
+        assertEquals(200, app("POST", "/api/users/me/profile", Map.of("nickname", "长局玩家"), accessToken).statusCode());
+        assertEquals(10000, jdbc.queryForObject("SELECT attempts FROM auth_rate_limits WHERE bucket_key = ?", Integer.class, ipBucket));
+        assertEquals(429, app("POST", "/api/auth/login", credentials(email, PASSWORD), null).statusCode());
+    }
+
+    @Test
     void invalidAndOversizedBodiesDoNotLeakDetails() throws Exception {
         assertEquals(400, register("not-an-email", PASSWORD).statusCode());
         assertEquals(400, register("short@example.test", "short").statusCode());

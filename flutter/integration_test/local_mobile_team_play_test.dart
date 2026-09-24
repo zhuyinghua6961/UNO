@@ -12,8 +12,8 @@ import 'package:uno_app/features/match/match_api.dart';
 import 'package:uno_app/features/match/match_models.dart';
 import 'package:uno_app/features/room/room_api.dart';
 
-const enabled = bool.fromEnvironment('UNO_LOCAL_IOS_TEAM_E2E');
-const voiceEnabled = bool.fromEnvironment('UNO_LOCAL_IOS_TEAM_VOICE_E2E');
+const enabled = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_E2E');
+const voiceEnabled = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_VOICE_E2E');
 const apiBase = String.fromEnvironment('API_BASE_URL');
 const roomCode = String.fromEnvironment('UNO_TEAM_ROOM_CODE');
 const mailpitBase = String.fromEnvironment(
@@ -85,7 +85,7 @@ Future<void> _waitFor(
       () => Future<void>.delayed(const Duration(milliseconds: 250)),
     );
   }
-  throw TestFailure('iOS UI did not reach $label');
+  throw TestFailure('mobile UI did not reach $label');
 }
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
@@ -130,7 +130,7 @@ Map<String, Object?> _automaticAction(MatchView view) {
       }
       return {'type': view.phase == 'TURN' ? 'DRAW' : 'PASS'};
     default:
-      throw TestFailure('unexpected iOS automatic phase ${view.phase}');
+      throw TestFailure('unexpected mobile automatic phase ${view.phase}');
   }
 }
 
@@ -158,14 +158,14 @@ Future<void> _submit(
   expect(
     response.statusCode,
     200,
-    reason: 'iOS automatic turn: ${response.body}',
+    reason: 'mobile automatic turn: ${response.body}',
   );
 }
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('iOS joins three Web players, acts and sees 2v2 settlement', (
+  testWidgets('mobile joins three Web players, acts and sees 2v2 settlement', (
     tester,
   ) async {
     expect(apiBase, isNotEmpty);
@@ -182,9 +182,9 @@ void main() {
       session.dispose();
     });
 
-    final email = 'uno-ios-team-${_id()}@example.test';
+    final email = 'uno-mobile-team-${_id()}@example.test';
     final password = 'Team-${_id()}-Pass1!';
-    await authApi.register(email, password, 'iOS Teammate');
+    await authApi.register(email, password, 'Mobile Teammate');
     await authApi.verify(await _verificationToken(email));
     await tester.pumpWidget(UnoApp(authSession: session));
     await _waitFor(
@@ -249,7 +249,7 @@ void main() {
           .where((member) => member.userId != session.user!.id)
           .every((member) => member.ready),
       isTrue,
-      reason: 'Web players must prepare before the iOS ready action',
+      reason: 'Web players must prepare before the mobile ready action',
     );
     await _tap(tester, find.text('刷新状态'));
     await tester.runAsync(
@@ -300,16 +300,16 @@ void main() {
             .whereType<String>()
             .take(80)
             .toList();
-        throw TestFailure('iOS voice did not join; visible labels: $labels');
+        throw TestFailure('mobile voice did not join; visible labels: $labels');
       }
-      debugPrint('UNO_IOS_VOICE_LISTENING');
+      debugPrint('UNO_MOBILE_VOICE_LISTENING');
       await _tap(tester, find.text('退出语音'));
       await _waitFor(
         tester,
         () => find.text('加入队友语音').evaluate().isNotEmpty,
         'left listen-only channel',
       );
-      debugPrint('UNO_IOS_VOICE_LEFT');
+      debugPrint('UNO_MOBILE_VOICE_LEFT');
       await tester.scrollUntilVisible(
         find.text('双人组牌桌'),
         -220,
@@ -323,7 +323,7 @@ void main() {
       expect(
         state.status,
         'PLAYING',
-        reason: 'iOS must take a turn before settlement',
+        reason: 'mobile must take a turn before settlement',
       );
       if (state.view.players[state.view.currentSeat].userId ==
           session.user!.id) {
@@ -333,7 +333,7 @@ void main() {
           'INITIAL_WILD_COLOR' => find.text('红色'),
           'DRAW_FOUR_RESPONSE' => find.text('接受 · 摸 4 张'),
           _ => throw TestFailure(
-            'unexpected iOS turn phase ${state.view.phase}',
+            'unexpected mobile turn phase ${state.view.phase}',
           ),
         };
         await _tap(tester, action);
@@ -353,7 +353,11 @@ void main() {
         () => Future<void>.delayed(const Duration(milliseconds: 250)),
       );
     }
-    expect(acted, isTrue, reason: 'iOS UI action must reach the game service');
+    expect(
+      acted,
+      isTrue,
+      reason: 'mobile UI action must reach the game service',
+    );
 
     for (var attempt = 0; attempt < 800; attempt++) {
       final state = await matchApi.state(matchId);
