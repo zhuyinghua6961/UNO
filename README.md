@@ -1,6 +1,6 @@
 # UNO 好友牌桌
 
-Vue + Spring Cloud + Flutter 的多人卡牌游戏项目。Web 经典局、Android/Web 混合经典局和四账号 2v2 已完成本地整局验收；Web 队友语音和会话撤销后换房已在本机 LiveKit 与 Chromium 假麦克风实连。Flutter 语音已接入并可构建，iOS 对局、真机互听和发布验收仍待完成。**完整版本尚未完成。**
+Vue + Spring Cloud + Flutter 的多人卡牌游戏项目。Web 经典局、Android/Web 混合经典局和四账号 2v2 已完成本地整局验收；Web 分别搭配 iOS、Android 模拟器完成混合 2v2 与房间/队伍文字双向互发。Web 队友语音和会话撤销后换房已在本机 LiveKit 验证；Flutter 双平台模拟器已完成仅收听信令，真机互听、弱网与发布验收仍待完成。**完整版本尚未完成。**
 
 ## 目录
 
@@ -30,7 +30,7 @@ tools/      素材同步、本地配置初始化、发布归档
 
 游戏服务已通过内部会话核验确认账号身份，不信任客户端身份头、不共享账号库；支持从Web账号页验证同一userId。详见 `docs/service-authentication.md`。
 
-尚未实现或验收：完整弱网恢复和跨实例接管、文字消息事件/未读/治理、生产 HTTPS/TURN、移动签名。iOS 混合整局、2v2 混合设备、真实麦克风互听、外网邮件服务和设备恢复边界仍待验收。
+尚未实现或验收：完整弱网恢复和跨实例接管、文字 WebSocket 消息事件与内容治理、生产 HTTPS/TURN、移动签名。真实麦克风互听、外网邮件服务和真机恢复边界仍待验收。
 
 PostgreSQL 集成测试、容器化账号和四人整局冒烟、Web 浏览器端到端测试均已有记录；各项具体范围和剩余风险见 [阶段验收索引](docs/README.md)。
 
@@ -78,12 +78,10 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml up --build -d
 浏览器打开 `http://localhost:8088`；仅本机可访问。详见 `deploy/README.md`。此配置不是公网生产部署方案。
 
 ```sh
-npm --prefix web run build
-mvn -f backend/pom.xml verify
 node tools/package-release.mjs 0.2.0-local
 ```
 
-发布脚本不自动构建，也不保证已有 build 目录一定对应最新源码；按上述顺序执行，CI 后续应使用干净检出、测试、构建、打包的连续流程。当前归档不包含 APK/IPA 或 Docker 镜像。
+发布脚本要求干净的已提交工作区，自动运行 Web 测试/构建和 Maven `verify`，并把该次构建归档，拒绝复用旧产物。数据库集成、设备/浏览器端到端与真机验收是独立门槛。当前归档不包含 APK/IPA 或 Docker 镜像。
 
 `0.2.0-local` 仅是新版本号示例；实际发布前需指定尚未使用的版本号并执行数据库集成测试，本轮未运行该打包命令。
 

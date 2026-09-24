@@ -8,7 +8,7 @@
 
 - 已有可构建的三端骨架、素材、状态接口、通信权限基础、16 个骨架测试和开发归档。
 - GitHub 私有仓库 `zhuyinghua6961/UNO` 已创建并关联 origin；2026-09-07 按用户授权进行首次本地提交（以 git log 为准），未推送，三个分支的名称和用途仍未确认。
-- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9–stage15进行中（stage13/14 的撤销换房已本机验收，人工听感仍待验收）、stage16经典/团队战绩与昵称进行中、stage17本地容器增量进行中**；stage18未开始。Web 与 Android/Web 已完成经典整局；四账号容器 API 已完成 2v2 整局，三浏览器已在本机 LiveKit 完成队友音轨订阅、会话吊销后换房和终局释放，真实混合设备和人工互听待验收。房间/队伍文字跨服务 API 已验收，双端频道切换尚未设备实测；Flutter 队友语音已接入 SDK/UI，iOS 对局和 Android/iOS 真实语音仍待验收。
+- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9–stage15进行中（stage13/14 的撤销换房已本机验收，人工听感仍待验收）、stage16经典/团队战绩与昵称进行中、stage17本地容器增量进行中**；stage18未开始。Web 分别与 Android/iOS 模拟器完成四人 2v2 整局和房间/队伍文字互发；三浏览器已在本机 LiveKit 完成队友音轨订阅、会话吊销后换房和终局释放。Flutter 双平台模拟器的仅收听信令已验收，真实麦克风互听与真机弱网仍待验收。
 - stage1 的工程约定和复现指南已补充，产品规则/登录渠道/三个分支仍待确认；stage2 按 [工程基线](engineering-baseline.md) 中的明确依赖例外推进。
 - Docker Hub 网络阻碍与 Flutter 分析命令差异见 [骨架验收记录](verification.md)；本地容器栈的后续实测见 [stage17 增量验收](verification-stage17-container.md)。
 
@@ -25,8 +25,8 @@
 | [stage7](stages/stage7.md) | 实时对局后端 | 服务器裁决、私有视图、命令去重与状态同步 | stage3、stage5、stage6 | 部分完成（跨实例广播与完整断线策略待 stage12） |
 | [stage8](stages/stage8.md) | Web 经典对局 | 网页多个真实账号可以打完经典局 | stage7 | 已完成（本地验收） |
 | [stage9](stages/stage9.md) | Flutter 经典对局 | App 可以和 Web 玩家同桌对战 | stage7 | 进行中（Android/Web 触控整局、iOS 模拟器真实开局与结算已验收） |
-| [stage10](stages/stage10.md) | 四人 2v2 对局 | 两端支持队伍比赛和队伍结算 | stage8、stage9 | 进行中（容器整局已验收，混合设备待做） |
-| [stage11](stages/stage11.md) | 房间／队伍文字 | 真实发送、接收、限流、历史补偿与隔离 | stage5、stage7、stage10 | 进行中（房间/队伍文字和双端轮询未读已接入） |
+| [stage10](stages/stage10.md) | 四人 2v2 对局 | 两端支持队伍比赛和队伍结算 | stage8、stage9 | 进行中（Web 与 Android/iOS 模拟器混合整局已验收） |
+| [stage11](stages/stage11.md) | 房间／队伍文字 | 真实发送、接收、限流、历史补偿与隔离 | stage5、stage7、stage10 | 进行中（Web 与 Android/iOS 模拟器互发及隔离已验收；消息事件和治理待做） |
 | [stage12](stages/stage12.md) | 重连与对局生命周期 | 刷新、掉线、超时、退房和重复连接可控 | stage10、stage11 | 进行中（单实例接管、超时中断、轮间自动推进） |
 | [stage13](stages/stage13.md) | 队友语音后端 | 受限语音凭证、独立队伍频道与退出撤销 | stage3、stage10、stage12 | 进行中（准入、撤销换房本机验收；容量待验） |
 | [stage14](stages/stage14.md) | Web 队友开麦 | 浏览器主动授权、开麦、静音与退出 | stage8、stage13 | 进行中（本机实连与换房通过，人工听感待验） |
