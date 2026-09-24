@@ -119,6 +119,7 @@
 - [stage16 统计增量验收](verification-stage16-stats.md)：经典/团队胜负与中断的独立汇总、双端展示及未覆盖范围。
 - [stage17 容器栈增量验收](verification-stage17-container.md)：独立 Compose 环境、镜像构建与真实账号/房间/文字流程。
 - [stage17 本地预览包验收](verification-stage17-preview-package.md)：干净提交构建、清单、校验和与未覆盖的发布门槛。
+- [stage17 隔离备份恢复演练](verification-stage17-backup-restore.md)：两服务库的压缩备份、校验、新库恢复与数据核对。
 - [Flutter账号增量验收](verification-stage4-flutter.md)：自动测试、原生构建与未完成的设备/跨端验证。
 - [工程基线与未决事项](engineering-baseline.md)：约定、前置决策、环境差异和复现路径。
 - [数据库、迁移与恢复](persistence.md)：配置、数据关系、集成测试和备份恢复步骤。

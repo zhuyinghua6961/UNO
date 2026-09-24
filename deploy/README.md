@@ -31,6 +31,8 @@ PostgreSQL 17 现在是默认必需服务；identity/game 使用不同的库、�
 
 `node tools/init-local-env.mjs` 会保留已有秘密，仅补缺失的服务密码等设置。已有数据卷不会自动重跑初始化，环境变量也不会自动修改库内密码。**禁止为解决初始化问题删除数据卷**；升级、原生 Java 连接、备份恢复及权限说明见 [数据库指南](../docs/persistence.md)。
 
+隔离测试栈已执行两服务库备份与新库恢复演练，记录见 [stage17 备份恢复验收](../docs/verification-stage17-backup-restore.md)；生产自动备份、异地加密和应用切换仍待实现。
+
 只启动本机数据库并开放回环端口：
 
 ```sh
