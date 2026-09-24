@@ -37,7 +37,7 @@ function run(command, args) {
 requireCleanSource()
 run('npm', ['--prefix', 'web', 'test'])
 run('npm', ['--prefix', 'web', 'run', 'build'])
-run('mvn', ['-f', 'backend/pom.xml', 'verify'])
+run('mvn', ['-f', 'backend/pom.xml', 'clean', 'verify'])
 requireCleanSource()
 await access(join(root, 'web/dist/index.html'))
 for (const service of services) await access(join(root, `backend/${service}/target/${service}-0.1.0-SNAPSHOT.jar`))
@@ -58,7 +58,7 @@ const manifest = {
   stage: 'local-preview-not-production',
   sourceCommit: revision,
   sourceDirty: false,
-  validation: ['npm --prefix web test', 'npm --prefix web run build', 'mvn -f backend/pom.xml verify'],
+  validation: ['npm --prefix web test', 'npm --prefix web run build', 'mvn -f backend/pom.xml clean verify'],
   included: ['web-static', 'backend-jars', 'deployment-source-reference'],
   excluded: ['flutter-apk', 'flutter-ipa', 'docker-images', 'secrets'],
   notes: 'Local preview only. Dockerfiles require the original source repository; this bundle is not an offline Docker installer. Database integration, browser/device end-to-end, signed mobile builds, and production deployment are separate gates.',

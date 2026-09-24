@@ -81,7 +81,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml up --build -d
 node tools/package-release.mjs 0.2.0-local
 ```
 
-发布脚本要求干净的已提交工作区，自动运行 Web 测试/构建和 Maven `verify`，并把该次构建归档，拒绝复用旧产物。数据库集成、设备/浏览器端到端与真机验收是独立门槛。当前归档不包含 APK/IPA 或 Docker 镜像。
+发布脚本要求干净的已提交工作区，自动运行 Web 测试/构建和 Maven `clean verify`，并把该次构建归档，拒绝复用旧产物。数据库集成、设备/浏览器端到端与真机验收是独立门槛。当前归档不包含 APK/IPA 或 Docker 镜像。
 
 `0.2.0-local` 仅是新版本号示例；实际发布前需指定尚未使用的版本号并执行数据库集成测试，本轮未运行该打包命令。
 
