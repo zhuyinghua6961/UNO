@@ -69,7 +69,7 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 `POST /api/voice/token` 请求仅需 `{matchId}`，返回 `{url,token,expiresAt}`，响应禁止缓存。Web 使用 Cookie/Origin/CSRF，App 使用 Bearer；必须另启 `TEAM_VOICE_ENABLED` 和 LiveKit 配置。服务端从当前已验证的身份、进行中的 2v2 对局、四个固定席位及当前房间成员推导 A/B 队和媒体房间，忽略请求中的伪造 teamId/roomName。对手各在独立 LiveKit 房间；令牌只含 `roomJoin`、指定 `room`、`canSubscribe` 和 `canPublishSources:["microphone"]`，不授予数据、视频、建房或管理权限。JWT 至多 60 秒可用于初始连接，同一玩家每 3 秒最多取得一次。
 
-对局结束时，事务内写入媒体房间清理任务，后台按幂等方式调用 LiveKit `DeleteRoom`，失败会重试。Web 牌桌只在 2v2 进行中显示主动加入控件，关闭麦克风、退出和终局会释放本地采集轨道。**会话撤销后的服务端主动踢出与代次轮换、Flutter 客户端、人工听感和公网媒体部署尚未完成。**自托管 LiveKit 的 `RemoveParticipant` 不会让已签发 JWT 失效；不能把当前短令牌加终局清理当成完整撤销机制。详见 [语音增量验收](../verification-stage13-14-voice.md)。
+对局结束时，事务内写入媒体房间清理任务，后台按幂等方式调用 LiveKit `DeleteRoom`，失败会重试。Web 与 Flutter 牌桌只在 2v2 进行中显示主动加入控件，关闭麦克风、退出和终局会释放本地采集轨道；Flutter 实际设备行为待验收。**会话撤销后的服务端主动踢出与代次轮换、人工听感和公网媒体部署尚未完成。**自托管 LiveKit 的 `RemoveParticipant` 不会让已签发 JWT 失效；不能把当前短令牌加终局清理当成完整撤销机制。详见 [Web/后端语音验收](../verification-stage13-14-voice.md)与 [Flutter 语音验收](../verification-stage15-voice.md)。
 
 Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷新、撤销和安全存储。WebSocket 浏览器连接使用允许的 `Origin` 和会话 Cookie；原生 App 连接使用 `X-UNO-Client: APP` 和 Bearer 访问凭证。Gateway 的 Reactor Netty 上游 WebSocket 会为原本无 `Origin` 的原生请求补充上游端点的同源 `Origin`，game-service 仅接受空值或与实际上游地址完全一致的值；其他来源、Cookie 或 Fetch Metadata 混用仍拒绝。握手、每条消息及连接定期核验会话；URL 查询参数不允许携带凭证。
 

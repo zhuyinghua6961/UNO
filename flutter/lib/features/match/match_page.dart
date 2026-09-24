@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../auth/auth_session.dart';
 import '../room/room_api.dart';
 import '../room/room_chat.dart';
+import '../voice/team_voice_panel.dart';
 import 'match_audio_preference.dart';
 import 'match_api.dart';
 import 'match_models.dart';
@@ -683,6 +684,12 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
             api: chatApi,
             teamEnabled: widget.room.mode == 'TEAM_2V2',
           ),
+          if (isTeam && view != null && view!.phase != 'MATCH_OVER')
+            TeamVoicePanel(
+              key: ValueKey('voice-${widget.matchId}'),
+              matchId: widget.matchId,
+              session: widget.session,
+            ),
         ],
       ),
     );

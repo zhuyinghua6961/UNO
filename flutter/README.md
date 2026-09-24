@@ -11,7 +11,7 @@ flutter test
 flutter run
 ```
 
-当前已有大厅、模式选择、牌桌预览、真实账号入口、好友房等待室、经典牌桌和房间文字。账号页支持注册、邮箱验证/重发、登录、找回/重置密码与退出；好友房支持房间码加入、准备、选队、人数调整和离开。经典房间可启动或恢复对局；原生 WebSocket 接收个人牌面并提交触控动作。房间文字在等待室及牌桌每两秒补取新消息，发送失败保留消息 ID 供重试。2v2 对局、队伍文字和 LiveKit SDK 尚未接入；系统级邀请深链未配置。服务端默认关闭认证，需按 `../docs/authentication.md` 显式启用本地测试配置。Android 模拟器与 Web 的混合整局、结算和第二局已验收；iOS 对局及房间文字设备界面仍待验收，见 `../docs/verification-stage9-flutter.md` 与 `../docs/verification-stage11-room-text.md`。
+当前已有大厅、模式选择、牌桌预览、真实账号入口、好友房等待室、经典/2v2 牌桌、房间/队伍文字和队友语音面板。账号页支持注册、邮箱验证/重发、登录、找回/重置密码与退出；好友房支持房间码加入、准备、选队、人数调整和离开。对局可启动或恢复；原生 WebSocket 接收个人牌面并提交触控动作。房间文字在等待室及牌桌每两秒补取新消息，发送失败保留消息 ID 供重试。语音使用 LiveKit SDK，只有在进行中的 2v2 牌桌主动点击加入后才连接并申请麦克风；后台、退出及终局离开。系统级邀请深链未配置。服务端默认关闭认证与语音，需按 `../docs/authentication.md` 和 `../deploy/README.md` 显式启用测试配置。Android 模拟器与 Web 的经典混合整局、结算和第二局已验收；iOS 对局、房间文字设备界面和真实 App 语音仍待验收，见 `../docs/verification-stage9-flutter.md`、`../docs/verification-stage11-room-text.md` 与 `../docs/verification-stage15-voice.md`。
 
 本机可用 `dart analyze --format=machine` 完成静态检查；原有 Flutter LSP 异常见 `../docs/verification.md`。
 
@@ -19,7 +19,7 @@ flutter run
 
 访问与刷新凭证作为单个记录保存在 Android Keystore/iOS Keychain 支撑的 `flutter_secure_storage` 中；Android 禁用应用备份，避免恢复加密数据后密钥不匹配。启动时读取记录并向后端确认身份，过期时串行刷新并保存轮换后的整组凭证；401 清除已失效会话，网络故障保留凭证供重试。退出只有在服务端确认或已失效时才清除本地凭证。密码及邮件凭证只用于当前提交，不持久保存。正式设备上的安全存储和双端同一用户联调仍待验收，见 `../docs/verification-stage4-flutter.md`。
 
-Android 声明 INTERNET/RECORD_AUDIO，iOS 声明 NSMicrophoneUsageDescription；声明权限不表示会自动录音。本骨架没有运行时申请或开麦行为。未来应只在点击加入队友语音时申请权限，拒绝后允许继续游戏。
+Android 声明 INTERNET/RECORD_AUDIO，iOS 声明 NSMicrophoneUsageDescription；声明权限不表示会自动录音。LiveKit 只在点击加入队友语音后申请权限并开麦，退后台即退出语音，拒绝权限不会阻止游戏。真实权限、设备切换和媒体采集生命周期仍须设备验收。
 
 应用标识暂为 com.example.*，不是正式包名。已移除工具自动填入的个人 Apple team，未使用签名证书、未生成 IPA。正式构建需确认包名、签名、隐私说明、服务地址和麦克风流程。
 
