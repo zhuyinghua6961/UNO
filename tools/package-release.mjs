@@ -30,17 +30,22 @@ function requireCleanSource() {
     throw new Error('Commit all source changes before packaging; the source revision must stay unchanged during the build')
   }
 }
-function run(command, args) {
-  const result = spawnSync(command, args, { cwd: root, stdio: 'inherit' })
+function run(command, args, cwd = root) {
+  const result = spawnSync(command, args, { cwd, stdio: 'inherit' })
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed`)
 }
 requireCleanSource()
 run('npm', ['--prefix', 'web', 'test'])
 run('npm', ['--prefix', 'web', 'run', 'build'])
-run('mvn', ['-f', 'backend/pom.xml', 'clean', 'verify'])
+run('mvn', ['-f', 'backend/pom.xml', '-Pdatabase-it', 'clean', 'verify'])
+run('dart', ['analyze', 'lib', 'test', 'integration_test'], join(root, 'flutter'))
+run('flutter', ['test'], join(root, 'flutter'))
+run('flutter', ['build', 'apk', '--debug', '--no-pub',
+  '--dart-define=API_BASE_URL=http://10.0.2.2:29080'], join(root, 'flutter'))
 requireCleanSource()
 await access(join(root, 'web/dist/index.html'))
 for (const service of services) await access(join(root, `backend/${service}/target/${service}-0.1.0-SNAPSHOT.jar`))
+await access(join(root, 'flutter/build/app/outputs/flutter-apk/app-debug.apk'))
 
 await mkdir(output)
 await cp(join(root, 'web/dist'), join(output, 'web'), { recursive: true })
@@ -48,6 +53,9 @@ await mkdir(join(output, 'backend'))
 for (const service of services) {
   await cp(join(root, `backend/${service}/target/${service}-0.1.0-SNAPSHOT.jar`), join(output, 'backend', `${service}.jar`))
 }
+await mkdir(join(output, 'flutter', 'android'), { recursive: true })
+await cp(join(root, 'flutter/build/app/outputs/flutter-apk/app-debug.apk'),
+  join(output, 'flutter', 'android', 'uno-emulator-debug.apk'))
 await mkdir(join(output, 'deploy'))
 for (const file of ['README.md', 'compose.yaml', 'livekit.yaml', 'nginx.conf', '.env.example', 'backend.Dockerfile', 'web.Dockerfile']) {
   await cp(join(root, 'deploy', file), join(output, 'deploy', file))
@@ -58,10 +66,13 @@ const manifest = {
   stage: 'local-preview-not-production',
   sourceCommit: revision,
   sourceDirty: false,
-  validation: ['npm --prefix web test', 'npm --prefix web run build', 'mvn -f backend/pom.xml clean verify'],
-  included: ['web-static', 'backend-jars', 'deployment-source-reference'],
-  excluded: ['flutter-apk', 'flutter-ipa', 'docker-images', 'secrets'],
-  notes: 'Local preview only. Dockerfiles require the original source repository; this bundle is not an offline Docker installer. Database integration, browser/device end-to-end, signed mobile builds, and production deployment are separate gates.',
+  validation: ['npm --prefix web test', 'npm --prefix web run build',
+    'mvn -f backend/pom.xml -Pdatabase-it clean verify',
+    'dart analyze lib test integration_test (flutter)', 'flutter test',
+    'flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://10.0.2.2:29080'],
+  included: ['web-static', 'backend-jars', 'android-emulator-debug-apk', 'deployment-source-reference'],
+  excluded: ['flutter-ipa', 'release-signed-mobile-builds', 'docker-images', 'secrets'],
+  notes: 'Local preview only. The Android debug APK targets an emulator using the host gateway at 10.0.2.2:29080; it is not a phone or production installer. Dockerfiles require the original source repository. Browser/device end-to-end, signed mobile builds, and production deployment are separate gates.',
 }
 await writeFile(join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
 const sums = []

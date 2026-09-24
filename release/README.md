@@ -8,10 +8,10 @@
 node tools/package-release.mjs 0.2.0-local-preview
 ```
 
-脚本先运行 Web 测试与构建、Maven `clean verify`，再从这次构建生成 Web 静态文件、三个后端 JAR、部署配置参考、manifest、SHA-256 和 tar.gz。工作区脏、构建中提交变化、同名目录或归档已存在时拒绝打包，避免把旧制品标为当前提交。数据库集成测试、浏览器/设备端到端验收仍需另行执行。
+脚本先运行 Web 测试与构建、Maven PostgreSQL 集成测试、Flutter 静态检查和 widget 测试，再构建指向本机网关的 Android 模拟器 debug APK。从这次构建生成 Web 静态文件、三个后端 JAR、模拟器 APK、部署配置参考、manifest、SHA-256 和 tar.gz。需要本机 Docker、Dart/Flutter 与 Android 构建工具。工作区脏、构建中提交变化、同名目录或归档已存在时拒绝打包，避免把旧制品标为当前提交。浏览器/设备端到端验收仍需另行执行。
 
-`0.1.0-scaffold` 是历史骨架包。新脚本产物是**本地预览包，不是完成的游戏或生产安装包**。不包括 APK/IPA、Docker 镜像、账号密钥、用户数据。Docker 配置需要在原源码仓库构建，不能仅凭这个包离线重建镜像。manifest 记录实际提交号及此次脚本执行的检查。
+`0.1.0-scaffold` 是历史骨架包。新脚本产物是**本地预览包，不是生产安装包**。其中 Android debug APK 仅供模拟器连接宿主机 `10.0.2.2:29080` 网关，不能用于实机或公网；不包括 IPA、正式签名、Docker 镜像、账号密钥、用户数据。Docker 配置需要在原源码仓库构建，不能仅凭这个包离线重建镜像。manifest 记录实际提交号及此次脚本执行的检查。
 
 2026-09-24 实际生成的 `0.2.0-local-preview` 来源提交为 `3547f896c514e719b0e6c8d602264370e7f0a6c6`，校验结果与剩余门槛见 [stage17 本地预览包验收](../docs/verification-stage17-preview-package.md)。
 
-移动端后续归档约定：`<version>/flutter/android/` 存 APK/AAB，`<version>/flutter/ios/` 存经用户签名的 IPA。Android debug 包和 release 包必须区分；签名密钥永远不放本目录。发布版本号以 manifest 为准，现阶段 JAR 内部仍为 0.1.0-SNAPSHOT。
+移动端归档约定：`<version>/flutter/android/` 存明确标记用途的 APK/AAB，`<version>/flutter/ios/` 存经用户签名的 IPA。Android debug 包和 release 包必须区分；签名密钥永远不放本目录。发布版本号以 manifest 为准，现阶段 JAR 内部仍为 0.1.0-SNAPSHOT。
