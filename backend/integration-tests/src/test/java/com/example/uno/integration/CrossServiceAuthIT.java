@@ -319,7 +319,7 @@ class CrossServiceAuthIT {
         assertEquals(403, call(identity.base(), "POST", "/internal/auth/introspect", body, Map.of("Authorization", SERVICE_AUTH, "Origin", ORIGIN)).statusCode());
         assertEquals(403, call(identity.base(), "POST", "/internal/auth/introspect", body, Map.of("Authorization", SERVICE_AUTH, "Cookie", "test=value")).statusCode());
         assertEquals(403, call(identity.base(), "GET", "/internal/auth/introspect", null, Map.of("Authorization", SERVICE_AUTH)).statusCode());
-        assertEquals(413, call(identity.base(), "POST", "/internal/auth/introspect", Map.of("token", "x".repeat(1500)), Map.of("Authorization", SERVICE_AUTH)).statusCode());
+        assertEquals(413, call(identity.base(), "POST", "/internal/auth/introspect", Map.of("token", "x".repeat(9000)), Map.of("Authorization", SERVICE_AUTH)).statusCode());
         assertEquals(400, call(identity.base(), "POST", "/internal/auth/introspect", Map.of("token", "short", "clientType", "APP"), Map.of("Authorization", SERVICE_AUTH)).statusCode());
         assertEquals(404, call(gateway.base(), "POST", "/internal/auth/introspect", body, Map.of("Authorization", SERVICE_AUTH)).statusCode());
     }
