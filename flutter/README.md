@@ -15,7 +15,7 @@ flutter run
 
 本机可用 `dart analyze --format=machine` 完成静态检查；原有 Flutter LSP 异常见 `../docs/verification.md`。
 
-默认开发网关地址：Android 模拟器 `http://10.0.2.2:29080`，iOS 模拟器 `http://localhost:29080`。实机须传入设备可达的 HTTPS 地址，例如 `flutter run --dart-define=API_BASE_URL=https://your-test-host`。正式构建拒绝 HTTP 地址；调试版的 Android 明文流量仅在 debug manifest 放行，iOS 仅允许本地网络。账号和对局接口使用 `X-UNO-Client: APP` 与 Bearer 凭证，不传 Cookie/Origin。网关未启动或认证开关关闭时会显示不可用，不模拟登录成功。实时连接在恢复时先同步权威牌面，再重新订阅；未确认动作不会自动重发。
+默认开发网关地址：Android 模拟器 `http://10.0.2.2:29080`，iOS 模拟器 `http://localhost:29080`。从 `release` 本地试玩包安装的 Android 模拟器 debug APK 则指向 Compose 默认网关 `http://10.0.2.2:28080`。实机须传入设备可达的 HTTPS 地址，例如 `flutter run --dart-define=API_BASE_URL=https://your-test-host`。正式构建拒绝 HTTP 地址；调试版的 Android 明文流量仅在 debug manifest 放行，iOS 仅允许本地网络。账号和对局接口使用 `X-UNO-Client: APP` 与 Bearer 凭证，不传 Cookie/Origin。网关未启动或认证开关关闭时会显示不可用，不模拟登录成功。实时连接在恢复时先同步权威牌面，再重新订阅；未确认动作不会自动重发。
 
 访问与刷新凭证作为单个记录保存在 Android Keystore/iOS Keychain 支撑的 `flutter_secure_storage` 中；Android 禁用应用备份，避免恢复加密数据后密钥不匹配。启动时读取记录并向后端确认身份，过期时串行刷新并保存轮换后的整组凭证；401 清除已失效会话，网络故障保留凭证供重试。退出只有在服务端确认或已失效时才清除本地凭证。密码及邮件凭证只用于当前提交，不持久保存。正式设备上的安全存储和双端同一用户联调仍待验收，见 `../docs/verification-stage4-flutter.md`。
 

@@ -41,7 +41,7 @@ run('mvn', ['-f', 'backend/pom.xml', '-Pdatabase-it', 'clean', 'verify'])
 run('dart', ['analyze', 'lib', 'test', 'integration_test'], join(root, 'flutter'))
 run('flutter', ['test'], join(root, 'flutter'))
 run('flutter', ['build', 'apk', '--debug', '--no-pub',
-  '--dart-define=API_BASE_URL=http://10.0.2.2:29080'], join(root, 'flutter'))
+  '--dart-define=API_BASE_URL=http://10.0.2.2:28080'], join(root, 'flutter'))
 requireCleanSource()
 await access(join(root, 'web/dist/index.html'))
 for (const service of services) await access(join(root, `backend/${service}/target/${service}-0.1.0-SNAPSHOT.jar`))
@@ -69,10 +69,10 @@ const manifest = {
   validation: ['npm --prefix web test', 'npm --prefix web run build',
     'mvn -f backend/pom.xml -Pdatabase-it clean verify',
     'dart analyze lib test integration_test (flutter)', 'flutter test',
-    'flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://10.0.2.2:29080'],
+    'flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://10.0.2.2:28080'],
   included: ['web-static', 'backend-jars', 'android-emulator-debug-apk', 'deployment-source-reference'],
   excluded: ['flutter-ipa', 'release-signed-mobile-builds', 'docker-images', 'secrets'],
-  notes: 'Local preview only. The Android debug APK targets an emulator using the host gateway at 10.0.2.2:29080; it is not a phone or production installer. Dockerfiles require the original source repository. Browser/device end-to-end, signed mobile builds, and production deployment are separate gates.',
+  notes: 'Local preview only. The Android debug APK targets an emulator using the Compose gateway at 10.0.2.2:28080; it is not a phone or production installer. Dockerfiles require the original source repository. Browser/device end-to-end, signed mobile builds, and production deployment are separate gates.',
 }
 await writeFile(join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
 const sums = []
