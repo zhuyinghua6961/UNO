@@ -145,6 +145,43 @@ async function main() {
     await a1.waitForFunction(() => document.querySelectorAll('.voice-audio audio').length === 1,
       null, { timeout: 20000 })
     assert.equal(await b1.locator('.voice-audio audio').count(), 0, 'opponent audio is isolated')
+    if (process.env.UNO_E2E_VOICE_REVOKE === '1') {
+      await a2.getByRole('button', { name: '关闭麦克风' }).click()
+      await a2.getByText('已加入 · 麦克风关闭', { exact: false }).waitFor()
+      const nextGrant = a2.waitForResponse(response => response.url().endsWith('/api/voice/token')
+        && response.status() === 200, { timeout: 30000 })
+      assert.equal((await mutate(a1, '/api/auth/logout', {})).status, 204)
+      await a1.waitForFunction(() => window.__unoCapturedTracks.every(track => track.readyState === 'ended'),
+        null, { timeout: 30000 })
+      const migratedGrant = await (await nextGrant).json()
+      await a2.getByText('已加入 · 麦克风关闭', { exact: false }).waitFor({ timeout: 15000 })
+      assert.equal(await a2.evaluate(() => window.__unoGumCalls), 1,
+        'room migration did not reopen the muted microphone')
+      const roomFrom = grant => JSON.parse(Buffer.from(grant.token.split('.')[1], 'base64url')).video.room
+      assert.notEqual(roomFrom(migratedGrant), roomFrom(replayGrant),
+        'valid teammate moved to a new room generation')
+      assert.equal(await a1.evaluate(() => window.__unoCapturedTracks.every(track => track.readyState === 'ended')),
+        true, 'revoked session releases microphone')
+      assert.ok(Date.parse(replayGrant.expiresAt) - Date.now() > 5000,
+        'replayed grant is still inside its validity window')
+      const replayPage = await contexts[0].newPage()
+      await replayPage.goto(origin)
+      await replayPage.addScriptTag({ path: path.join(__dirname, '../node_modules/livekit-client/dist/livekit-client.umd.js') })
+      const oldRoomParticipants = await replayPage.evaluate(async grant => {
+        const room = new window.LivekitClient.Room()
+        try {
+          await room.connect(grant.url, grant.token)
+          await new Promise(resolve => setTimeout(resolve, 800))
+          const count = room.remoteParticipants.size
+          await room.disconnect()
+          return count
+        } catch { return 0 }
+      }, replayGrant)
+      assert.equal(oldRoomParticipants, 0, 'replayed JWT cannot hear the valid teammate')
+      assert.deepEqual(errors, [])
+      console.log('PASS: revoked voice session loses media; valid teammate migrates without changing mic choice; replayed JWT is isolated.')
+      return
+    }
     await a2.getByRole('button', { name: '关闭麦克风' }).click()
     await a2.getByText('已加入 · 麦克风关闭', { exact: false }).waitFor()
     assert.equal(await a2.evaluate(() => window.__unoCapturedTracks.every(track => track.readyState === 'ended')),

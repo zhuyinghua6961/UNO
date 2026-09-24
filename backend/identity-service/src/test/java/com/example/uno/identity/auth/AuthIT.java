@@ -8,6 +8,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -35,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class AuthIT {
     private static final String PASSWORD = "correct horse battery staple 密码";
     private static final String ORIGIN = "http://localhost:5179";
+    private static final String SERVICE_KEY = "d".repeat(64);
     private static final JsonMapper JSON = new JsonMapper();
     private static final HttpClient CLIENT = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
@@ -57,6 +60,8 @@ class AuthIT {
                 "--uno.auth.enabled=true", "--uno.auth.secure-cookies=false", "--uno.auth.allowed-origins=" + ORIGIN,
                 "--uno.auth.mail-key=" + "a".repeat(64), "--uno.auth.mail-dispatch-enabled=false",
                 "--uno.auth.ip-limit=10000", "--uno.auth.account-limit=1000",
+                "--uno.internal-auth.enabled=true", "--uno.internal-auth.game-service-key=" + SERVICE_KEY,
+                "--uno.internal-auth.allow-insecure-http=true",
                 "--spring.mail.host=" + smtp.getHost(), "--spring.mail.port=" + smtp.getMappedPort(1025),
                 "--spring.mail.properties.mail.smtp.connectiontimeout=10000", "--spring.mail.properties.mail.smtp.timeout=10000",
                 "--spring.mail.properties.mail.smtp.writetimeout=10000", "--spring.mail.properties.mail.smtp.localhost=localhost",
@@ -213,6 +218,29 @@ class AuthIT {
     }
 
     @Test
+    void internalSessionStatusTracksLogoutExpiryAndAccountDisable() throws Exception {
+        createVerified("voice-one@example.test");
+        createVerified("voice-two@example.test");
+        JsonNode first = login("voice-one@example.test");
+        JsonNode second = login("voice-two@example.test");
+        UUID firstId = jdbc.queryForObject("SELECT id FROM sessions WHERE token_digest = ?", UUID.class,
+                Secrets.digest(first.path("accessToken").asText()));
+        UUID secondId = jdbc.queryForObject("SELECT id FROM sessions WHERE token_digest = ?", UUID.class,
+                Secrets.digest(second.path("accessToken").asText()));
+        UUID unknown = UUID.randomUUID();
+        JsonNode initial = json(internalSessions(firstId, secondId, unknown));
+        assertEquals(2, initial.path("activeSessionIds").size());
+        assertTrue(initial.path("activeSessionIds").toString().contains(firstId.toString()));
+        assertTrue(initial.path("activeSessionIds").toString().contains(secondId.toString()));
+        assertEquals(204, app("POST", "/api/auth/logout", null, first.path("accessToken").asText()).statusCode());
+        assertEquals(secondId.toString(), json(internalSessions(firstId, secondId)).path("activeSessionIds").get(0).asText());
+        jdbc.update("UPDATE accounts SET status = 'DISABLED' WHERE id = (SELECT account_id FROM sessions WHERE id = ?)", secondId);
+        assertEquals(0, json(internalSessions(firstId, secondId)).path("activeSessionIds").size());
+        assertEquals(401, CLIENT.send(request("POST", "/internal/auth/sessions/active",
+                Map.of("sessionIds", java.util.List.of(firstId))).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+    }
+
+    @Test
     void passwordResetIsSingleUseAndRevokesEveryOldSession() throws Exception {
         String email = "reset@example.test";
         createVerified(email);
@@ -365,6 +393,12 @@ class AuthIT {
         var builder = request(method, path, body).header("X-UNO-Client", "APP");
         if (access != null) builder.header("Authorization", "Bearer " + access);
         return CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static HttpResponse<String> internalSessions(UUID... ids) throws Exception {
+        String basic = Base64.getEncoder().encodeToString(("game-service:" + SERVICE_KEY).getBytes(StandardCharsets.UTF_8));
+        return CLIENT.send(request("POST", "/internal/auth/sessions/active", Map.of("sessionIds", ids))
+                .header("Authorization", "Basic " + basic).build(), HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpResponse<String> register(String email, String password) throws Exception {

@@ -52,7 +52,7 @@ public class InternalServiceFilter extends OncePerRequestFilter {
             context.setAuthentication(new UsernamePasswordAuthenticationToken("game-service", null,
                     List.of(new SimpleGrantedAuthority("SESSION_INTROSPECT"))));
             SecurityContextHolder.setContext(context);
-            chain.doFilter(RequestBodies.bounded(request, 1024), response);
+            chain.doFilter(RequestBodies.bounded(request, 8192), response);
         } catch (AuthFailure failure) {
             ApiErrors.send(request, response, failure);
         } catch (DataAccessException exception) {

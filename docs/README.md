@@ -8,7 +8,7 @@
 
 - 已有可构建的三端骨架、素材、状态接口、通信权限基础、16 个骨架测试和开发归档。
 - GitHub 私有仓库 `zhuyinghua6961/UNO` 已创建并关联 origin；2026-09-07 按用户授权进行首次本地提交（以 git log 为准），未推送，三个分支的名称和用途仍未确认。
-- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9–stage15进行中（stage13/14 仍有撤销和人工听感验收）、stage16经典/团队战绩与昵称进行中、stage17本地容器增量进行中**；stage18未开始。Web 与 Android/Web 已完成经典整局；四账号容器 API 已完成 2v2 整局，三浏览器已在本机 LiveKit 完成队友音轨订阅及终局释放，真实混合设备和人工互听待验收。房间/队伍文字跨服务 API 已验收，双端频道切换尚未设备实测；Flutter 队友语音已接入 SDK/UI，iOS 对局和 Android/iOS 真实语音仍待验收。
+- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9–stage15进行中（stage13/14 的撤销换房已本机验收，人工听感仍待验收）、stage16经典/团队战绩与昵称进行中、stage17本地容器增量进行中**；stage18未开始。Web 与 Android/Web 已完成经典整局；四账号容器 API 已完成 2v2 整局，三浏览器已在本机 LiveKit 完成队友音轨订阅、会话吊销后换房和终局释放，真实混合设备和人工互听待验收。房间/队伍文字跨服务 API 已验收，双端频道切换尚未设备实测；Flutter 队友语音已接入 SDK/UI，iOS 对局和 Android/iOS 真实语音仍待验收。
 - stage1 的工程约定和复现指南已补充，产品规则/登录渠道/三个分支仍待确认；stage2 按 [工程基线](engineering-baseline.md) 中的明确依赖例外推进。
 - Docker Hub 网络阻碍与 Flutter 分析命令差异见 [骨架验收记录](verification.md)；本地容器栈的后续实测见 [stage17 增量验收](verification-stage17-container.md)。
 
@@ -28,8 +28,8 @@
 | [stage10](stages/stage10.md) | 四人 2v2 对局 | 两端支持队伍比赛和队伍结算 | stage8、stage9 | 进行中（容器整局已验收，混合设备待做） |
 | [stage11](stages/stage11.md) | 房间／队伍文字 | 真实发送、接收、限流、历史补偿与隔离 | stage5、stage7、stage10 | 进行中（房间与队伍文字 API/双端已接入） |
 | [stage12](stages/stage12.md) | 重连与对局生命周期 | 刷新、掉线、超时、退房和重复连接可控 | stage10、stage11 | 进行中（单实例接管、HTTP 动作广播） |
-| [stage13](stages/stage13.md) | 队友语音后端 | 受限语音凭证、独立队伍频道与退出撤销 | stage3、stage10、stage12 | 进行中（准入/终局清理已接入，撤销待做） |
-| [stage14](stages/stage14.md) | Web 队友开麦 | 浏览器主动授权、开麦、静音与退出 | stage8、stage13 | 进行中（本机实连，人工听感/撤销待验） |
+| [stage13](stages/stage13.md) | 队友语音后端 | 受限语音凭证、独立队伍频道与退出撤销 | stage3、stage10、stage12 | 进行中（准入、撤销换房本机验收；容量待验） |
+| [stage14](stages/stage14.md) | Web 队友开麦 | 浏览器主动授权、开麦、静音与退出 | stage8、stage13 | 进行中（本机实连与换房通过，人工听感待验） |
 | [stage15](stages/stage15.md) | Flutter 队友开麦 | App 队友语音与 Web/App 互通 | stage9、stage13、stage14 | 进行中 |
 | [stage16](stages/stage16.md) | 个人中心与对局记录 | 真实资料、偏好、个人/队伍战绩和历史 | stage10、stage12 | 进行中（经典/团队战绩与昵称） |
 | [stage17](stages/stage17.md) | Docker、环境与持续集成 | 可复现的测试部署、TLS/TURN、备份和构建流水线 | stage14、stage15、stage16 | 进行中（本地容器栈已验收） |

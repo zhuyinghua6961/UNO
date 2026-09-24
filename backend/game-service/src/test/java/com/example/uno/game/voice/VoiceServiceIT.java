@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.example.uno.game.GameApplication;
 import com.example.uno.game.auth.GameIdentity;
+import com.example.uno.game.auth.GameAuthFailure;
 import com.example.uno.game.matches.MatchService;
 import com.example.uno.game.rooms.RoomService;
 import com.example.uno.game.rooms.RoomView;
@@ -14,6 +15,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -40,6 +45,7 @@ class VoiceServiceIT {
     private static RoomService rooms;
     private static MatchService matches;
     private FakeMedia media;
+    private FakeSessions sessions;
     private VoiceService voice;
 
     @BeforeAll
@@ -62,9 +68,10 @@ class VoiceServiceIT {
         jdbc.update("TRUNCATE game.voice_cleanup, game.voice_token_issuance, game.match_commands, "
                 + "game.match_players, game.matches, game.room_members, game.rooms");
         media = new FakeMedia();
+        sessions = new FakeSessions();
         voice = new VoiceService(jdbc, Clock.systemUTC(), new VoiceSettings(true,
                 URI.create("http://127.0.0.1:7880"), URI.create("ws://127.0.0.1:7880"),
-                "devkey", "this-is-a-local-test-secret-of-at-least-32-bytes", true), media);
+                "devkey", "this-is-a-local-test-secret-of-at-least-32-bytes", true), media, sessions);
     }
 
     @Test
@@ -96,6 +103,7 @@ class VoiceServiceIT {
         assertTrue(aClaims.path("video").path("canSubscribe").asBoolean());
         assertFalse(aClaims.path("video").path("canPublishData").asBoolean());
         assertEquals("microphone", aClaims.path("video").path("canPublishSources").get(0).asText());
+        assertEquals(a.sessionId().toString(), aClaims.path("metadata").asText());
         assertFalse(aClaims.path("video").path("roomCreate").asBoolean());
         assertEquals("VOICE_RATE_LIMITED", assertThrows(VoiceFailure.class,
                 () -> voice.issue(matchId, a)).code());
@@ -184,6 +192,53 @@ class VoiceServiceIT {
         assertTrue(media.deleted.contains(VoiceService.roomName(second, secondGeneration, "B")));
     }
 
+    @Test
+    void revokedConnectedSessionRotatesGenerationAndDeletesBothOldRooms() throws Exception {
+        GameIdentity a = player("A");
+        GameIdentity b = player("B");
+        GameIdentity teammate = player("A2");
+        GameIdentity opponent = player("B2");
+        UUID matchId = startTeam(a, b, teammate, opponent);
+        UUID oldGeneration = jdbc.queryForObject("SELECT voice_generation FROM game.matches WHERE id = ?", UUID.class, matchId);
+        String oldRoom = VoiceService.roomName(matchId, oldGeneration, "A");
+        voice.issue(matchId, a);
+        voice.issue(matchId, teammate);
+        media.connected.put(oldRoom, List.of(new VoiceMedia.Participant(a.userId().toString(), a.sessionId().toString()),
+                new VoiceMedia.Participant(teammate.userId().toString(), teammate.sessionId().toString())));
+
+        voice.reviewConnectedSessions();
+        assertEquals(oldGeneration, jdbc.queryForObject("SELECT voice_generation FROM game.matches WHERE id = ?", UUID.class, matchId));
+        sessions.revoked.add(a.sessionId());
+        jdbc.update("UPDATE game.matches SET voice_reviewed_at = now() - INTERVAL '10 seconds' WHERE id = ?", matchId);
+        voice.reviewConnectedSessions();
+
+        UUID nextGeneration = jdbc.queryForObject("SELECT voice_generation FROM game.matches WHERE id = ?", UUID.class, matchId);
+        assertNotEquals(oldGeneration, nextGeneration);
+        assertTrue(media.deleted.contains(oldRoom));
+        assertTrue(media.deleted.contains(VoiceService.roomName(matchId, oldGeneration, "B")));
+        assertEquals(oldGeneration, jdbc.queryForObject("SELECT voice_generation FROM game.voice_cleanup WHERE match_id = ?", UUID.class, matchId));
+        jdbc.update("UPDATE game.voice_token_issuance SET requested_at = now() - INTERVAL '5 seconds' WHERE match_id = ?", matchId);
+        assertEquals(VoiceService.roomName(matchId, nextGeneration, "A"),
+                claims(voice.issue(matchId, teammate).token()).path("video").path("room").asText());
+    }
+
+    @Test
+    void activeVoiceFailsClosedWhenSessionStatusCannotBeVerified() {
+        GameIdentity a = player("A");
+        UUID matchId = startTeam(a, player("B"), player("A2"), player("B2"));
+        UUID oldGeneration = jdbc.queryForObject("SELECT voice_generation FROM game.matches WHERE id = ?", UUID.class, matchId);
+        voice.issue(matchId, a);
+        media.connected.put(VoiceService.roomName(matchId, oldGeneration, "A"),
+                List.of(new VoiceMedia.Participant(a.userId().toString(), a.sessionId().toString())));
+        sessions.unavailable = true;
+
+        voice.reviewConnectedSessions();
+
+        assertNotEquals(oldGeneration, jdbc.queryForObject("SELECT voice_generation FROM game.matches WHERE id = ?", UUID.class, matchId));
+        assertTrue(media.deleted.contains(VoiceService.roomName(matchId, oldGeneration, "A")));
+        assertTrue(media.deleted.contains(VoiceService.roomName(matchId, oldGeneration, "B")));
+    }
+
     private UUID startTeam(GameIdentity a, GameIdentity b, GameIdentity c, GameIdentity d) {
         RoomView room = rooms.create(a, "TEAM_2V2", 4);
         for (GameIdentity player : List.of(b, c, d)) room = rooms.join(player, room.code());
@@ -210,6 +265,7 @@ class VoiceServiceIT {
         boolean failCreate;
         boolean failDelete;
         String failRoom;
+        final Map<String, List<VoiceMedia.Participant>> connected = new HashMap<>();
 
         @Override public void ensureRoom(String roomName) {
             if (failCreate) throw VoiceFailure.unavailable();
@@ -219,6 +275,22 @@ class VoiceServiceIT {
         @Override public void deleteRoom(String roomName) {
             if (failDelete || roomName.equals(failRoom)) throw VoiceFailure.unavailable();
             deleted.add(roomName);
+            connected.remove(roomName);
+        }
+
+        @Override public List<VoiceMedia.Participant> participants(String roomName) {
+            return connected.getOrDefault(roomName, List.of());
+        }
+    }
+
+    private static final class FakeSessions implements VoiceSessionStatus {
+        final Set<UUID> revoked = new HashSet<>();
+        boolean unavailable;
+        @Override public Set<UUID> activeIds(Set<UUID> ids) {
+            if (unavailable) throw GameAuthFailure.unavailable();
+            Set<UUID> found = new HashSet<>(ids);
+            found.removeAll(revoked);
+            return found;
         }
     }
 }

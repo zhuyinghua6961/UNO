@@ -1,6 +1,7 @@
 package com.example.uno.game.voice;
 
 import com.example.uno.game.auth.GameIdentity;
+import com.example.uno.game.auth.GameAuthFailure;
 import io.livekit.server.AccessToken;
 import io.livekit.server.CanPublish;
 import io.livekit.server.CanPublishData;
@@ -13,6 +14,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -25,12 +28,15 @@ public class VoiceService {
     private final Clock clock;
     private final VoiceSettings settings;
     private final VoiceMedia media;
+    private final VoiceSessionStatus sessions;
 
-    VoiceService(JdbcTemplate jdbc, Clock roomClock, VoiceSettings settings, VoiceMedia media) {
+    VoiceService(JdbcTemplate jdbc, Clock roomClock, VoiceSettings settings, VoiceMedia media,
+            VoiceSessionStatus sessions) {
         this.jdbc = jdbc;
         this.clock = roomClock;
         this.settings = settings;
         this.media = media;
+        this.sessions = sessions;
     }
 
     public VoiceToken issue(UUID matchId, GameIdentity identity) {
@@ -54,11 +60,70 @@ public class VoiceService {
         AccessToken token = new AccessToken(settings.apiKey(), settings.apiSecret());
         token.setIdentity(identity.userId().toString());
         token.setName(identity.nickname());
+        token.setMetadata(identity.sessionId().toString());
         token.setNotBefore(Date.from(now.minusSeconds(2)));
         token.setExpiration(Date.from(expiresAt));
         token.addGrants(new RoomJoin(true), new RoomName(roomName), new CanPublish(true),
                 new CanPublishSources(List.of("microphone")), new CanSubscribe(true), new CanPublishData(false));
         return new VoiceToken(settings.publicUrl().toString(), token.toJwt(), expiresAt);
+    }
+
+    /** A deleted generation is never reused, so replayed JWTs cannot rejoin current teammates. */
+    @Scheduled(fixedDelayString = "${uno.voice.session-poll-ms:1000}")
+    @Transactional
+    public void reviewConnectedSessions() {
+        if (!settings.enabled()) return;
+        Instant now = clock.instant();
+        List<ActiveMatch> due = jdbc.query("SELECT m.id, m.voice_generation FROM game.matches m "
+                        + "WHERE m.mode = 'TEAM_2V2' AND m.state = 'PLAYING' "
+                        + "AND EXISTS (SELECT 1 FROM game.voice_token_issuance i WHERE i.match_id = m.id) "
+                        + "AND (m.voice_reviewed_at IS NULL OR m.voice_reviewed_at <= ?) "
+                        + "ORDER BY m.voice_reviewed_at NULLS FIRST, m.created_at LIMIT 8 FOR UPDATE OF m SKIP LOCKED",
+                (rs, row) -> new ActiveMatch(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class)),
+                Timestamp.from(now.minusSeconds(5)));
+        for (ActiveMatch match : due) {
+            try {
+                List<VoiceMedia.Participant> participants = new java.util.ArrayList<>();
+                participants.addAll(media.participants(roomName(match.id(), match.generation(), "A")));
+                participants.addAll(media.participants(roomName(match.id(), match.generation(), "B")));
+                Set<UUID> observed = new HashSet<>();
+                boolean invalidMetadata = false;
+                for (VoiceMedia.Participant participant : participants) {
+                    try { observed.add(UUID.fromString(participant.metadata())); }
+                    catch (RuntimeException failure) { invalidMetadata = true; }
+                }
+                Set<UUID> active;
+                try {
+                    active = sessions.activeIds(observed);
+                } catch (GameAuthFailure failure) {
+                    // If active participants cannot be verified, end their current room.
+                    if (!participants.isEmpty()) rotate(match, now);
+                    continue;
+                }
+                if (invalidMetadata || !active.containsAll(observed)) {
+                    rotate(match, now);
+                } else {
+                    jdbc.update("UPDATE game.matches SET voice_reviewed_at = ? WHERE id = ?",
+                            Timestamp.from(now), match.id());
+                }
+            } catch (VoiceFailure failure) {
+                // Keep the review due so a temporary media outage is retried.
+            }
+        }
+    }
+
+    private void rotate(ActiveMatch match, Instant now) {
+        jdbc.update("UPDATE game.matches SET voice_generation = ?, voice_reviewed_at = ? WHERE id = ?",
+                UUID.randomUUID(), Timestamp.from(now), match.id());
+        jdbc.update("INSERT INTO game.voice_cleanup(match_id, voice_generation, retain_until) VALUES (?, ?, ?) "
+                        + "ON CONFLICT (match_id, voice_generation) DO NOTHING",
+                match.id(), match.generation(), Timestamp.from(now.plusSeconds(70)));
+        try {
+            media.deleteRoom(roomName(match.id(), match.generation(), "A"));
+            media.deleteRoom(roomName(match.id(), match.generation(), "B"));
+        } catch (VoiceFailure failure) {
+            // Persisted cleanup retries both old rooms after the generation commits.
+        }
     }
 
     private VoiceSeat allowedSeat(UUID matchId, UUID userId) {
@@ -100,15 +165,18 @@ public class VoiceService {
                 media.deleteRoom(roomName(task.matchId(), task.generation(), "A"));
                 media.deleteRoom(roomName(task.matchId(), task.generation(), "B"));
                 if (!clock.instant().isBefore(task.retainUntil())) {
-                    jdbc.update("DELETE FROM game.voice_cleanup WHERE match_id = ?", task.matchId());
+                    jdbc.update("DELETE FROM game.voice_cleanup WHERE match_id = ? AND voice_generation = ?",
+                            task.matchId(), task.generation());
                 } else {
-                    jdbc.update("UPDATE game.voice_cleanup SET attempts = 0, next_attempt_at = ? WHERE match_id = ?",
-                            Timestamp.from(clock.instant().plusSeconds(3)), task.matchId());
+                    jdbc.update("UPDATE game.voice_cleanup SET attempts = 0, next_attempt_at = ? "
+                                    + "WHERE match_id = ? AND voice_generation = ?",
+                            Timestamp.from(clock.instant().plusSeconds(3)), task.matchId(), task.generation());
                 }
             } catch (VoiceFailure failure) {
                 long delay = Math.min(60, 1L << Math.min(task.attempts(), 5));
-                jdbc.update("UPDATE game.voice_cleanup SET attempts = attempts + 1, next_attempt_at = ? WHERE match_id = ?",
-                        Timestamp.from(clock.instant().plusSeconds(delay)), task.matchId());
+                jdbc.update("UPDATE game.voice_cleanup SET attempts = attempts + 1, next_attempt_at = ? "
+                                + "WHERE match_id = ? AND voice_generation = ?",
+                        Timestamp.from(clock.instant().plusSeconds(delay)), task.matchId(), task.generation());
             }
         }
     }
@@ -120,4 +188,5 @@ public class VoiceService {
     public record VoiceToken(String url, String token, Instant expiresAt) { }
     private record VoiceSeat(UUID generation, String team) { }
     private record Cleanup(UUID matchId, UUID generation, int attempts, Instant retainUntil) { }
+    private record ActiveMatch(UUID id, UUID generation) { }
 }

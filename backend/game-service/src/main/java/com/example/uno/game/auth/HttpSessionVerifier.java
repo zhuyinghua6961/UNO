@@ -10,6 +10,8 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -58,6 +60,40 @@ public final class HttpSessionVerifier {
             if (nickname.isBlank() || nickname.length() > 80) throw GameAuthFailure.unavailable();
             if (!expiry.isAfter(clock.instant())) return Optional.empty();
             return Optional.of(new GameIdentity(userId, sessionId, nickname, clientType, expiry));
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw GameAuthFailure.unavailable();
+        } catch (ExecutionException | TimeoutException | RuntimeException exception) {
+            throw GameAuthFailure.unavailable();
+        } finally {
+            if (!pending.isDone()) pending.cancel(true);
+        }
+    }
+
+    public Set<UUID> activeSessionIds(Set<UUID> sessionIds) {
+        if (sessionIds.isEmpty()) return Set.of();
+        if (sessionIds.size() > 64 || !settings.enabled()) throw GameAuthFailure.unavailable();
+        HttpRequest request = HttpRequest.newBuilder(settings.identityBaseUrl().resolve("/internal/auth/sessions/active"))
+                .timeout(Duration.ofMillis(settings.timeoutMillis()))
+                .header("Authorization", authorization).header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(Map.of("sessionIds", sessionIds))))
+                .build();
+        var pending = client.sendAsync(request, info -> new LimitedResponseBody(8192));
+        try {
+            HttpResponse<byte[]> response = pending.get(settings.timeoutMillis(), TimeUnit.MILLISECONDS);
+            if (response.statusCode() != 200 || !response.headers().firstValue("Content-Type").orElse("")
+                    .split(";", 2)[0].strip().equalsIgnoreCase("application/json")) throw GameAuthFailure.unavailable();
+            JsonNode body = json.readTree(response.body());
+            if (body == null || !body.isObject() || !body.path("activeSessionIds").isArray()) throw GameAuthFailure.unavailable();
+            Set<UUID> active = new HashSet<>();
+            for (JsonNode item : body.path("activeSessionIds")) {
+                if (!item.isTextual()) throw GameAuthFailure.unavailable();
+                UUID id = UUID.fromString(item.asText());
+                if (!sessionIds.contains(id)) throw GameAuthFailure.unavailable();
+                active.add(id);
+            }
+            return Set.copyOf(active);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw GameAuthFailure.unavailable();

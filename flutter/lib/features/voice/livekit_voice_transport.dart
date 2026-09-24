@@ -21,8 +21,8 @@ class LiveKitVoiceTransport implements VoiceTransport {
       _room?.localParticipant?.isMicrophoneEnabled() ?? false;
 
   @override
-  Future<void> join(VoiceGrant grant) {
-    final pending = _join(grant);
+  Future<void> join(VoiceGrant grant, {bool microphoneEnabled = true}) {
+    final pending = _join(grant, microphoneEnabled: microphoneEnabled);
     _joins.add(pending);
     pending.then(
       (_) => _joins.remove(pending),
@@ -31,7 +31,10 @@ class LiveKitVoiceTransport implements VoiceTransport {
     return pending;
   }
 
-  Future<void> _join(VoiceGrant grant) async {
+  Future<void> _join(
+    VoiceGrant grant, {
+    required bool microphoneEnabled,
+  }) async {
     await leave();
     if (_disposed) throw StateError('语音连接已关闭。');
     final room = lk.Room();
@@ -49,9 +52,15 @@ class LiveKitVoiceTransport implements VoiceTransport {
           _events.add(const VoiceEvent(VoiceEventKind.reconnected));
         }
       })
-      ..on<lk.RoomDisconnectedEvent>((_) {
+      ..on<lk.RoomDisconnectedEvent>((event) {
         if (_room == room) {
-          _events.add(const VoiceEvent(VoiceEventKind.disconnected));
+          _events.add(
+            VoiceEvent(
+              event.reason == lk.DisconnectReason.roomDeleted
+                  ? VoiceEventKind.roomDeleted
+                  : VoiceEventKind.disconnected,
+            ),
+          );
         }
       })
       ..on<lk.ActiveSpeakersChangedEvent>((event) {
@@ -76,8 +85,10 @@ class LiveKitVoiceTransport implements VoiceTransport {
       if (_room != room || _disposed) throw StateError('语音连接已取消。');
       final local = room.localParticipant;
       if (local == null) throw StateError('语音身份没有连接成功。');
-      await local.setMicrophoneEnabled(true);
-      if (_room != room || _disposed || !local.isMicrophoneEnabled()) {
+      if (microphoneEnabled) await local.setMicrophoneEnabled(true);
+      if (_room != room ||
+          _disposed ||
+          local.isMicrophoneEnabled() != microphoneEnabled) {
         throw StateError('麦克风未能开启。');
       }
     } catch (_) {

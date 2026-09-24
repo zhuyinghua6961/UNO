@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
-import { createLocalAudioTrack, Room, RoomEvent, Track, type LocalAudioTrack,
+import { createLocalAudioTrack, DisconnectReason, Room, RoomEvent, Track, type LocalAudioTrack,
   type RemoteTrack } from 'livekit-client'
 import { voiceApi, voiceErrorMessage } from '../api/voice'
 
@@ -16,6 +16,7 @@ let microphone: LocalAudioTrack | null = null
 const attachedAudio = new Map<RemoteTrack, HTMLMediaElement>()
 let generation = 0
 let disposed = false
+let rejoinTimer: ReturnType<typeof setTimeout> | null = null
 
 function detachAudio() {
   for (const [track, element] of attachedAudio) { track.detach(element); element.remove() }
@@ -25,6 +26,7 @@ function detachAudio() {
 
 async function leave() {
   generation++
+  if (rejoinTimer) { clearTimeout(rejoinTimer); rejoinTimer = null }
   const oldRoom = currentRoom
   const oldMic = microphone
   currentRoom = null
@@ -37,9 +39,9 @@ async function leave() {
   if (oldRoom) await oldRoom.disconnect(true).catch(() => {})
 }
 
-async function join() {
-  if (!available.value || !['idle', 'error'].includes(state.value)) return
-  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+async function join(options: { startMuted?: boolean; recovery?: boolean } = {}) {
+  if (!available.value || !['idle', 'error', ...(options.recovery ? ['reconnecting'] : [])].includes(state.value)) return
+  if (!options.startMuted && (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia)) {
     error.value = '浏览器需要 HTTPS 或本机 localhost 才能使用麦克风。'
     state.value = 'error'
     return
@@ -51,9 +53,10 @@ async function join() {
   let room: Room | null = null
   let adopted = false
   try {
-    // Start capture within the click handler's user gesture; release it on every failed path.
-    const capture = createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true })
-    track = await capture
+    if (!options.startMuted) {
+      // Start capture within the click handler's user gesture; release it on failure.
+      track = await createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true })
+    }
     if (disposed || attempt !== generation) return
     const grant = await voiceApi.token(props.matchId)
     if (disposed || attempt !== generation) return
@@ -87,23 +90,34 @@ async function join() {
     client.on(RoomEvent.Reconnected, () => {
       if (currentRoom === client) state.value = microphone ? 'joined' : 'muted'
     })
-    client.on(RoomEvent.Disconnected, () => {
+    client.on(RoomEvent.Disconnected, reason => {
       if (currentRoom !== client) return
-      generation++
+      const nextAttempt = ++generation
+      const startMuted = microphone === null
       currentRoom = null
       microphone?.stop()
       microphone = null
       detachAudio()
+      speaking.value = ''
+      playbackBlocked.value = false
+      if (reason === DisconnectReason.ROOM_DELETED && !disposed) {
+        state.value = 'reconnecting'
+        rejoinTimer = setTimeout(() => {
+          rejoinTimer = null
+          if (!disposed && generation === nextAttempt) void join({ startMuted, recovery: true })
+        }, 3300)
+        return
+      }
       state.value = 'error'
       error.value = '语音连接已断开，请重新加入。'
     })
     await client.connect(grant.url, grant.token)
     if (disposed || attempt !== generation) return
-    await client.localParticipant.publishTrack(track)
+    if (track) await client.localParticipant.publishTrack(track)
     if (disposed || attempt !== generation) return
     microphone = track
     adopted = true
-    state.value = 'joined'
+    state.value = track ? 'joined' : 'muted'
     playbackBlocked.value = !client.canPlaybackAudio
   } catch (failure) {
     if (!disposed && attempt === generation) {
@@ -164,7 +178,7 @@ onUnmounted(() => { disposed = true; void leave() })
   <section class="room-panel team-voice" aria-label="队友语音">
     <div><h2>队友语音</h2><p class="muted">只有同队玩家可听见。点击加入后才会申请麦克风。</p></div>
     <div class="voice-actions">
-      <button v-if="state === 'idle' || state === 'error'" class="button dark small" type="button" :disabled="!available" @click="join">{{ available ? '加入队友语音' : '语音暂不可用' }}</button>
+      <button v-if="state === 'idle' || state === 'error'" class="button dark small" type="button" :disabled="!available" @click="join()">{{ available ? '加入队友语音' : '语音暂不可用' }}</button>
       <template v-else>
         <button class="button secondary small" type="button" :disabled="state === 'connecting' || state === 'reconnecting'" @click="toggleMicrophone">{{ state === 'muted' ? '打开麦克风' : '关闭麦克风' }}</button>
         <button class="button secondary small" type="button" @click="leave">退出语音</button>

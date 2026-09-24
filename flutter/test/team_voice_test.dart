@@ -57,6 +57,7 @@ class _FakeTransport implements VoiceTransport {
   final List<bool> micCalls = [];
   int joins = 0;
   int leaves = 0;
+  final List<bool> joinMicrophones = [];
   bool disposed = false;
   bool mic = false;
   Completer<void>? joinGate;
@@ -66,10 +67,11 @@ class _FakeTransport implements VoiceTransport {
   @override
   bool get microphoneEnabled => mic;
   @override
-  Future<void> join(VoiceGrant grant) async {
+  Future<void> join(VoiceGrant grant, {bool microphoneEnabled = true}) async {
     joins++;
+    joinMicrophones.add(microphoneEnabled);
     await joinGate?.future;
-    mic = true;
+    mic = microphoneEnabled;
   }
 
   @override
@@ -239,6 +241,79 @@ void main() {
       session.dispose();
     },
   );
+
+  testWidgets(
+    'room deletion gets a fresh grant and preserves an explicitly muted microphone',
+    (tester) async {
+      final session = _session();
+      final api = _FakeVoiceApi(session);
+      final transport = _FakeTransport();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TeamVoicePanel(
+              matchId: 'match-1',
+              session: session,
+              api: api,
+              transportFactory: () => transport,
+              devicePermission: _FakeDevicePermission(true),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('加入队友语音'));
+      await tester.pump();
+      await tester.tap(find.text('关闭麦克风'));
+      await tester.pump();
+      transport.emit(VoiceEventKind.roomDeleted);
+      await tester.pump();
+      expect(transport.mic, false);
+      expect(api.tokenCalls, 1);
+      await tester.pump(const Duration(milliseconds: 3400));
+      await tester.pump();
+      expect(api.tokenCalls, 2);
+      expect(transport.joinMicrophones, [true, false]);
+      expect(transport.mic, false);
+      expect(find.text('已加入 · 麦克风关闭'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      api.close();
+      session.dispose();
+    },
+  );
+
+  testWidgets('leaving during room replacement cancels the automatic rejoin', (
+    tester,
+  ) async {
+    final session = _session();
+    final api = _FakeVoiceApi(session);
+    final transport = _FakeTransport();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TeamVoicePanel(
+            matchId: 'match-1',
+            session: session,
+            api: api,
+            transportFactory: () => transport,
+            devicePermission: _FakeDevicePermission(true),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('加入队友语音'));
+    await tester.pump();
+    transport.emit(VoiceEventKind.roomDeleted);
+    await tester.pump();
+    await tester.tap(find.text('退出语音'));
+    await tester.pump(const Duration(milliseconds: 3400));
+    expect(api.tokenCalls, 1);
+    expect(transport.mic, false);
+    await tester.pumpWidget(const SizedBox());
+    api.close();
+    session.dispose();
+  });
 
   testWidgets(
     'leaving while joining does not let a stale request keep the mic open',

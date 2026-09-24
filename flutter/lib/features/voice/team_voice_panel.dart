@@ -46,6 +46,7 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
   String error = '';
   String notice = '';
   int generation = 0;
+  bool mutedByUser = false;
 
   @override
   void initState() {
@@ -110,6 +111,8 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
         }
       case VoiceEventKind.disconnected:
         unawaited(_leave(message: '语音连接已断开，请重新加入。', failed: true));
+      case VoiceEventKind.roomDeleted:
+        unawaited(_rejoinAfterDeletion());
       case VoiceEventKind.speaking:
         setState(() => speaking = event.detail);
       case VoiceEventKind.playbackBlocked:
@@ -129,10 +132,43 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
     return '队友语音连接失败，请检查麦克风、网络和媒体服务后重试。';
   }
 
-  Future<void> _join() async {
+  Future<void> _rejoinAfterDeletion() async {
+    final current = ++generation;
+    setState(() {
+      voiceState = TeamVoiceState.reconnecting;
+      busy = true;
+      speaking = '';
+      playbackBlocked = false;
+    });
+    try {
+      await transport.leave();
+      await Future<void>.delayed(const Duration(milliseconds: 3300));
+      if (!mounted ||
+          current != generation ||
+          widget.session.state != SessionState.authenticated) {
+        return;
+      }
+      setState(() => busy = false);
+      await _join(startMuted: mutedByUser, recovery: true);
+    } catch (_) {
+      if (mounted && current == generation) {
+        setState(() {
+          busy = false;
+          voiceState = TeamVoiceState.error;
+          error = '语音连接已断开，请重新加入。';
+        });
+      }
+    }
+  }
+
+  Future<void> _join({bool startMuted = false, bool recovery = false}) async {
     if (!available ||
         busy ||
-        ![TeamVoiceState.idle, TeamVoiceState.error].contains(voiceState)) {
+        ![
+          TeamVoiceState.idle,
+          TeamVoiceState.error,
+          if (recovery) TeamVoiceState.reconnecting,
+        ].contains(voiceState)) {
       return;
     }
     final current = ++generation;
@@ -143,19 +179,25 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
       notice = '';
     });
     try {
-      final bluetoothReady = await devicePermission.prepareBluetooth();
+      final bluetoothReady =
+          recovery || await devicePermission.prepareBluetooth();
       if (!mounted || current != generation) return;
       if (!bluetoothReady) {
         setState(() => notice = '蓝牙权限未开放；可继续尝试使用手机扬声器。');
       }
       final grant = await api.token(widget.matchId);
       if (!mounted || current != generation) return;
-      await transport.join(grant);
+      await transport.join(grant, microphoneEnabled: !startMuted);
       if (!mounted || current != generation) {
         await transport.leave();
         return;
       }
-      setState(() => voiceState = TeamVoiceState.joined);
+      mutedByUser = startMuted;
+      setState(
+        () => voiceState = startMuted
+            ? TeamVoiceState.muted
+            : TeamVoiceState.joined,
+      );
     } catch (failure) {
       if (mounted && current == generation) {
         setState(() {
@@ -185,6 +227,7 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
     try {
       await transport.microphone(enable);
       if (mounted && current == generation) {
+        mutedByUser = !enable;
         setState(
           () => voiceState = enable
               ? TeamVoiceState.joined
@@ -211,6 +254,7 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
 
   Future<void> _leave({String? message, bool failed = false}) async {
     generation++;
+    mutedByUser = false;
     if (mounted) {
       setState(() {
         voiceState = failed ? TeamVoiceState.error : TeamVoiceState.idle;
@@ -269,7 +313,7 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
               children: [
                 if (!connected && voiceState != TeamVoiceState.joining)
                   FilledButton(
-                    onPressed: available && !busy ? _join : null,
+                    onPressed: available && !busy ? () => _join() : null,
                     child: Text(available ? '加入队友语音' : '语音暂不可用'),
                   ),
                 if (connected || voiceState == TeamVoiceState.joining) ...[

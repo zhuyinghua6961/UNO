@@ -24,6 +24,7 @@ public class InternalSecurityConfiguration {
         return http.securityMatcher("/internal/**")
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(HttpMethod.POST, "/internal/auth/introspect").hasAuthority("SESSION_INTROSPECT")
+                        .requestMatchers(HttpMethod.POST, "/internal/auth/sessions/active").hasAuthority("SESSION_INTROSPECT")
                         .anyRequest().denyAll())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .securityContext(context -> context.securityContextRepository(new NullSecurityContextRepository()))

@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -129,6 +130,20 @@ public class AuthService {
                 """, (row, rowNumber) -> new SessionIdentity(row.getObject("user_id", UUID.class), row.getObject("session_id", UUID.class),
                 row.getString("email"), row.getString("nickname"), row.getString("client_type"), row.getTimestamp("expires_at").toInstant()),
                 Secrets.digest(token), clientType, timestamp(clock.instant()), timestamp(clock.instant())).stream().findFirst();
+    }
+
+    public Set<UUID> activeSessionIds(List<UUID> sessionIds) {
+        if (sessionIds.isEmpty()) return Set.of();
+        String placeholders = String.join(",", java.util.Collections.nCopies(sessionIds.size(), "?"));
+        Object[] arguments = new Object[sessionIds.size() + 2];
+        for (int index = 0; index < sessionIds.size(); index++) arguments[index] = sessionIds.get(index);
+        arguments[sessionIds.size()] = timestamp(clock.instant());
+        arguments[sessionIds.size() + 1] = timestamp(clock.instant());
+        return Set.copyOf(jdbc.query("SELECT session.id FROM sessions session "
+                        + "JOIN accounts account ON account.id = session.account_id "
+                        + "WHERE session.id IN (" + placeholders + ") AND session.revoked_at IS NULL "
+                        + "AND session.expires_at > ? AND session.absolute_expires_at > ? AND account.status = 'ACTIVE'",
+                (row, number) -> row.getObject(1, UUID.class), arguments));
     }
 
     public LoginGrant refresh(String token) {
