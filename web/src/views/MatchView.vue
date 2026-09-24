@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { matchApi, matchErrorMessage, MatchError, type Card, type CardColor,
@@ -7,6 +7,7 @@ import { matchApi, matchErrorMessage, MatchError, type Card, type CardColor,
 import { roomApi, type Room } from '../api/rooms'
 import { connectMatchSocket, type MatchSocketStatus } from '../game/matchSocket'
 import RoomChat from '../components/RoomChat.vue'
+const TeamVoice = defineAsyncComponent(() => import('../components/TeamVoice.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -241,6 +242,7 @@ onUnmounted(() => { disposed = true; revision++; channel?.close(); clearInterval
         </aside>
       </div>
       <RoomChat v-if="room" :room-id="room.id" :team-enabled="room.mode === 'TEAM_2V2'" />
+      <TeamVoice v-if="isTeam && view.phase !== 'MATCH_OVER'" :key="matchId" :match-id="matchId" />
     </template>
   </section>
 </template>

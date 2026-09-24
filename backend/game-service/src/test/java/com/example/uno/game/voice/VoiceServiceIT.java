@@ -1,0 +1,194 @@
+package com.example.uno.game.voice;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import com.example.uno.game.GameApplication;
+import com.example.uno.game.auth.GameIdentity;
+import com.example.uno.game.matches.MatchService;
+import com.example.uno.game.rooms.RoomService;
+import com.example.uno.game.rooms.RoomView;
+import java.net.URI;
+import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.testcontainers.utility.DockerImageName;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
+@Testcontainers
+class VoiceServiceIT {
+    @Container
+    static final PostgreSQLContainer database = new PostgreSQLContainer(DockerImageName.parse(
+            System.getProperty("uno.postgres.image", "postgres:17-alpine"))
+            .asCompatibleSubstituteFor("postgres"));
+    private static ConfigurableApplicationContext application;
+    private static JdbcTemplate jdbc;
+    private static RoomService rooms;
+    private static MatchService matches;
+    private FakeMedia media;
+    private VoiceService voice;
+
+    @BeforeAll
+    static void start() {
+        application = new SpringApplicationBuilder(GameApplication.class).run(
+                "--server.port=0", "--spring.datasource.url=" + database.getJdbcUrl(),
+                "--spring.datasource.username=" + database.getUsername(),
+                "--spring.datasource.password=" + database.getPassword(),
+                "--uno.matches.deadline-worker-enabled=false");
+        jdbc = application.getBean(JdbcTemplate.class);
+        rooms = application.getBean(RoomService.class);
+        matches = application.getBean(MatchService.class);
+    }
+
+    @AfterAll
+    static void stop() { if (application != null) application.close(); }
+
+    @BeforeEach
+    void reset() {
+        jdbc.update("TRUNCATE game.voice_cleanup, game.voice_token_issuance, game.match_commands, "
+                + "game.match_players, game.matches, game.room_members, game.rooms");
+        media = new FakeMedia();
+        voice = new VoiceService(jdbc, Clock.systemUTC(), new VoiceSettings(true,
+                URI.create("http://127.0.0.1:7880"), URI.create("ws://127.0.0.1:7880"),
+                "devkey", "this-is-a-local-test-secret-of-at-least-32-bytes", true), media);
+    }
+
+    @Test
+    void tokensUseImmutableTeamSeatAndOnlyMicrophoneGrant() throws Exception {
+        GameIdentity a = player("A");
+        GameIdentity b = player("B");
+        GameIdentity teammate = player("A2");
+        GameIdentity opponent = player("B2");
+        UUID matchId = startTeam(a, b, teammate, opponent);
+        String generation = jdbc.queryForObject("SELECT voice_generation::text FROM game.matches WHERE id = ?",
+                String.class, matchId);
+        var aToken = voice.issue(matchId, a);
+        var teammateToken = voice.issue(matchId, teammate);
+        var bToken = voice.issue(matchId, b);
+        assertEquals("ws://127.0.0.1:7880", aToken.url());
+        assertTrue(aToken.expiresAt().isBefore(Instant.now().plusSeconds(61)));
+        assertEquals(2, media.created.size());
+        JsonNode aClaims = claims(aToken.token());
+        JsonNode teammateClaims = claims(teammateToken.token());
+        JsonNode bClaims = claims(bToken.token());
+        String aRoom = "uno_" + matchId + "_" + generation + "_team_A";
+        String bRoom = "uno_" + matchId + "_" + generation + "_team_B";
+        assertEquals(aRoom, aClaims.path("video").path("room").asText());
+        assertEquals(aRoom, teammateClaims.path("video").path("room").asText());
+        assertEquals(bRoom, bClaims.path("video").path("room").asText());
+        assertNotEquals(aClaims.path("sub"), teammateClaims.path("sub"));
+        assertTrue(aClaims.path("video").path("roomJoin").asBoolean());
+        assertTrue(aClaims.path("video").path("canPublish").asBoolean());
+        assertTrue(aClaims.path("video").path("canSubscribe").asBoolean());
+        assertFalse(aClaims.path("video").path("canPublishData").asBoolean());
+        assertEquals("microphone", aClaims.path("video").path("canPublishSources").get(0).asText());
+        assertFalse(aClaims.path("video").path("roomCreate").asBoolean());
+        assertEquals("VOICE_RATE_LIMITED", assertThrows(VoiceFailure.class,
+                () -> voice.issue(matchId, a)).code());
+        assertEquals("VOICE_NOT_AVAILABLE", assertThrows(VoiceFailure.class,
+                () -> voice.issue(matchId, player("Outsider"))).code());
+    }
+
+    @Test
+    void classicEndedAndSeatMismatchCannotIssue() {
+        GameIdentity a = player("A");
+        GameIdentity b = player("B");
+        GameIdentity teammate = player("A2");
+        GameIdentity opponent = player("B2");
+        UUID matchId = startTeam(a, b, teammate, opponent);
+        jdbc.update("UPDATE game.room_members SET seat = 5 WHERE user_id = ?", a.userId());
+        assertEquals("VOICE_NOT_AVAILABLE", assertThrows(VoiceFailure.class,
+                () -> voice.issue(matchId, a)).code());
+        jdbc.update("UPDATE game.matches SET state = 'ENDED', ended_at = now() WHERE id = ?", matchId);
+        assertEquals("VOICE_NOT_AVAILABLE", assertThrows(VoiceFailure.class,
+                () -> voice.issue(matchId, b)).code());
+        RoomView room = rooms.create(player("Classic host"), "CLASSIC", 2);
+        GameIdentity guest = player("Classic guest");
+        room = rooms.join(guest, room.code());
+        GameIdentity host = playerFromRoom(room);
+        room = rooms.ready(room.id(), host, true, room.version());
+        room = rooms.ready(room.id(), guest, true, room.version());
+        UUID classic = matches.start(room.id(), host, room.version()).matchId();
+        assertEquals("VOICE_NOT_AVAILABLE", assertThrows(VoiceFailure.class,
+                () -> voice.issue(classic, guest)).code());
+    }
+
+    @Test
+    void mediaFailureCannotStopGameAndCleanupRetries() {
+        GameIdentity a = player("A");
+        GameIdentity b = player("B");
+        GameIdentity teammate = player("A2");
+        GameIdentity opponent = player("B2");
+        UUID matchId = startTeam(a, b, teammate, opponent);
+        media.failCreate = true;
+        assertEquals("VOICE_UNAVAILABLE", assertThrows(VoiceFailure.class,
+                () -> voice.issue(matchId, a)).code());
+        assertNotNull(matches.state(matchId, a));
+        UUID generation = jdbc.queryForObject("SELECT voice_generation FROM game.matches WHERE id = ?",
+                UUID.class, matchId);
+        jdbc.update("INSERT INTO game.voice_cleanup(match_id, voice_generation) VALUES (?, ?)", matchId, generation);
+        media.failDelete = true;
+        voice.cleanEndedMatch();
+        assertEquals(1, jdbc.queryForObject("SELECT attempts FROM game.voice_cleanup WHERE match_id = ?",
+                Integer.class, matchId));
+        media.failDelete = false;
+        jdbc.update("UPDATE game.voice_cleanup SET next_attempt_at = ? WHERE match_id = ?",
+                Timestamp.from(Instant.now().minusSeconds(1)), matchId);
+        voice.cleanEndedMatch();
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM game.voice_cleanup WHERE match_id = ?",
+                Integer.class, matchId));
+        assertTrue(media.deleted.contains(VoiceService.roomName(matchId, generation, "A")));
+        assertTrue(media.deleted.contains(VoiceService.roomName(matchId, generation, "B")));
+    }
+
+    private UUID startTeam(GameIdentity a, GameIdentity b, GameIdentity c, GameIdentity d) {
+        RoomView room = rooms.create(a, "TEAM_2V2", 4);
+        for (GameIdentity player : List.of(b, c, d)) room = rooms.join(player, room.code());
+        for (GameIdentity player : List.of(a, b, c, d))
+            room = rooms.ready(room.id(), player, true, room.version());
+        return matches.start(room.id(), a, room.version()).matchId();
+    }
+
+    private static GameIdentity player(String nickname) {
+        return new GameIdentity(UUID.randomUUID(), UUID.randomUUID(), nickname, "WEB", Instant.now().plusSeconds(3600));
+    }
+
+    private static GameIdentity playerFromRoom(RoomView room) {
+        return new GameIdentity(room.hostUserId(), UUID.randomUUID(), "Classic host", "WEB", Instant.now().plusSeconds(3600));
+    }
+
+    private static JsonNode claims(String token) throws Exception {
+        return new JsonMapper().readTree(Base64.getUrlDecoder().decode(token.split("\\.")[1]));
+    }
+
+    private static final class FakeMedia implements VoiceMedia {
+        final List<String> created = new ArrayList<>();
+        final List<String> deleted = new ArrayList<>();
+        boolean failCreate;
+        boolean failDelete;
+
+        @Override public void ensureRoom(String roomName) {
+            if (failCreate) throw VoiceFailure.unavailable();
+            if (!created.contains(roomName)) created.add(roomName);
+        }
+
+        @Override public void deleteRoom(String roomName) {
+            if (failDelete) throw VoiceFailure.unavailable();
+            deleted.add(roomName);
+        }
+    }
+}

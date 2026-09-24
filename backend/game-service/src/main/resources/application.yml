@@ -36,6 +36,13 @@ management:
         liveness:
           include: livenessState
 uno:
+  voice:
+    enabled: ${TEAM_VOICE_ENABLED:false}
+    server-url: ${LIVEKIT_SERVER_URL:http://127.0.0.1:7880}
+    public-url: ${LIVEKIT_PUBLIC_URL:ws://127.0.0.1:7880}
+    api-key: ${LIVEKIT_API_KEY:}
+    api-secret: ${LIVEKIT_API_SECRET:}
+    allow-insecure-http: ${TEAM_VOICE_ALLOW_HTTP:false}
   auth:
     enabled: ${GAME_AUTH_ENABLED:false}
     secure-cookies: ${AUTH_COOKIE_SECURE:true}

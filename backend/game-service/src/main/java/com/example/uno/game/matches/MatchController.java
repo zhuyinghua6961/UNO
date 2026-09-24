@@ -1,6 +1,7 @@
 package com.example.uno.game.matches;
 
 import com.example.uno.game.auth.GameIdentity;
+import com.example.uno.game.realtime.GameWebSocketHandler;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import java.util.UUID;
@@ -17,8 +18,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class MatchController {
     private final MatchService matches;
+    private final GameWebSocketHandler socket;
 
-    public MatchController(MatchService matches) { this.matches = matches; }
+    public MatchController(MatchService matches, GameWebSocketHandler socket) {
+        this.matches = matches;
+        this.socket = socket;
+    }
 
     @PostMapping("/rooms/{roomId}/start")
     MatchService.MatchStart start(@PathVariable UUID roomId, @AuthenticationPrincipal GameIdentity identity,
@@ -41,7 +46,9 @@ public class MatchController {
     @PostMapping("/matches/{matchId}/commands")
     MatchService.CommandResult command(@PathVariable UUID matchId, @AuthenticationPrincipal GameIdentity identity,
             @Valid @RequestBody MatchCommandInput input) {
-        return matches.command(matchId, identity, input);
+        MatchService.CommandResult result = matches.command(matchId, identity, input);
+        if (!result.duplicate()) socket.publish(matchId);
+        return result;
     }
 
     public record StartInput(@Min(1) long expectedVersion) { }

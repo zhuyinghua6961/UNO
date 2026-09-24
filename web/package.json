@@ -11,9 +11,11 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
-    "test:e2e:classic": "node e2e/classic-match.cjs"
+    "test:e2e:classic": "node e2e/classic-match.cjs",
+    "test:e2e:voice": "node e2e/team-voice.cjs"
   },
   "dependencies": {
+    "livekit-client": "2.22.3",
     "pinia": "3.0.4",
     "vue": "3.5.42",
     "vue-router": "4.6.4"

@@ -1,6 +1,6 @@
 # UNO 好友牌桌
 
-Vue + Spring Cloud + Flutter 的多人卡牌游戏项目。Web 经典局和 Android/Web 混合经典局已完成本地整局验收；iOS 对局仍待验收。**完整版本尚未完成。**
+Vue + Spring Cloud + Flutter 的多人卡牌游戏项目。Web 经典局、Android/Web 混合经典局和四账号 2v2 已完成本地整局验收；Web 队友语音已在本机 LiveKit 与 Chromium 假麦克风实连。iOS 对局、Flutter 语音和发布验收仍待完成。**完整版本尚未完成。**
 
 ## 目录
 
@@ -17,25 +17,26 @@ tools/      素材同步、本地配置初始化、发布归档
 
 ## 当前可用范围
 
-- Web：大厅、经典牌桌、好友房邀请、等待室与房间文字；真实注册、验证、登录、找回/重置、退出、账号页和会话恢复（须显式启用后端）。
+- Web：大厅、经典与 2v2 牌桌、好友房邀请、等待室、房间/队伍文字、2v2 队友语音首版；真实注册、验证、登录、找回/重置、退出、账号页和会话恢复（须显式启用后端）。
 - Flutter：大厅、牌桌预览、账号入口、好友房等待室、经典牌桌与房间文字；Android/iOS 工程与麦克风用途声明。
 - 后端：三个可启动进程、Spring Cloud Gateway 路由、健康检查和公开骨架状态接口。
 - 数据库：PostgreSQL 17 双服务独立库与角色、账号/会话/验证令牌表、Flyway 迁移、内部账号仓储；并非已开放登录。
 - 账号后端：注册、验证邮箱、登录、当前用户、退出、密码找回/重置；Web Cookie/CSRF与App刷新轮换。默认关闭，仅显式本地配置启用，详见 `docs/authentication.md`。
-- 房间基础：真实账号可创建/加入等待室、准备、2v2 选队及离开；房间文字经认证、限流、幂等和游标查询接入 Web/App。队伍文字与语音隔离仍只有策略基础。
+- 房间基础：真实账号可创建/加入等待室、准备、2v2 选队及离开；房间与队伍文字经认证、限流、幂等和游标查询接入 Web/App。
 - 经典规则：`game-core` 已实现独立的 108 张牌规则引擎，支持发牌、牌效、加四质疑、UNO 抓漏喊及计分。见 `docs/rules-classic-v1.md`。
-- 对局后端：已准备的经典房间可由房主启动，发牌和动作状态持久化；成员可经 HTTP 或 WebSocket 提交动作，WebSocket 按身份推送各自的私有状态。
+- 对局后端：已准备的经典或四人 2v2 房间可由房主启动，发牌和动作状态持久化；成员可经 HTTP 或 WebSocket 提交动作，WebSocket 按身份推送各自的私有状态；完赛战绩按本人查询。
+- 语音首版：服务端从进行中的 2v2 席位签发仅麦克风、指定队伍房间的短期凭证；Web 主动开麦、静音、退出和终局释放已在本机媒体环境验证。会话撤销和代次迁移尚未完成。
 - 部署：Web、三个 Java 进程和必需 PostgreSQL 的开发 Compose；Redis、LiveKit 仍为可选配置。
 
 游戏服务已通过内部会话核验确认账号身份，不信任客户端身份头、不共享账号库；支持从Web账号页验证同一userId。详见 `docs/service-authentication.md`。
 
-尚未实现：完整断线/连续超时中断策略、队伍文字及消息事件、2v2 规则、语音 SDK 与准入、战绩、生产 HTTPS/TURN 和移动签名。iOS 混合整局、房间文字设备界面、邮箱渠道最终确认、外网邮件服务和设备恢复边界验收仍待完成。
+尚未实现或验收：完整断线/连续超时中断策略、文字消息事件/未读/治理、Flutter 语音、语音撤销与代次迁移、生产 HTTPS/TURN、移动签名。iOS 混合整局、2v2 混合设备、真实麦克风互听、外网邮件服务和设备恢复边界仍待验收。
 
-数据库新增 14 个真实 PostgreSQL 集成测试与 2 个配置工具测试，原有 16 个骨架测试保留。完整 Docker 应用镜像构建仍未验收，数据库容器验证不等于全栈容器联调。具体证据见 `docs/verification-stage2.md`，历史记录见 `docs/verification.md`。
+PostgreSQL 集成测试、容器化账号和四人整局冒烟、Web 浏览器端到端测试均已有记录；各项具体范围和剩余风险见 [阶段验收索引](docs/README.md)。
 
 跨服务身份增量验收见 [身份验收](docs/verification-service-auth.md)，双端账号进度见 [stage4](docs/stages/stage4.md)。账号渠道与设备上的跨端验收仍待确认。
 
-2v2 对局、队伍文字与语音入口仍禁用；账号表单、好友房和房间文字只在后端明确启用时开放；没有演示账号、模拟登录或语音令牌签发。房间实现与验收边界见 [stage5 验收](docs/verification-stage5.md)，文字增量见 [stage11 记录](docs/verification-stage11-room-text.md)。
+账号和游戏能力只在后端明确启用时开放，没有演示账号或模拟登录。语音默认关闭，本机启用方式与限制见 [部署说明](deploy/README.md) 和 [语音验收](docs/verification-stage13-14-voice.md)。房间与文字实现见 [stage5 验收](docs/verification-stage5.md)、[stage11 记录](docs/verification-stage11-room-text.md)。
 
 ## 本地开发
 

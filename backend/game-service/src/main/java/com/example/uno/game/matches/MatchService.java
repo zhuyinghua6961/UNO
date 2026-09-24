@@ -247,6 +247,9 @@ public class MatchService {
                 matchId, actor, commandId, requestPayload, after.version(), event, outcome,
                 json.writeValueAsString(drawn), json.writeValueAsString(evidenceIds), source);
         if (after.phase() == UnoState.Phase.MATCH_OVER && roomId != null) {
+            jdbc.update("INSERT INTO game.voice_cleanup(match_id, voice_generation) "
+                            + "SELECT id, voice_generation FROM game.matches WHERE id = ? AND mode = 'TEAM_2V2' "
+                            + "ON CONFLICT (match_id) DO NOTHING", matchId);
             jdbc.update("UPDATE game.room_members SET ready = FALSE WHERE room_id = ?", roomId);
             jdbc.update("UPDATE game.rooms SET state = 'WAITING', version = version + 1, expires_at = ? WHERE id = ?",
                     Timestamp.from(clock.instant().plus(ROOM_LIFETIME)), roomId);

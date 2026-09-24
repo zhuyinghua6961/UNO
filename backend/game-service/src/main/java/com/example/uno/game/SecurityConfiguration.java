@@ -30,6 +30,7 @@ class SecurityConfiguration {
                 .requestMatchers(HttpMethod.GET, "/api/matches/history").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.GET, "/api/matches/*/state").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.POST, "/api/matches/*/commands").hasAuthority("PLAYER")
+                .requestMatchers(HttpMethod.POST, "/api/voice/token").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.GET, "/ws/game").permitAll()
                 .anyRequest().denyAll())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

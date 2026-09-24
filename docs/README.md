@@ -1,6 +1,6 @@
 # UNO 实现阶段总索引
 
-更新：2026-09-23。本文是后续实现的统一入口，按 **stage1 → stage18** 拆分，不代表已经执行所有阶段。
+更新：2026-09-24。本文是后续实现的统一入口，按 **stage1 → stage18** 拆分，不代表已经执行所有阶段。
 
 技术约束：Vue Web、Spring Cloud 后端、Flutter Android/iOS、Docker 部署；业务目录为 backend、web、flutter、deploy、release。范围包括独立账号、经典对局、2v2、房间/队伍文字、队友语音和发布交付。
 
@@ -8,7 +8,7 @@
 
 - 已有可构建的三端骨架、素材、状态接口、通信权限基础、16 个骨架测试和开发归档。
 - GitHub 私有仓库 `zhuyinghua6961/UNO` 已创建并关联 origin；2026-09-07 按用户授权进行首次本地提交（以 git log 为准），未推送，三个分支的名称和用途仍未确认。
-- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9进行中、stage10进行中、stage11房间/队伍文字进行中、stage12单实例接管进行中、stage16经典/团队战绩与昵称进行中、stage17本地容器增量进行中**；stage13–stage15、stage18未开始。Web 与 Android/Web 已完成经典整局；四账号容器 API 已完成 2v2 整局并核对团队战绩，双端 2v2 界面已接入，真实混合设备待验收。房间/队伍文字跨服务 API 已验收，双端频道切换尚未设备实测。iOS 对局与队友语音仍待接入或验收。
+- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9–stage14进行中（stage13/14 仍有撤销和人工听感验收）、stage16经典/团队战绩与昵称进行中、stage17本地容器增量进行中**；stage15、stage18未开始。Web 与 Android/Web 已完成经典整局；四账号容器 API 已完成 2v2 整局，三浏览器已在本机 LiveKit 完成队友音轨订阅及终局释放，真实混合设备和人工互听待验收。房间/队伍文字跨服务 API 已验收，双端频道切换尚未设备实测；iOS 对局与 Flutter 队友语音仍待接入或验收。
 - stage1 的工程约定和复现指南已补充，产品规则/登录渠道/三个分支仍待确认；stage2 按 [工程基线](engineering-baseline.md) 中的明确依赖例外推进。
 - Docker Hub 网络阻碍与 Flutter 分析命令差异见 [骨架验收记录](verification.md)；本地容器栈的后续实测见 [stage17 增量验收](verification-stage17-container.md)。
 
@@ -27,9 +27,9 @@
 | [stage9](stages/stage9.md) | Flutter 经典对局 | App 可以和 Web 玩家同桌对战 | stage7 | 进行中（Android/Web 已验收，iOS 对局待验收） |
 | [stage10](stages/stage10.md) | 四人 2v2 对局 | 两端支持队伍比赛和队伍结算 | stage8、stage9 | 进行中（容器整局已验收，混合设备待做） |
 | [stage11](stages/stage11.md) | 房间／队伍文字 | 真实发送、接收、限流、历史补偿与隔离 | stage5、stage7、stage10 | 进行中（房间与队伍文字 API/双端已接入） |
-| [stage12](stages/stage12.md) | 重连与对局生命周期 | 刷新、掉线、超时、退房和重复连接可控 | stage10、stage11 | 进行中（单实例接管） |
-| [stage13](stages/stage13.md) | 队友语音后端 | 受限语音凭证、独立队伍频道与退出撤销 | stage3、stage10、stage12 | 未开始 |
-| [stage14](stages/stage14.md) | Web 队友开麦 | 浏览器主动授权、开麦、静音与退出 | stage8、stage13 | 未开始 |
+| [stage12](stages/stage12.md) | 重连与对局生命周期 | 刷新、掉线、超时、退房和重复连接可控 | stage10、stage11 | 进行中（单实例接管、HTTP 动作广播） |
+| [stage13](stages/stage13.md) | 队友语音后端 | 受限语音凭证、独立队伍频道与退出撤销 | stage3、stage10、stage12 | 进行中（准入/终局清理已接入，撤销待做） |
+| [stage14](stages/stage14.md) | Web 队友开麦 | 浏览器主动授权、开麦、静音与退出 | stage8、stage13 | 进行中（本机实连，人工听感/撤销待验） |
 | [stage15](stages/stage15.md) | Flutter 队友开麦 | App 队友语音与 Web/App 互通 | stage9、stage13、stage14 | 未开始 |
 | [stage16](stages/stage16.md) | 个人中心与对局记录 | 真实资料、偏好、个人/队伍战绩和历史 | stage10、stage12 | 进行中（经典/团队战绩与昵称） |
 | [stage17](stages/stage17.md) | Docker、环境与持续集成 | 可复现的测试部署、TLS/TURN、备份和构建流水线 | stage14、stage15、stage16 | 进行中（本地容器栈已验收） |
@@ -111,6 +111,7 @@
 - [stage8 Web 验收](verification-stage8-web.md)：两个真实账号完整经典局、第二局与桌面/窄屏证据。
 - [stage9 Flutter 增量验收](verification-stage9-flutter.md)：App 牌桌、实时协议、双平台构建和设备限制。
 - [stage11 房间文字增量验收](verification-stage11-room-text.md)：消息权限、幂等、游标、双端界面与未验收范围。
+- [stage13–14 队友语音增量验收](verification-stage13-14-voice.md)：LiveKit 准入、队伍隔离、WebRTC 实连与未完成的撤销/设备验收。
 - [stage16 经典战绩增量验收](verification-stage16-history.md)：终局快照、私有历史、双端账号页与容器整局核对。
 - [stage17 容器栈增量验收](verification-stage17-container.md)：独立 Compose 环境、镜像构建与真实账号/房间/文字流程。
 - [Flutter账号增量验收](verification-stage4-flutter.md)：自动测试、原生构建与未完成的设备/跨端验证。

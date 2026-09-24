@@ -1,6 +1,6 @@
 # Docker 开发部署
 
-这些配置用于本地开发与集成验证，不是公网生产配置。经典对局与房间文字已有可用路径；2v2、队伍文字和语音尚未完成。
+这些配置用于本地开发与集成验证，不是公网生产配置。经典对局、四人 2v2、房间与队伍文字已有可用路径；Web 队友语音已有本机首版，Flutter 语音和撤销仍在实现。
 
 ## 启动主栈
 
@@ -42,7 +42,15 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml --profile infrastru
 docker compose --env-file deploy/.env -f deploy/compose.yaml --profile voice up -d
 ```
 
-infrastructure 额外提供 Redis 7.4，当前 Java 进程还没有使用它。voice 提供 LiveKit 1.13.6，凭证来自本地 .env；当前没有令牌签发与客户端 SDK，启动容器后也不能直接在应用里语音通话。
+infrastructure 额外提供 Redis 7.4，当前 Java 进程还没有使用它。voice 提供 LiveKit 1.13.6；只启动媒体容器不会打开应用语音。要在本机对 Web 牌桌启用服务端准入和开麦界面，合并 `compose.auth-local.yaml` 与 `compose.voice-local.yaml` 并启用 voice profile：
+
+```sh
+docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.auth-local.yaml -f deploy/compose.voice-local.yaml --profile voice up --build -d
+SMOKE_TEAM_MATCH=true SMOKE_TEAM_VOICE=true node tools/smoke-auth-chat.mjs
+npm --prefix web run test:e2e:voice
+```
+
+Web 首次点击“加入队友语音”才请求麦克风。语音令牌从真实对局和队伍席位签发，LiveKit API 凭证只在 game-service 环境中。默认服务未启用语音；目前没有 App 客户端、服务端会话撤销后的主动踢出及完整代次轮换。[语音增量验收](../docs/verification-stage13-14-voice.md)记录了实际媒体测试和限制。
 
 本地 LiveKit 广告媒体 IP 固定 127.0.0.1，端口 7880（信令）、7881/TCP、7882/UDP，仅用于同一台机器验证。容器内连接、手机模拟器或实机不应直接照搬这个广告地址。
 

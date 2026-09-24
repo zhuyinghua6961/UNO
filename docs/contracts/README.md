@@ -6,7 +6,7 @@
 
 | 方法 | 路径 | 行为 |
 | --- | --- | --- |
-| GET | /api/system/bootstrap | stage=scaffold、protocolVersion=1；authentication、rooms、gameplay、roomText、teamText 反映 GAME_AUTH_ENABLED；teamVoice 仍为 false |
+| GET | /api/system/bootstrap | stage=scaffold、protocolVersion=1；authentication、rooms、gameplay、roomText、teamText 反映 GAME_AUTH_ENABLED；teamVoice 还要求 TEAM_VOICE_ENABLED |
 | GET | /api/system/session | game侧已验证的userId/sessionId/nickname/clientType/expiresAt；需要真实Web或App会话 |
 | GET | /api/auth/status | 返回backend-auth状态，loginAvailable/registrationAvailable取决于AUTH_ENABLED，默认false |
 | GET | /actuator/health | 各 Java 进程的基础健康检查；网关不聚合下游就绪情况 |
@@ -65,11 +65,11 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 2v2 房间可在发送体附 `channel:"TEAM"` 或在历史请求使用 `channel=TEAM`。服务器从当前成员席位推导实际 `TEAM_A` 或 `TEAM_B`，客户端不能指定 A/B、发送者或接收者；经典房间请求团队频道返回 400。房间与队伍各自维护序号和游标，换队/重新加入时的 `team_join_sequence` 阻止读取该队此前消息；同一消息 ID 不能跨频道重用。双端通过频道切换与 2 秒游标补取实现文字收发；WebSocket 消息事件、未读、禁言/举报仍待实现。
 
-## 计划中的游戏 HTTP
+## 队友语音 HTTP（服务端与 Web 首版已实现，默认关闭）
 
-| 方法 | 路径 | 预期用途 |
-| --- | --- | --- |
-| POST | /api/voice/token | 从已认证身份和 matchId 推导队伍，返回受限短期媒体凭证 |
+`POST /api/voice/token` 请求仅需 `{matchId}`，返回 `{url,token,expiresAt}`，响应禁止缓存。Web 使用 Cookie/Origin/CSRF，App 使用 Bearer；必须另启 `TEAM_VOICE_ENABLED` 和 LiveKit 配置。服务端从当前已验证的身份、进行中的 2v2 对局、四个固定席位及当前房间成员推导 A/B 队和媒体房间，忽略请求中的伪造 teamId/roomName。对手各在独立 LiveKit 房间；令牌只含 `roomJoin`、指定 `room`、`canSubscribe` 和 `canPublishSources:["microphone"]`，不授予数据、视频、建房或管理权限。JWT 至多 60 秒可用于初始连接，同一玩家每 3 秒最多取得一次。
+
+对局结束时，事务内写入媒体房间清理任务，后台按幂等方式调用 LiveKit `DeleteRoom`，失败会重试。Web 牌桌只在 2v2 进行中显示主动加入控件，关闭麦克风、退出和终局会释放本地采集轨道。**会话撤销后的服务端主动踢出与代次轮换、Flutter 客户端、人工听感和公网媒体部署尚未完成。**自托管 LiveKit 的 `RemoveParticipant` 不会让已签发 JWT 失效；不能把当前短令牌加终局清理当成完整撤销机制。详见 [语音增量验收](../verification-stage13-14-voice.md)。
 
 Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷新、撤销和安全存储。WebSocket 浏览器连接使用允许的 `Origin` 和会话 Cookie；原生 App 连接使用 `X-UNO-Client: APP` 和 Bearer 访问凭证。Gateway 的 Reactor Netty 上游 WebSocket 会为原本无 `Origin` 的原生请求补充上游端点的同源 `Origin`，game-service 仅接受空值或与实际上游地址完全一致的值；其他来源、Cookie 或 Fetch Metadata 混用仍拒绝。握手、每条消息及连接定期核验会话；URL 查询参数不允许携带凭证。
 
@@ -82,7 +82,7 @@ Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷
 {"protocolVersion":1,"type":"COMMAND","matchId":"server-issued-uuid","command":{"protocolVersion":1,"commandId":"client-generated-uuid","expectedVersion":1,"type":"DRAW"}}
 ```
 
-动作内容与 HTTP `/api/matches/{matchId}/commands` 相同；`callUno` 缺省为 `false`。服务器只向提交者发送 `COMMAND_ACK`（含个人视图和可能的私有质疑证据）或 `COMMAND_REJECTED`（含 `commandId` 与错误代码）；动作成功后向同局其他已订阅连接分别发送各自的 `MATCH_SNAPSHOT`。超时裁决后向同局全部已订阅连接推送 `MATCH_SNAPSHOT`，含 `deadlineAt`。重复命令只给提交者回执，不重新广播。非法订阅/格式返回 `ERROR`。
+动作内容与 HTTP `/api/matches/{matchId}/commands` 相同；`callUno` 缺省为 `false`。服务器只向 WebSocket 提交者发送 `COMMAND_ACK`（含个人视图和可能的私有质疑证据）或 `COMMAND_REJECTED`（含 `commandId` 与错误代码）；WebSocket 或 HTTP 动作成功后向同局已订阅连接分别发送各自的 `MATCH_SNAPSHOT`。超时裁决后向同局全部已订阅连接推送 `MATCH_SNAPSHOT`，含 `deadlineAt`。重复命令不重新广播。非法订阅/格式返回 `ERROR`。
 
 单条文本消息上限 8192 字节，每连接每 10 秒最多 30 条；速率超限以 1008、`RATE_LIMITED` 关闭连接，客户端可重新订阅并同步状态，不能自动重发未确认命令。同一 game-service 实例中，同一用户对同一局的新订阅接管旧连接：旧连接以 4001、`TAKEN_OVER` 关闭且不能再发动作；Web/App 停止自动重连，用户可以手动在当前端重新接管。每连接同时只订阅一局，不能指定其他身份或接收队列。服务端每次推送前重新核验会话；失效或撤销的连接会关闭。超时扫描默认约每秒执行一次；跨实例接管/广播与完整断线策略尚未完成。HTTP 动作入口仍独立于 WebSocket 接管权。
 
@@ -90,10 +90,10 @@ Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷
 
 WebSocket `CHAT_SEND` 指令和 `CHAT_MESSAGE` 事件尚未实现；现有房间文字通过 HTTP 完成。未来队伍文字指令不能含 senderId、teamId、接收者列表；服务端须从会话和对局队伍快照推导。消息幂等按身份/频道/clientMessageId 处理，由服务器分配消息 ID、时间与频道序号。游戏状态与聊天使用不同序号和补偿机制；聊天不因游戏 expectedVersion 改变而重复发送。
 
-## 语音准入草案
+## 语音后续验收
 
 请求 `POST /api/voice/token` 只包含 matchId，身份由有效会话确定。服务器确认进行中的 2v2、四个席位、每队两人、请求者仍在席，再返回只能加入本人队伍房间的凭证。
 
-预期 grant：roomJoin、绑定 room 和 identity、canSubscribe、仅 microphone 的 canPublishSources；禁止 camera/screen_share/data/admin。不能从客户端输入直接拼接目标 roomName。
+当前 grant 已按 roomJoin、绑定 room 和 identity、canSubscribe、仅 microphone 的 canPublishSources 签发；禁止 camera/screen_share/data/admin。不能从客户端输入直接拼接目标 roomName。
 
 返回中的服务地址只含客户端连接地址，永远不返回 LiveKit API secret。离队/结束后的移除、房间代次切换、旧令牌重放处理属于必须验收的服务器行为，不是 UI 隐藏按钮即可完成。

@@ -1,0 +1,12 @@
+services:
+  game-service:
+    environment:
+      TEAM_VOICE_ENABLED: "true"
+      TEAM_VOICE_ALLOW_HTTP: "true"
+      LIVEKIT_SERVER_URL: http://livekit:7880
+      LIVEKIT_PUBLIC_URL: ws://127.0.0.1:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?Run node tools/init-local-env.mjs first}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Run node tools/init-local-env.mjs first}
+    depends_on:
+      livekit:
+        condition: service_started

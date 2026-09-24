@@ -235,6 +235,32 @@ if (process.env.SMOKE_TEAM_MATCH === 'true') {
   })
   assert.equal(started.status, 200, `team start: ${started.body?.code ?? ''}`)
   const teamMatchId = started.body.matchId
+  if (process.env.SMOKE_TEAM_VOICE === 'true') {
+    const voiceTokens = await Promise.all(teamTokens.map((token, seat) => request('/api/voice/token', {
+      method: 'POST', token,
+      body: { matchId: teamMatchId, ...(seat === 1 ? { teamId: 'A', roomName: 'forged' } : {}) },
+    })))
+    assert.ok(voiceTokens.every(result => result.status === 200),
+      `voice token issuance: ${voiceTokens.map(result => result.body?.code ?? result.status).join(',')}`)
+    const claims = voiceTokens.map(result => JSON.parse(Buffer.from(result.body.token.split('.')[1], 'base64url')))
+    const voiceRooms = claims.map(item => item.video.room)
+    assert.equal(voiceRooms[0], voiceRooms[2], 'A teammates share one media room')
+    assert.equal(voiceRooms[1], voiceRooms[3], 'B teammates share one media room')
+    assert.notEqual(voiceRooms[0], voiceRooms[1], 'opponents have separate media rooms')
+    for (const [seat, item] of claims.entries()) {
+      assert.equal(item.sub, teamUsers[seat])
+      assert.equal(item.video.roomJoin, true)
+      assert.deepEqual(item.video.canPublishSources, ['microphone'])
+      assert.equal(item.video.canPublishData, false)
+      assert.equal(item.video.roomCreate ?? false, false)
+      assert.ok(item.exp - Math.floor(Date.now() / 1000) <= 61, 'voice token is short lived')
+    }
+    const outsider = await request('/api/voice/token', {
+      method: 'POST', token: host, body: { matchId: teamMatchId },
+    })
+    assert.equal(outsider.status, 404, 'nonmember cannot receive voice token')
+    console.log('PASS: four authenticated voice grants are microphone only and isolated by team.')
+  }
   const byId = new Map(teamUsers.map((id, seat) => [id, teamTokens[seat]]))
   let finalView
   for (let actionNumber = 0; actionNumber < 800; actionNumber++) {
@@ -294,5 +320,11 @@ if (process.env.SMOKE_TEAM_MATCH === 'true') {
   assert.equal(returned.status, 200)
   assert.equal(returned.body.state, 'WAITING')
   assert.ok(returned.body.members.every(member => !member.ready))
+  if (process.env.SMOKE_TEAM_VOICE === 'true') {
+    const ended = await request('/api/voice/token', {
+      method: 'POST', token: teamTokens[0], body: { matchId: teamMatchId },
+    })
+    assert.equal(ended.status, 404, 'ended match cannot issue voice token')
+  }
   console.log(`PASS: four real accounts have isolated team text and finish match; ${winnerTeam} wins, histories agree, room resets.`)
 }

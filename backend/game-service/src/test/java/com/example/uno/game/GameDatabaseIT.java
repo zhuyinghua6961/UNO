@@ -25,11 +25,11 @@ class GameDatabaseIT {
                     "--spring.datasource.username=" + database.getUsername(),
                     "--spring.datasource.password=" + database.getPassword())) {
                 var jdbc = application.getBean(JdbcTemplate.class);
-                assertEquals(8, jdbc.queryForObject(
+                assertEquals(9, jdbc.queryForObject(
                         "SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class));
                 assertEquals(1, jdbc.queryForObject(
                         "SELECT count(*) FROM information_schema.schemata WHERE schema_name = 'game'", Integer.class));
-                assertEquals(7, jdbc.queryForObject(
+                assertEquals(9, jdbc.queryForObject(
                         "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'game'", Integer.class));
                 assertNull(jdbc.queryForObject("SELECT to_regclass('accounts')", String.class));
             }
