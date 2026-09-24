@@ -29,7 +29,8 @@ class RoomChat extends StatefulWidget {
   State<RoomChat> createState() => _RoomChatState();
 }
 
-class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
+class _RoomChatState extends State<RoomChat>
+    with WidgetsBindingObserver, AutomaticKeepAliveClientMixin<RoomChat> {
   final draft = TextEditingController();
   final channels = {'ROOM': _ChatChannel(), 'TEAM': _ChatChannel()};
   Timer? timer;
@@ -40,6 +41,9 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
   String? retryId;
   String? retryContent;
   String sendError = '';
+
+  @override
+  bool get wantKeepAlive => true;
 
   _ChatChannel get current => channels[scope]!;
 
@@ -199,93 +203,96 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (widget.teamEnabled)
-            Wrap(
-              spacing: 8,
-              children: [
-                OutlinedButton(
-                  onPressed: sending ? null : () => _selectScope('ROOM'),
-                  child: Text(
-                    '房间文字${channels['ROOM']!.unread > 0 ? ' · ${channels['ROOM']!.unread} 条未读' : ''}',
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (widget.teamEnabled)
+              Wrap(
+                spacing: 8,
+                children: [
+                  OutlinedButton(
+                    onPressed: sending ? null : () => _selectScope('ROOM'),
+                    child: Text(
+                      '房间文字${channels['ROOM']!.unread > 0 ? ' · ${channels['ROOM']!.unread} 条未读' : ''}',
+                    ),
                   ),
-                ),
-                OutlinedButton(
-                  onPressed: sending ? null : () => _selectScope('TEAM'),
-                  child: Text(
-                    '队伍文字${channels['TEAM']!.unread > 0 ? ' · ${channels['TEAM']!.unread} 条未读' : ''}',
+                  OutlinedButton(
+                    onPressed: sending ? null : () => _selectScope('TEAM'),
+                    child: Text(
+                      '队伍文字${channels['TEAM']!.unread > 0 ? ' · ${channels['TEAM']!.unread} 条未读' : ''}',
+                    ),
                   ),
-                ),
-              ],
-            ),
-          Text(
-            scope == 'TEAM' ? '队伍文字' : '房间文字',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          Text(
-            scope == 'TEAM'
-                ? '仅当前队友可见 · 换队后不读取旧队消息 · 最多 500 字'
-                : '房间成员可见 · 纯文字 · 最多 500 字',
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 180,
-            child: ListView.builder(
-              itemCount: current.messages.length,
-              itemBuilder: (context, index) {
-                final message = current.messages[index];
-                return ListTile(
-                  dense: true,
-                  title: Text(message.senderNickname),
-                  subtitle: Text(message.content),
-                  trailing: Text(
-                    TimeOfDay.fromDateTime(message.createdAt.toLocal())
-                        .format(context),
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                );
-              },
-            ),
-          ),
-          if (sendError.isNotEmpty || current.error.isNotEmpty)
+                ],
+              ),
             Text(
-              sendError.isNotEmpty ? sendError : current.error,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+              scope == 'TEAM' ? '队伍文字' : '房间文字',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-          TextField(
-            controller: draft,
-            maxLines: 2,
-            maxLength: 500,
-            decoration: const InputDecoration(labelText: '消息'),
-            onChanged: (value) {
-              if (retryContent != null && value.trim() != retryContent) {
-                setState(() {
-                  retryId = null;
-                  retryContent = null;
-                });
-              }
-            },
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton(
-              onPressed: sending ? null : _send,
-              child: Text(
-                sending
-                    ? '发送中…'
-                    : retryId == null
-                    ? '发送'
-                    : '重试发送',
+            Text(
+              scope == 'TEAM'
+                  ? '仅当前队友可见 · 换队后不读取旧队消息 · 最多 500 字'
+                  : '房间成员可见 · 纯文字 · 最多 500 字',
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 180,
+              child: ListView.builder(
+                itemCount: current.messages.length,
+                itemBuilder: (context, index) {
+                  final message = current.messages[index];
+                  return ListTile(
+                    dense: true,
+                    title: Text(message.senderNickname),
+                    subtitle: Text(message.content),
+                    trailing: Text(
+                      TimeOfDay.fromDateTime(message.createdAt.toLocal())
+                          .format(context),
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  );
+                },
               ),
             ),
-          ),
-        ],
+            if (sendError.isNotEmpty || current.error.isNotEmpty)
+              Text(
+                sendError.isNotEmpty ? sendError : current.error,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            TextField(
+              controller: draft,
+              maxLines: 2,
+              maxLength: 500,
+              decoration: const InputDecoration(labelText: '消息'),
+              onChanged: (value) {
+                if (retryContent != null && value.trim() != retryContent) {
+                  setState(() {
+                    retryId = null;
+                    retryContent = null;
+                  });
+                }
+              },
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton(
+                onPressed: sending ? null : _send,
+                child: Text(
+                  sending
+                      ? '发送中…'
+                      : retryId == null
+                      ? '发送'
+                      : '重试发送',
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

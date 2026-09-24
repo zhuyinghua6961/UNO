@@ -68,6 +68,40 @@ RoomChatMessage message(String scope, int sequence) => RoomChatMessage(
 );
 
 void main() {
+  testWidgets('scrolling the room keeps its draft and team unread count', (
+    tester,
+  ) async {
+    final api = ChatRoomApi();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: [
+              const SizedBox(height: 1200, child: Text('房间顶部')),
+              RoomChat(roomId: 'room-id', api: api, teamEnabled: true),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(find.byType(TextField), 300);
+    await tester.enterText(find.byType(TextField), '未发送的草稿');
+    await tester.drag(find.byType(ListView).first, const Offset(0, 1300));
+    await tester.pumpAndSettle();
+
+    api.teamMessages.add(message('TEAM', 1));
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.drag(find.byType(ListView).first, const Offset(0, -1300));
+    await tester.pumpAndSettle();
+    expect(find.text('队伍文字 · 1 条未读'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '未发送的草稿',
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('inactive chat channel shows unread messages until opened', (
     tester,
   ) async {

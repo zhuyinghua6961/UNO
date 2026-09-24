@@ -11,6 +11,7 @@ const mailpit = process.env.UNO_E2E_MAILPIT ?? 'http://127.0.0.1:28025'
 const deviceId = process.env.UNO_E2E_DEVICE_ID ?? process.env.UNO_E2E_SIMULATOR_ID
 const platform = process.env.UNO_E2E_PLATFORM ?? 'mobile'
 const voiceEnabled = process.env.UNO_E2E_MOBILE_VOICE === '1'
+const chatEnabled = process.env.UNO_E2E_MOBILE_CHAT === '1'
 const users = ['Web A1', 'Web B1', 'Web A2'].map(label => ({
   label, email: `uno-mixed-${randomUUID()}@example.test`, password: `Mixed-${randomUUID()}-1!`,
 }))
@@ -64,6 +65,7 @@ function startMobile(roomCode) {
     '--dart-define=UNO_LOCAL_MOBILE_TEAM_E2E=true', `--dart-define=API_BASE_URL=${apiOrigin}`,
     `--dart-define=UNO_TEAM_ROOM_CODE=${roomCode}`]
   if (voiceEnabled) args.push('--dart-define=UNO_LOCAL_MOBILE_TEAM_VOICE_E2E=true')
+  if (chatEnabled) args.push('--dart-define=UNO_LOCAL_MOBILE_TEAM_CHAT_E2E=true')
   const child = spawn('flutter', args, { cwd: path.resolve(__dirname, '../../flutter'), env: process.env })
   const output = []
   for (const stream of [child.stdout, child.stderr]) {
@@ -154,6 +156,52 @@ async function main() {
     }
     assert.equal(room.members.length, 4, `${platform} did not join: ${mobile.output.slice(-12).join(' | ')}`)
     assert.deepEqual(room.members.map(member => member.team), ['A', 'B', 'A', 'B'])
+    if (chatEnabled) {
+      const roomText = `App room ${room.code}`
+      const teamText = `App team ${room.code}`
+      for (let attempt = 0; attempt < 120; attempt++) {
+        if (mobile.failure) throw mobile.failure
+        if (mobile.output.some(line => line.includes('UNO_MOBILE_CHAT_SENT'))) break
+        await delay(500)
+      }
+      assert.ok(mobile.output.some(line => line.includes('UNO_MOBILE_CHAT_SENT')),
+        `${platform} did not send chat: ${mobile.output.slice(-30).join('\n')}`)
+      for (const page of pages) {
+        const history = await read(page, `/api/rooms/${room.id}/messages?after=0&limit=50&latest=true`)
+        assert.equal(history.status, 200)
+        const sent = history.body.items.find(item => item.content === roomText)
+        assert.ok(sent, 'App room text must reach every Web account')
+        assert.equal(sent.senderUserId, room.members[3].userId)
+        assert.equal(sent.senderNickname, 'Mobile Teammate')
+        assert.ok(Number.isFinite(Date.parse(sent.createdAt)))
+      }
+      const bTeam = await read(b1, `/api/rooms/${room.id}/messages?after=0&limit=50&latest=true&channel=TEAM`)
+      assert.equal(bTeam.status, 200)
+      assert.ok(bTeam.body.items.some(item => item.content === teamText && item.channel === 'TEAM_B'))
+      for (const page of [a1, a2]) {
+        const aTeam = await read(page, `/api/rooms/${room.id}/messages?after=0&limit=50&latest=true&channel=TEAM`)
+        assert.equal(aTeam.status, 200)
+        assert.ok(aTeam.body.items.every(item => item.content !== teamText), 'team B text leaked to team A')
+        await page.locator('.room-chat').getByText(roomText, { exact: true }).waitFor({ timeout: 15000 })
+      }
+      const bChat = b1.locator('.room-chat')
+      await bChat.getByRole('button', { name: /^队伍文字/ }).click()
+      await bChat.getByText(teamText, { exact: true }).waitFor({ timeout: 15000 })
+      await bChat.locator('textarea').fill(`Web B1 team ${room.code}`)
+      await bChat.getByRole('button', { name: '发送', exact: true }).click()
+      await bChat.getByText(`Web B1 team ${room.code}`, { exact: true }).waitFor({ timeout: 15000 })
+      const aChat = a1.locator('.room-chat')
+      await aChat.locator('textarea').fill(`Web A1 room ${room.code}`)
+      await aChat.getByRole('button', { name: '发送', exact: true }).click()
+      await aChat.getByText(`Web A1 room ${room.code}`, { exact: true }).waitFor({ timeout: 15000 })
+      for (let attempt = 0; attempt < 120; attempt++) {
+        if (mobile.failure) throw mobile.failure
+        if (mobile.output.some(line => line.includes('UNO_MOBILE_CHAT_RECEIVED'))) break
+        await delay(500)
+      }
+      assert.ok(mobile.output.some(line => line.includes('UNO_MOBILE_CHAT_RECEIVED')),
+        `${platform} did not receive chat: ${mobile.output.slice(-30).join('\n')}`)
+    }
     for (const page of pages) {
       await page.getByRole('button', { name: '刷新', exact: true }).click()
       await page.getByRole('heading', { name: '4 / 4 人' }).waitFor()
@@ -232,7 +280,7 @@ async function main() {
     }
     await mobile.done
     assert.deepEqual(pageErrors, [])
-    console.log(`PASS: four real identities, three Web browser seats and one ${platform} UI seat; both UIs act and settle; team histories agree${voiceEnabled ? `; ${platform} joined and left LiveKit listen-only without microphone capture` : ''} (${matchId}).`)
+    console.log(`PASS: four real identities, three Web browser seats and one ${platform} UI seat; both UIs act and settle; team histories agree${chatEnabled ? '; Web/App room and team chat exchanged with team isolation' : ''}${voiceEnabled ? `; ${platform} joined and left LiveKit listen-only without microphone capture` : ''} (${matchId}).`)
   } finally {
     if (mobile?.child.exitCode === null) mobile.child.kill('SIGTERM')
     await Promise.all(contexts.map(context => context.close()))

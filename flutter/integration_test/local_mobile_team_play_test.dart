@@ -11,9 +11,11 @@ import 'package:uno_app/features/auth/auth_session.dart';
 import 'package:uno_app/features/match/match_api.dart';
 import 'package:uno_app/features/match/match_models.dart';
 import 'package:uno_app/features/room/room_api.dart';
+import 'package:uno_app/features/room/room_chat.dart';
 
 const enabled = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_E2E');
 const voiceEnabled = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_VOICE_E2E');
+const chatEnabled = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_CHAT_E2E');
 const apiBase = String.fromEnvironment('API_BASE_URL');
 const roomCode = String.fromEnvironment('UNO_TEAM_ROOM_CODE');
 const mailpitBase = String.fromEnvironment(
@@ -234,6 +236,121 @@ void main() {
     if (self.team != 'B') {
       await _tap(tester, find.text('加入 B 队'));
       room = await rooms.get(room.id);
+    }
+    if (chatEnabled) {
+      final roomText = 'App room $roomCode';
+      final teamText = 'App team $roomCode';
+      await tester.scrollUntilVisible(
+        find.widgetWithText(TextField, '消息'),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.enterText(find.widgetWithText(TextField, '消息'), roomText);
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await _tap(tester, find.widgetWithText(FilledButton, '发送'));
+      await _waitFor(
+        tester,
+        () => find.text(roomText, skipOffstage: false).evaluate().isNotEmpty,
+        'sent room text',
+      );
+      final teamChannel = find.widgetWithText(OutlinedButton, '队伍文字');
+      await _waitFor(
+        tester,
+        () =>
+            teamChannel.evaluate().isNotEmpty &&
+            tester.widget<OutlinedButton>(teamChannel).onPressed != null,
+        'room send to finish',
+      );
+      await _tap(tester, teamChannel);
+      await _waitFor(
+        tester,
+        () => find.textContaining('仅当前队友可见').evaluate().isNotEmpty,
+        'team chat scope',
+      );
+      await tester.pumpAndSettle();
+      final chatState = tester.state(find.byType(RoomChat));
+      final teamDraft = find.widgetWithText(TextField, '消息');
+      await tester.ensureVisible(teamDraft);
+      await tester.tap(teamDraft);
+      await tester.pump();
+      await tester.enterText(teamDraft, teamText);
+      await tester.pump();
+      expect(
+        identical(chatState, tester.state(find.byType(RoomChat))),
+        isTrue,
+        reason: 'room refresh replaced the chat panel while composing',
+      );
+      expect(
+        tester.widget<TextField>(teamDraft).controller!.text,
+        teamText,
+        reason: 'team draft must reach the text field',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      expect(
+        identical(chatState, tester.state(find.byType(RoomChat))),
+        isTrue,
+        reason: 'room refresh replaced the chat panel while composing',
+      );
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, '消息'))
+            .controller!
+            .text,
+        teamText,
+        reason: 'team draft must survive keyboard dismissal',
+      );
+      await _tap(tester, find.widgetWithText(FilledButton, '发送'));
+      try {
+        await _waitFor(
+          tester,
+          () => find.text(teamText, skipOffstage: false).evaluate().isNotEmpty,
+          'sent team text',
+        );
+      } on TestFailure {
+        final labels = tester
+            .widgetList<Text>(find.byType(Text, skipOffstage: false))
+            .map((text) => text.data)
+            .whereType<String>()
+            .take(90)
+            .toList();
+        throw TestFailure('team chat did not send; visible labels: $labels');
+      }
+      debugPrint('UNO_MOBILE_CHAT_SENT');
+      await _waitFor(
+        tester,
+        () => find
+            .text('Web B1 team $roomCode', skipOffstage: false)
+            .evaluate()
+            .isNotEmpty,
+        'received team text',
+        attempts: 240,
+      );
+      await _waitFor(
+        tester,
+        () => find
+            .text('房间文字 · 1 条未读', skipOffstage: false)
+            .evaluate()
+            .isNotEmpty,
+        'room chat unread indicator',
+      );
+      await _tap(tester, find.widgetWithText(OutlinedButton, '房间文字 · 1 条未读'));
+      await _waitFor(
+        tester,
+        () => find
+            .text('Web A1 room $roomCode', skipOffstage: false)
+            .evaluate()
+            .isNotEmpty,
+        'received room text',
+        attempts: 240,
+      );
+      debugPrint('UNO_MOBILE_CHAT_RECEIVED');
+      tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .jumpTo(0);
+      await tester.pump();
     }
     for (var attempt = 0; attempt < 160; attempt++) {
       room = await rooms.get(room.id);
