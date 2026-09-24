@@ -17,4 +17,9 @@ public class MatchHistoryController {
             @RequestParam(required = false) String cursor, @RequestParam(defaultValue = "20") int limit) {
         return history.history(identity, cursor, limit);
     }
+
+    @GetMapping("/api/matches/stats")
+    MatchHistoryService.Stats stats(@AuthenticationPrincipal GameIdentity identity) {
+        return history.stats(identity);
+    }
 }

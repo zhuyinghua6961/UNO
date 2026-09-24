@@ -1,5 +1,49 @@
 import 'match_models.dart';
 
+class MatchModeStats {
+  const MatchModeStats(this.wins, this.losses, this.interrupted);
+  final int wins;
+  final int losses;
+  final int interrupted;
+
+  factory MatchModeStats.parse(Object? value) {
+    if (value is! Map<String, dynamic> ||
+        value['wins'] is! int ||
+        value['wins'] < 0 ||
+        value['losses'] is! int ||
+        value['losses'] < 0 ||
+        value['interrupted'] is! int ||
+        value['interrupted'] < 0) {
+      throw const MatchDataFailure();
+    }
+    return MatchModeStats(
+      value['wins'] as int,
+      value['losses'] as int,
+      value['interrupted'] as int,
+    );
+  }
+
+  String get summary {
+    final completed = wins + losses;
+    final rate = completed == 0 ? '暂无' : '${(wins * 100 / completed).round()}%';
+    return '$wins 胜 · $losses 负 · 完赛胜率 $rate · $interrupted 场中断';
+  }
+}
+
+class MatchStats {
+  const MatchStats(this.classic, this.team2v2);
+  final MatchModeStats classic;
+  final MatchModeStats team2v2;
+
+  factory MatchStats.parse(Object? value) {
+    if (value is! Map<String, dynamic>) throw const MatchDataFailure();
+    return MatchStats(
+      MatchModeStats.parse(value['classic']),
+      MatchModeStats.parse(value['team2v2']),
+    );
+  }
+}
+
 class MatchHistoryPage {
   const MatchHistoryPage(this.items, this.nextCursor);
   final List<MatchHistoryItem> items;

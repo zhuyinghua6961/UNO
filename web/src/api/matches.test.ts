@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createMatchApi, MatchError, parseMatchSnapshot } from './matches'
+import { createMatchApi, MatchError, parseMatchSnapshot, parseMatchStats } from './matches'
 import { matchId, snapshot } from '../test/matchFixture'
 
 const roomId = 'cae648d7-afaf-4dcd-a492-8bad87cb8c86'
@@ -55,5 +55,14 @@ describe('match HTTP contract', () => {
     }), { status: 200 })))
     expect((await api.history()).items[0]).toMatchObject({ result: 'INTERRUPTED', winnerUserId: null })
     expect(() => parseMatchSnapshot({ ...snapshot, status: 'unknown' })).toThrow(MatchError)
+  })
+
+  it('reads private statistics and rejects invalid counts', async () => {
+    const stats = { classic: { wins: 2, losses: 1, interrupted: 1 },
+      team2v2: { wins: 0, losses: 1, interrupted: 0 } }
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(stats), { status: 200 }))
+    expect(await createMatchApi(fetcher).stats()).toEqual(stats)
+    expect(fetcher.mock.calls[0]?.[0]).toBe('/api/matches/stats')
+    expect(() => parseMatchStats({ ...stats, classic: { ...stats.classic, wins: -1 } })).toThrow(MatchError)
   })
 })

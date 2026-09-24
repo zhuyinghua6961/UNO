@@ -26,6 +26,8 @@ export type HistoryPlayer = { userId: string; seat: number; nickname: string | n
 export type HistoryItem = { matchId: string; mode: 'CLASSIC' | 'TEAM_2V2'; endedAt: string; rounds: number;
   winnerUserId: string | null; result: 'WIN' | 'LOSS' | 'INTERRUPTED'; players: HistoryPlayer[] }
 export type HistoryPage = { items: HistoryItem[]; nextCursor: string | null }
+export type ModeStats = { wins: number; losses: number; interrupted: number }
+export type MatchStats = { classic: ModeStats; team2v2: ModeStats }
 
 export class MatchError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); this.name = 'MatchError' }
@@ -106,6 +108,17 @@ export function parseHistoryPage(value: unknown): HistoryPage {
   return { items, nextCursor: value.nextCursor as string | null }
 }
 
+export function parseMatchStats(value: unknown): MatchStats {
+  if (!record(value)) throw invalid()
+  function mode(entry: unknown): ModeStats {
+    if (!record(entry) || !integer(entry.wins) || entry.wins < 0
+      || !integer(entry.losses) || entry.losses < 0
+      || !integer(entry.interrupted) || entry.interrupted < 0) throw invalid()
+    return { wins: entry.wins, losses: entry.losses, interrupted: entry.interrupted }
+  }
+  return { classic: mode(value.classic), team2v2: mode(value.team2v2) }
+}
+
 export function matchErrorMessage(error: unknown): string {
   if (!(error instanceof MatchError)) return '对局连接失败，请检查网络后重试。'
   if (error.code === 'TURN_EXPIRED') return '操作窗口已结束，正在同步服务器裁决。'
@@ -157,6 +170,9 @@ export function createMatchApi(fetcher: typeof fetch = (...args) => fetch(...arg
     async history(cursor?: string): Promise<HistoryPage> {
       const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
       return parseHistoryPage(await request(`/api/matches/history${query}`))
+    },
+    async stats(): Promise<MatchStats> {
+      return parseMatchStats(await request('/api/matches/stats'))
     },
   }
 }

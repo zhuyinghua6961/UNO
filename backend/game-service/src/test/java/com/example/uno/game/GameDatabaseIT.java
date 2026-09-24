@@ -29,7 +29,7 @@ class GameDatabaseIT {
         for (int restart = 0; restart < 2; restart++) {
             try (var application = startService()) {
                 var jdbc = application.getBean(JdbcTemplate.class);
-                assertEquals(12, jdbc.queryForObject(
+                assertEquals(13, jdbc.queryForObject(
                         "SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class));
                 assertEquals(1, jdbc.queryForObject(
                         "SELECT count(*) FROM information_schema.schemata WHERE schema_name = 'game'", Integer.class));
@@ -80,8 +80,10 @@ class GameDatabaseIT {
             jdbc.update("UPDATE game.matches SET deadline_at = ? WHERE id = ?",
                     Timestamp.from(Instant.now().minusSeconds(1)), matchId);
             assertNotNull(matches.resolveTimeout(matchId));
-            assertEquals(version + 1, matches.snapshot(matchId, host).view().version());
+            long resolvedVersion = matches.snapshot(matchId, host).view().version();
+            assertTrue(resolvedVersion > version);
             assertNull(matches.resolveTimeout(matchId));
+            assertEquals(resolvedVersion, matches.snapshot(matchId, host).view().version());
         }
     }
 

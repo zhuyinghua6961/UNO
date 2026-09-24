@@ -93,9 +93,16 @@ class MatchApi {
   Future<MatchState> state(String matchId) async =>
       MatchState.parse(await _request('/api/matches/$matchId/state'));
 
-  Future<MatchHistoryPage> history([String? cursor]) async => MatchHistoryPage.parse(
-    await _request('/api/matches/history${cursor == null ? '' : '?cursor=${Uri.encodeQueryComponent(cursor)}'}'),
+  Future<MatchHistoryPage> history([
+    String? cursor,
+  ]) async => MatchHistoryPage.parse(
+    await _request(
+      '/api/matches/history${cursor == null ? '' : '?cursor=${Uri.encodeQueryComponent(cursor)}'}',
+    ),
   );
+
+  Future<MatchStats> stats() async =>
+      MatchStats.parse(await _request('/api/matches/stats'));
 
   void close() => _client.close();
 }

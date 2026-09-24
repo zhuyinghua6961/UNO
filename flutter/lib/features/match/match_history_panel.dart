@@ -21,18 +21,24 @@ class _MatchHistoryPanelState extends State<MatchHistoryPanel> {
   bool loading = false;
   bool loaded = false;
   String error = '';
+  MatchStats? stats;
+  String statsError = '';
+  bool statsLoading = false;
   int revision = 0;
+  int statsRevision = 0;
 
   @override
   void initState() {
     super.initState();
     api = MatchApi(session: widget.session);
     unawaited(_load());
+    unawaited(_loadStats());
   }
 
   @override
   void dispose() {
     revision++;
+    statsRevision++;
     api.close();
     super.dispose();
   }
@@ -64,6 +70,32 @@ class _MatchHistoryPanelState extends State<MatchHistoryPanel> {
     }
   }
 
+  Future<void> _loadStats() async {
+    final current = ++statsRevision;
+    setState(() {
+      stats = null;
+      statsLoading = true;
+      statsError = '';
+    });
+    try {
+      final result = await api.stats();
+      if (mounted && current == statsRevision) setState(() => stats = result);
+    } catch (failure) {
+      if (mounted && current == statsRevision) {
+        setState(() => statsError = '$failure');
+      }
+    } finally {
+      if (mounted && current == statsRevision) {
+        setState(() => statsLoading = false);
+      }
+    }
+  }
+
+  void _refreshAll() {
+    unawaited(_load(refresh: true));
+    unawaited(_loadStats());
+  }
+
   @override
   Widget build(BuildContext context) => Card(
     child: Padding(
@@ -80,11 +112,26 @@ class _MatchHistoryPanelState extends State<MatchHistoryPanel> {
                 ),
               ),
               TextButton(
-                onPressed: loading ? null : () => _load(refresh: true),
+                onPressed: loading || statsLoading ? null : _refreshAll,
                 child: const Text('刷新'),
               ),
             ],
           ),
+          if (stats != null) ...[
+            Text('经典 · ${stats!.classic.summary}'),
+            Text('2v2 · ${stats!.team2v2.summary}'),
+            const Text('中断场次不计入完赛胜率。'),
+          ],
+          if (statsError.isNotEmpty) ...[
+            Text(
+              '统计读取失败：$statsError',
+              style: const TextStyle(color: Colors.red),
+            ),
+            TextButton(
+              onPressed: statsLoading ? null : _loadStats,
+              child: const Text('重试统计'),
+            ),
+          ],
           if (error.isNotEmpty) ...[
             Text(error, style: const TextStyle(color: Colors.red)),
             TextButton(

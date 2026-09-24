@@ -57,7 +57,9 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 ## 个人对局战绩 HTTP（已实现初始切片）
 
-`GET /api/matches/history?cursor=...&limit=20` 仅按当前认证身份返回自己参与且 `state=ENDED` 的经典或 2v2 对局，默认 20 条、最多 50 条；`nextCursor` 为不透明的稳定分页位置，末页为 `null`。每项包含 `matchId,mode,endedAt,rounds,winnerUserId,result,players`，`result` 为当前用户的 `WIN` 或 `LOSS`；2v2 中 `winnerUserId` 是实际出完牌的队员，胜负按开局队伍快照判断。玩家列表含开局时保存的昵称、座位和最终积分，不返回牌库或私有手牌。旧对局若没有昵称快照，`nickname` 为 `null`，客户端显示匿名席位。进行中和中断局不计入正常完赛历史；统计仍待实现。Web/App 账号页均已接入，设备上的新 UI 尚未验收。
+`GET /api/matches/history?cursor=...&limit=20` 仅按当前认证身份返回自己参与且 `state=ENDED|INTERRUPTED` 的经典或 2v2 对局，默认 20 条、最多 50 条；`nextCursor` 为不透明的稳定分页位置，末页为 `null`。每项包含 `matchId,mode,endedAt,rounds,winnerUserId,result,players`，`result` 为当前用户的 `WIN`、`LOSS` 或 `INTERRUPTED`；2v2 中 `winnerUserId` 是实际出完牌的队员，胜负按开局队伍快照判断。中断时赢家为 `null`。玩家列表含开局时保存的昵称、座位和最终积分，不返回牌库或私有手牌。旧对局若没有昵称快照，`nickname` 为 `null`，客户端显示匿名席位。进行中对局不入历史。
+
+`GET /api/matches/stats` 仅按当前认证身份从权威对局快照汇总 `{classic:{wins,losses,interrupted},team2v2:{wins,losses,interrupted}}`。无记录时计数均为 0；客户端只用 `wins + losses` 作为完赛胜率分母，中断另计。统计不依赖历史分页，也不使用当前房间队伍关系。Web/App 账号页展示两个模式的独立汇总；该界面的真机验收仍待完成。
 
 ## 房间文字 HTTP（已实现）
 

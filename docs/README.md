@@ -31,7 +31,7 @@
 | [stage13](stages/stage13.md) | 队友语音后端 | 受限语音凭证、独立队伍频道与退出撤销 | stage3、stage10、stage12 | 进行中（准入、撤销换房本机验收；容量待验） |
 | [stage14](stages/stage14.md) | Web 队友开麦 | 浏览器主动授权、开麦、静音与退出 | stage8、stage13 | 进行中（本机实连与换房通过，人工听感待验） |
 | [stage15](stages/stage15.md) | Flutter 队友开麦 | App 队友语音与 Web/App 互通 | stage9、stage13、stage14 | 进行中 |
-| [stage16](stages/stage16.md) | 个人中心与对局记录 | 真实资料、偏好、个人/队伍战绩和历史 | stage10、stage12 | 进行中（经典/团队/中断历史与昵称；统计待做） |
+| [stage16](stages/stage16.md) | 个人中心与对局记录 | 真实资料、偏好、个人/队伍战绩和历史 | stage10、stage12 | 进行中（经典/团队/中断历史、分模式统计与昵称；其他偏好待做） |
 | [stage17](stages/stage17.md) | Docker、环境与持续集成 | 可复现的测试部署、TLS/TURN、备份和构建流水线 | stage14、stage15、stage16 | 进行中（本地容器栈已验收） |
 | [stage18](stages/stage18.md) | 综合验收与发布 | 安全、弱网、容量、真机验证和可追溯安装制品 | stage17 | 未开始 |
 
@@ -116,6 +116,7 @@
 - [stage13–14 队友语音增量验收](verification-stage13-14-voice.md)：LiveKit 准入、队伍隔离、WebRTC 实连与撤销换房。
 - [stage15 Flutter 语音增量验收](verification-stage15-voice.md)：App SDK/UI、自动化生命周期与未完成的真机互听。
 - [stage16 经典战绩增量验收](verification-stage16-history.md)：终局快照、私有历史、双端账号页与容器整局核对。
+- [stage16 统计增量验收](verification-stage16-stats.md)：经典/团队胜负与中断的独立汇总、双端展示及未覆盖范围。
 - [stage17 容器栈增量验收](verification-stage17-container.md)：独立 Compose 环境、镜像构建与真实账号/房间/文字流程。
 - [stage17 本地预览包验收](verification-stage17-preview-package.md)：干净提交构建、清单、校验和与未覆盖的发布门槛。
 - [Flutter账号增量验收](verification-stage4-flutter.md)：自动测试、原生构建与未完成的设备/跨端验证。

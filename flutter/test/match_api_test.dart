@@ -89,6 +89,15 @@ void main() {
           200,
         );
       }
+      if (request.url.path == '/api/matches/stats') {
+        return http.Response(
+          jsonEncode({
+            'classic': {'wins': 2, 'losses': 1, 'interrupted': 1},
+            'team2v2': {'wins': 0, 'losses': 1, 'interrupted': 0},
+          }),
+          200,
+        );
+      }
       return http.Response(jsonEncode(matchSnapshot()), 200);
     });
     final session = AuthSession(
@@ -108,6 +117,13 @@ void main() {
     expect(await api.current(roomId), isNull);
     expect((await api.state(matchId)).view.version, 4);
     expect((await api.history('next|page')).items.single.result, 'WIN');
+    expect((await api.stats()).classic.summary, '2 胜 · 1 负 · 完赛胜率 67% · 1 场中断');
+    expect(
+      requests
+          .firstWhere((r) => r.url.path.endsWith('/stats'))
+          .headers['authorization'],
+      'Bearer access',
+    );
     final history = requests.firstWhere((r) => r.url.path.endsWith('/history'));
     expect(history.url.queryParameters['cursor'], 'next|page');
     expect(history.headers['authorization'], 'Bearer access');
@@ -132,6 +148,13 @@ void main() {
     final b = MatchCommand('DRAW', 4);
     expect(a.commandId, isNot(b.commandId));
     expect(a.toJson(), containsPair('expectedVersion', 4));
+    expect(
+      () => MatchStats.parse({
+        'classic': {'wins': -1, 'losses': 0, 'interrupted': 0},
+        'team2v2': {'wins': 0, 'losses': 0, 'interrupted': 0},
+      }),
+      throwsA(isA<MatchDataFailure>()),
+    );
   });
 
   test('team history keeps its mode and team result', () {

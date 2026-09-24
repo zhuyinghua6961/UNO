@@ -28,6 +28,7 @@ class SecurityConfiguration {
                 .requestMatchers(HttpMethod.GET, "/api/system/session").hasAuthority("PLAYER")
                 .requestMatchers("/api/rooms", "/api/rooms/**").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.GET, "/api/matches/history").hasAuthority("PLAYER")
+                .requestMatchers(HttpMethod.GET, "/api/matches/stats").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.GET, "/api/matches/*/state").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.POST, "/api/matches/*/commands").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.POST, "/api/voice/token").hasAuthority("PLAYER")

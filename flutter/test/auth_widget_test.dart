@@ -87,6 +87,7 @@ void main() {
     expect(find.text('用户 ID：user-1'), findsOneWidget);
     expect(find.textContaining('private-access-token'), findsNothing);
     expect(store.tokens?.refreshToken, 'private-refresh-token');
+    await tester.scrollUntilVisible(find.text('退出登录'), 250);
     await tester.tap(find.text('退出登录'));
     await tester.pumpAndSettle();
     expect(find.text('用户 ID：user-1'), findsNothing);

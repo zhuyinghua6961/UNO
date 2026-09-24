@@ -201,6 +201,8 @@ class MatchServiceIT {
         assertEquals("LOSS", history.history(b, null, 20).items().get(0).result());
         assertEquals("LOSS", history.history(d, null, 20).items().get(0).result());
         assertEquals("TEAM_2V2", history.history(partner, null, 20).items().get(0).mode());
+        assertEquals(new MatchHistoryService.ModeStats(1, 0, 0), history.stats(partner).team2v2());
+        assertEquals(new MatchHistoryService.ModeStats(0, 1, 0), history.stats(b).team2v2());
     }
 
     @Test
@@ -272,6 +274,9 @@ class MatchServiceIT {
         assertNull(secondPage.nextCursor());
         assertEquals("WIN", history.history(guest, null, 1).items().get(0).result());
         assertTrue(history.history(outsider, null, 20).items().isEmpty());
+        assertEquals(new MatchHistoryService.ModeStats(1, 1, 0), history.stats(host).classic());
+        assertEquals(new MatchHistoryService.ModeStats(0, 0, 0), history.stats(host).team2v2());
+        assertEquals(new MatchHistoryService.ModeStats(0, 0, 0), history.stats(outsider).classic());
         assertEquals("INVALID_MATCH_INPUT", assertThrows(MatchFailure.class,
                 () -> history.history(host, "invalid-cursor", 20)).code());
         assertFalse(json.writeValueAsString(firstPage).contains("ownHand"));
@@ -379,6 +384,8 @@ class MatchServiceIT {
         var history = application.getBean(MatchHistoryService.class).history(host, null, 20).items().get(0);
         assertEquals("INTERRUPTED", history.result());
         assertNull(history.winnerUserId());
+        assertEquals(new MatchHistoryService.ModeStats(0, 0, 1),
+                application.getBean(MatchHistoryService.class).stats(host).classic());
         assertEquals("MATCH_CONFLICT", assertThrows(MatchFailure.class,
                 () -> matches.command(matchId, host, new MatchCommandInput(1, UUID.randomUUID(),
                         started.view().version(), MatchCommandInput.Type.DRAW, null, null, null, false))).code());
@@ -478,6 +485,7 @@ class MatchServiceIT {
             assertEquals("TEAM_2V2", item.mode());
             assertEquals("INTERRUPTED", item.result());
             assertNull(item.winnerUserId());
+            assertEquals(new MatchHistoryService.ModeStats(0, 0, 1), history.stats(player).team2v2());
         }
     }
 

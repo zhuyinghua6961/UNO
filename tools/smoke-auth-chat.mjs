@@ -70,6 +70,11 @@ assert.equal((await request('/api/users/me', { token: host })).body.nickname,
 const newHistory = await request('/api/matches/history', { token: host })
 assert.equal(newHistory.status, 200, 'authenticated personal history')
 assert.deepEqual(newHistory.body.items, [])
+assert.deepEqual((await request('/api/matches/stats', { token: host })).body, {
+  classic: { wins: 0, losses: 0, interrupted: 0 },
+  team2v2: { wins: 0, losses: 0, interrupted: 0 },
+})
+assert.equal((await request('/api/matches/stats')).status, 401)
 const created = await request('/api/rooms', {
   method: 'POST', token: host, body: { mode: 'CLASSIC', maxPlayers: 2 },
 })
@@ -171,6 +176,13 @@ if (process.env.SMOKE_FULL_MATCH === 'true') {
   assert.equal(guestResult.body.items[0].matchId, matchId)
   assert.notEqual(hostResult.body.items[0].result, guestResult.body.items[0].result)
   assert.ok(!JSON.stringify(hostResult.body).includes('ownHand'))
+  for (const [token, result] of [[host, hostResult], [guest, guestResult]]) {
+    const stats = await request('/api/matches/stats', { token })
+    assert.equal(stats.status, 200)
+    assert.equal(stats.body.classic.wins, result.body.items[0].result === 'WIN' ? 1 : 0)
+    assert.equal(stats.body.classic.losses, result.body.items[0].result === 'LOSS' ? 1 : 0)
+    assert.equal(stats.body.classic.interrupted, 0)
+  }
   console.log('PASS: containerized classic match settles and both private history results agree.')
 }
 
@@ -315,6 +327,11 @@ if (process.env.SMOKE_TEAM_MATCH === 'true') {
     assert.equal(result.body.items[0].result,
       (seat % 2 === 0 ? 'A' : 'B') === winnerTeam ? 'WIN' : 'LOSS')
     assert.ok(!JSON.stringify(result.body).includes('ownHand'))
+    const stats = await request('/api/matches/stats', { token: teamTokens[seat] })
+    assert.equal(stats.status, 200)
+    assert.equal(stats.body.team2v2.wins, result.body.items[0].result === 'WIN' ? 1 : 0)
+    assert.equal(stats.body.team2v2.losses, result.body.items[0].result === 'LOSS' ? 1 : 0)
+    assert.equal(stats.body.team2v2.interrupted, 0)
   }
   const returned = await request(`/api/rooms/${teamRoomId}`, { token: teamTokens[0] })
   assert.equal(returned.status, 200)
