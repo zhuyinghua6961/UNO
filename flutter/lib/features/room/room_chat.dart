@@ -5,6 +5,15 @@ import 'package:flutter/material.dart';
 
 import 'room_api.dart';
 
+class _ChatChannel {
+  final List<RoomChatMessage> messages = [];
+  int cursor = 0;
+  int unread = 0;
+  bool initialized = false;
+  bool polling = false;
+  String error = '';
+}
+
 class RoomChat extends StatefulWidget {
   const RoomChat({
     super.key,
@@ -22,63 +31,96 @@ class RoomChat extends StatefulWidget {
 
 class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
   final draft = TextEditingController();
-  final List<RoomChatMessage> messages = [];
+  final channels = {'ROOM': _ChatChannel(), 'TEAM': _ChatChannel()};
   Timer? timer;
-  int cursor = 0;
-  String? pollingScope;
   String scope = 'ROOM';
   int generation = 0;
   bool sending = false;
   bool visible = true;
   String? retryId;
   String? retryContent;
-  String error = '';
+  String sendError = '';
+
+  _ChatChannel get current => channels[scope]!;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    timer = Timer.periodic(const Duration(seconds: 2), (_) => _refresh());
-    unawaited(_refresh(latest: true));
+    timer = Timer.periodic(const Duration(seconds: 2), (_) {
+      unawaited(_refresh(channel: 'ROOM'));
+      if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM'));
+    });
+    unawaited(_refresh(channel: 'ROOM', latest: true));
+    if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM', latest: true));
+  }
+
+  @override
+  void didUpdateWidget(covariant RoomChat oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.roomId == widget.roomId &&
+        oldWidget.teamEnabled == widget.teamEnabled) {
+      return;
+    }
+    generation++;
+    channels['ROOM'] = _ChatChannel();
+    channels['TEAM'] = _ChatChannel();
+    scope = 'ROOM';
+    sending = false;
+    retryId = null;
+    retryContent = null;
+    sendError = '';
+    draft.clear();
+    unawaited(_refresh(channel: 'ROOM', latest: true));
+    if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM', latest: true));
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     visible = state == AppLifecycleState.resumed;
-    if (visible) unawaited(_refresh());
+    if (visible) {
+      unawaited(_refresh(channel: 'ROOM'));
+      if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM'));
+    }
   }
 
-  void _merge(List<RoomChatMessage> incoming) {
-    final known = messages.map((message) => message.id).toSet();
-    messages.addAll(incoming.where((message) => known.add(message.id)));
-    messages.sort((a, b) => a.sequence.compareTo(b.sequence));
-    if (messages.length > 100) messages.removeRange(0, messages.length - 100);
+  int _merge(_ChatChannel state, List<RoomChatMessage> incoming) {
+    final known = state.messages.map((message) => message.id).toSet();
+    final added = incoming.where((message) => known.add(message.id)).toList();
+    state.messages.addAll(added);
+    state.messages.sort((a, b) => a.sequence.compareTo(b.sequence));
+    if (state.messages.length > 100) {
+      state.messages.removeRange(0, state.messages.length - 100);
+    }
+    return added.length;
   }
 
-  Future<void> _refresh({bool latest = false}) async {
-    final requestedScope = scope;
+  Future<void> _refresh({required String channel, bool latest = false}) async {
+    final state = channels[channel]!;
     final requestedGeneration = generation;
-    if (pollingScope == requestedScope || !visible || !mounted) return;
-    pollingScope = requestedScope;
+    if (state.polling || !visible || !mounted) return;
+    state.polling = true;
     try {
       final page = await widget.api.messages(
         widget.roomId,
-        after: latest ? 0 : cursor,
+        after: latest ? 0 : state.cursor,
         latest: latest,
-        scope: requestedScope,
+        scope: channel,
       );
       if (!mounted || generation != requestedGeneration) return;
       setState(() {
-        _merge(page.items);
-        cursor = max(cursor, page.nextSequence);
-        error = '';
+        final added = _merge(state, page.items);
+        state.cursor = max(state.cursor, page.nextSequence);
+        if (state.initialized && channel != scope) state.unread += added;
+        state.initialized = true;
+        state.error = '';
       });
     } catch (failure) {
       if (mounted && generation == requestedGeneration) {
-        setState(() => error = '$failure');
+        setState(() => state.error = '$failure');
       }
     } finally {
-      if (pollingScope == requestedScope) pollingScope = null;
+      state.polling = false;
     }
   }
 
@@ -86,15 +128,13 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
     if (scope == next || sending) return;
     setState(() {
       scope = next;
-      generation++;
-      messages.clear();
-      cursor = 0;
+      current.unread = 0;
       retryId = null;
       retryContent = null;
       draft.clear();
-      error = '';
+      sendError = '';
     });
-    unawaited(_refresh(latest: true));
+    unawaited(_refresh(channel: next, latest: !current.initialized));
   }
 
   String _newId() {
@@ -111,9 +151,10 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
 
   Future<void> _send() async {
     if (sending) return;
+    final requestedGeneration = generation;
     final content = retryContent ?? draft.text.trim();
     if (content.isEmpty || content.runes.length > 500) {
-      setState(() => error = '请输入 1–500 个字符。');
+      setState(() => sendError = '请输入 1–500 个字符。');
       return;
     }
     final id = retryId ?? _newId();
@@ -121,7 +162,7 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
       retryId = id;
       retryContent = content;
       sending = true;
-      error = '';
+      sendError = '';
     });
     try {
       final saved = await widget.api.sendMessage(
@@ -130,17 +171,21 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
         content,
         scope: scope,
       );
-      if (!mounted) return;
+      if (!mounted || generation != requestedGeneration) return;
       setState(() {
-        _merge([saved]);
+        _merge(current, [saved]);
         retryId = null;
         retryContent = null;
         draft.clear();
       });
     } catch (failure) {
-      if (mounted) setState(() => error = '$failure');
+      if (mounted && generation == requestedGeneration) {
+        setState(() => sendError = '$failure');
+      }
     } finally {
-      if (mounted) setState(() => sending = false);
+      if (mounted && generation == requestedGeneration) {
+        setState(() => sending = false);
+      }
     }
   }
 
@@ -166,11 +211,15 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
               children: [
                 OutlinedButton(
                   onPressed: sending ? null : () => _selectScope('ROOM'),
-                  child: const Text('房间文字'),
+                  child: Text(
+                    '房间文字${channels['ROOM']!.unread > 0 ? ' · ${channels['ROOM']!.unread} 条未读' : ''}',
+                  ),
                 ),
                 OutlinedButton(
                   onPressed: sending ? null : () => _selectScope('TEAM'),
-                  child: const Text('队伍文字'),
+                  child: Text(
+                    '队伍文字${channels['TEAM']!.unread > 0 ? ' · ${channels['TEAM']!.unread} 条未读' : ''}',
+                  ),
                 ),
               ],
             ),
@@ -187,9 +236,9 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
           SizedBox(
             height: 180,
             child: ListView.builder(
-              itemCount: messages.length,
+              itemCount: current.messages.length,
               itemBuilder: (context, index) {
-                final message = messages[index];
+                final message = current.messages[index];
                 return ListTile(
                   dense: true,
                   title: Text(message.senderNickname),
@@ -203,9 +252,9 @@ class _RoomChatState extends State<RoomChat> with WidgetsBindingObserver {
               },
             ),
           ),
-          if (error.isNotEmpty)
+          if (sendError.isNotEmpty || current.error.isNotEmpty)
             Text(
-              error,
+              sendError.isNotEmpty ? sendError : current.error,
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           TextField(
