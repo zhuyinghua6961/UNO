@@ -8,6 +8,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Clock;
+import java.time.Instant;
+import java.sql.Timestamp;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
@@ -317,7 +320,9 @@ class AuthIT {
     @Test
     void limitsSurviveFailuresAndForwardedHeadersCannotBypassThem() throws Exception {
         String email = "limited@example.test";
-        jdbc.update("INSERT INTO auth_rate_limits (bucket_key, window_started_at, attempts) VALUES (?, NOW(), 1000)", Secrets.digest("login:" + email));
+        Instant now = application.getBean(Clock.class).instant();
+        jdbc.update("INSERT INTO auth_rate_limits (bucket_key, window_started_at, attempts) VALUES (?, ?, 1000)",
+                Secrets.digest("login:" + email), Timestamp.from(now));
         var accountLimited = app("POST", "/api/auth/login", credentials(email.toUpperCase(), PASSWORD), null);
         assertEquals(429, accountLimited.statusCode());
         assertEquals("900", accountLimited.headers().firstValue("Retry-After").orElseThrow());
@@ -325,7 +330,8 @@ class AuthIT {
         var spoofed = CLIENT.send(request("POST", "/api/auth/login", credentials("different@example.test", PASSWORD))
                 .header("X-UNO-Client", "APP").header("X-Forwarded-For", "203.0.113.10").build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(429, spoofed.statusCode());
-        jdbc.update("UPDATE auth_rate_limits SET window_started_at = NOW() - INTERVAL '16 minutes'");
+        jdbc.update("UPDATE auth_rate_limits SET window_started_at = ?",
+                Timestamp.from(application.getBean(Clock.class).instant().minus(Duration.ofMinutes(16))));
         assertEquals(401, app("POST", "/api/auth/login", credentials("different@example.test", PASSWORD), null).statusCode());
     }
 
