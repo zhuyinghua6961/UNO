@@ -13,6 +13,7 @@ import 'package:uno_app/features/match/match_models.dart';
 import 'package:uno_app/features/room/room_api.dart';
 
 const enabled = bool.fromEnvironment('UNO_LOCAL_IOS_TEAM_E2E');
+const voiceEnabled = bool.fromEnvironment('UNO_LOCAL_IOS_TEAM_VOICE_E2E');
 const apiBase = String.fromEnvironment('API_BASE_URL');
 const roomCode = String.fromEnvironment('UNO_TEAM_ROOM_CODE');
 const mailpitBase = String.fromEnvironment(
@@ -219,9 +220,10 @@ void main() {
       () => find.text('等待室').evaluate().isNotEmpty,
       'waiting room',
     );
-    var room = await rooms.current();
-    expect(room, isNotNull);
-    expect(room!.mode, 'TEAM_2V2');
+    final joinedRoom = await rooms.current();
+    expect(joinedRoom, isNotNull);
+    var room = joinedRoom!;
+    expect(room.mode, 'TEAM_2V2');
     expect(room.members.length, 4);
     final self = room.members.singleWhere(
       (member) => member.userId == session.user!.id,
@@ -231,6 +233,29 @@ void main() {
       await _tap(tester, find.text('加入 B 队'));
       room = await rooms.get(room.id);
     }
+    for (var attempt = 0; attempt < 160; attempt++) {
+      room = await rooms.get(room.id);
+      if (room.members
+          .where((member) => member.userId != session.user!.id)
+          .every((member) => member.ready)) {
+        break;
+      }
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 250)),
+      );
+    }
+    expect(
+      room.members
+          .where((member) => member.userId != session.user!.id)
+          .every((member) => member.ready),
+      isTrue,
+      reason: 'Web players must prepare before the iOS ready action',
+    );
+    await _tap(tester, find.text('刷新状态'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 500)),
+    );
+    await tester.pump();
     await _tap(tester, find.widgetWithText(FilledButton, '准备'));
     await _waitFor(
       tester,
@@ -249,6 +274,48 @@ void main() {
       () => find.text('实时连接').evaluate().isNotEmpty,
       'live game socket',
     );
+    if (voiceEnabled) {
+      await tester.scrollUntilVisible(
+        find.text('队友语音'),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await _waitFor(
+        tester,
+        () => find.text('加入队友语音').evaluate().isNotEmpty,
+        'available team voice',
+      );
+      await _tap(tester, find.text('仅收听'));
+      try {
+        await _waitFor(
+          tester,
+          () => find.text('已加入 · 麦克风关闭').evaluate().isNotEmpty,
+          'live listen-only team channel',
+          attempts: 80,
+        );
+      } on TestFailure {
+        final labels = tester
+            .widgetList<Text>(find.byType(Text))
+            .map((text) => text.data)
+            .whereType<String>()
+            .take(80)
+            .toList();
+        throw TestFailure('iOS voice did not join; visible labels: $labels');
+      }
+      debugPrint('UNO_IOS_VOICE_LISTENING');
+      await _tap(tester, find.text('退出语音'));
+      await _waitFor(
+        tester,
+        () => find.text('加入队友语音').evaluate().isNotEmpty,
+        'left listen-only channel',
+      );
+      debugPrint('UNO_IOS_VOICE_LEFT');
+      await tester.scrollUntilVisible(
+        find.text('双人组牌桌'),
+        -220,
+        scrollable: find.byType(Scrollable).first,
+      );
+    }
 
     var acted = false;
     for (var attempt = 0; attempt < 320; attempt++) {

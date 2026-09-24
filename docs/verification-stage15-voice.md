@@ -21,6 +21,10 @@
 
 ## 仍需验收
 
+2026-09-24 iOS 模拟器增量：App 面板新增“仅收听”，`flutter test test/team_voice_test.dart` 6 项通过，验证不采集麦克风即可加入，且随后可主动开麦。隔离 Compose 栈、三名 Web 浏览器玩家和 iPhone 17 Pro iOS 26.5 模拟器运行 `cd web && UNO_E2E_SIMULATOR_ID=<booted-simulator-id> npm run test:e2e:ios-voice-signaling` 通过：iOS 界面用真实账号取得团队语音凭证，进入 LiveKit 队伍频道并主动退出，随后从界面提交回合并与 Web 玩家完成同一场 2v2；四人战绩与结算一致。对局 ID `a642874e-e69f-4189-9696-cd22c4f6b712`。该测试没有让 Web 玩家发布音轨，不能证明 iOS 收听或双方互听。
+
+媒体试验边界：同一模拟器上尝试 iOS 开麦时，面板曾返回权限拒绝；手动安装 Runner 后用 `simctl privacy grant microphone com.example.unoApp` 授权，模拟器 TCC 记录显示允许，但启用麦克风仍使 Runner 在系统 `AURemoteIO::Initialize` 超时处中止。仅收听状态下让 Web 队友发布音轨，也触发同类系统崩溃（本机诊断报告 `Runner-2026-09-24-141431.ips`、`Runner-2026-09-24-141920.ips`）。这些失败没有证明真机上的同一故障，也没有形成音频互听证据；必须在目标真机与可达媒体网络重新验证。
+
 - Android/iOS 真实设备上与 App、Web 队友双向听见声音，并确认非队友无法订阅；本机 `127.0.0.1` LiveKit 媒体地址不适合外部设备。
 - 系统权限拒绝/永久拒绝、来电与音频占用、耳机/蓝牙/扬声器切换、锁屏、网络切换以及恢复后的实际麦克风指示灯和音轨状态。
 - Android 蓝牙耳机的运行时授权路径已接入，实际权限拒绝、蓝牙路由和耳机切换仍待设备验证。

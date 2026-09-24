@@ -9,6 +9,7 @@ const origin = process.env.UNO_E2E_ORIGIN ?? 'http://127.0.0.1:8088'
 const apiOrigin = process.env.UNO_E2E_API_ORIGIN ?? 'http://127.0.0.1:28080'
 const mailpit = process.env.UNO_E2E_MAILPIT ?? 'http://127.0.0.1:28025'
 const simulatorId = process.env.UNO_E2E_SIMULATOR_ID
+const voiceEnabled = process.env.UNO_E2E_IOS_VOICE === '1'
 const users = ['Web A1', 'Web B1', 'Web A2'].map(label => ({
   label, email: `uno-mixed-${randomUUID()}@example.test`, password: `Mixed-${randomUUID()}-1!`,
 }))
@@ -62,6 +63,7 @@ function startIos(roomCode) {
   const args = ['test', 'integration_test/local_ios_team_play_test.dart', '-d', simulatorId,
     '--dart-define=UNO_LOCAL_IOS_TEAM_E2E=true', `--dart-define=API_BASE_URL=${apiOrigin}`,
     `--dart-define=UNO_TEAM_ROOM_CODE=${roomCode}`]
+  if (voiceEnabled) args.push('--dart-define=UNO_LOCAL_IOS_TEAM_VOICE_E2E=true')
   const child = spawn('flutter', args, { cwd: path.resolve(__dirname, '../../flutter'), env: process.env })
   const output = []
   for (const stream of [child.stdout, child.stderr]) {
@@ -157,13 +159,13 @@ async function main() {
       await page.getByRole('button', { name: '准备', exact: true }).click()
       await page.getByRole('button', { name: '取消准备' }).waitFor()
     }
-    for (let attempt = 0; attempt < 30; attempt++) {
+    for (let attempt = 0; attempt < 90; attempt++) {
       if (ios.failure) throw ios.failure
       room = (await read(a1, roomUrl)).body
       if (room.canStart) break
       await delay(500)
     }
-    assert.equal(room.canStart, true, 'all four players must be ready')
+    assert.equal(room.canStart, true, `all four players must be ready: ${room.members.map(member => `${member.seat}:${member.ready}`).join(',')}; iOS output: ${ios.output.slice(-20).join('\n')}`)
     await a1.getByRole('button', { name: '刷新', exact: true }).click()
     await a1.getByRole('button', { name: '开始对局' }).click()
     await a1.getByRole('heading', { name: '双人组牌桌' }).waitFor()
@@ -171,6 +173,16 @@ async function main() {
     for (const page of [b1, a2]) {
       await page.goto(`${origin}/matches/${matchId}`)
       await page.getByRole('heading', { name: '双人组牌桌' }).waitFor()
+    }
+    if (voiceEnabled) {
+      for (let attempt = 0; attempt < 60; attempt++) {
+        if (ios.failure) throw ios.failure
+        if (ios.output.some(line => line.includes('UNO_IOS_VOICE_LEFT'))) break
+        await delay(500)
+      }
+      assert.ok(ios.output.some(line => line.includes('UNO_IOS_VOICE_LISTENING'))
+        && ios.output.some(line => line.includes('UNO_IOS_VOICE_LEFT')),
+      `iOS did not join and leave listen-only voice: ${ios.output.slice(-30).join('\n')}`)
     }
     let webActed = false
     let iosActed = false
@@ -219,7 +231,7 @@ async function main() {
     }
     await ios.done
     assert.deepEqual(pageErrors, [])
-    console.log(`PASS: four real identities, three Web browser seats and one iOS UI seat; both UIs act and settle; team histories agree (${matchId}).`)
+    console.log(`PASS: four real identities, three Web browser seats and one iOS UI seat; both UIs act and settle; team histories agree${voiceEnabled ? '; iOS joined and left LiveKit listen-only without microphone capture' : ''} (${matchId}).`)
   } finally {
     if (ios?.child.exitCode === null) ios.child.kill('SIGTERM')
     await Promise.all(contexts.map(context => context.close()))

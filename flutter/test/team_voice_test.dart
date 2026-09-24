@@ -182,6 +182,41 @@ void main() {
   );
 
   testWidgets(
+    'listen-only joins without microphone capture and opens it on demand',
+    (tester) async {
+      final session = _session();
+      final api = _FakeVoiceApi(session);
+      final transport = _FakeTransport();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TeamVoicePanel(
+              matchId: 'match-1',
+              session: session,
+              api: api,
+              transportFactory: () => transport,
+              devicePermission: _FakeDevicePermission(true),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('仅收听'));
+      await tester.pump();
+      expect(transport.joinMicrophones, [false]);
+      expect(transport.mic, false);
+      expect(find.text('已加入 · 麦克风关闭'), findsOneWidget);
+      await tester.tap(find.text('打开麦克风'));
+      await tester.pump();
+      expect(transport.micCalls, [true]);
+      expect(find.text('已加入 · 麦克风开启'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      api.close();
+      session.dispose();
+    },
+  );
+
+  testWidgets(
     'voice opens only on click, mute survives reconnect, background and disposal release it',
     (tester) async {
       final session = _session();

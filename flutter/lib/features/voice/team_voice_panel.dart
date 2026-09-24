@@ -311,11 +311,18 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
               spacing: 8,
               runSpacing: 8,
               children: [
-                if (!connected && voiceState != TeamVoiceState.joining)
+                if (!connected && voiceState != TeamVoiceState.joining) ...[
                   FilledButton(
                     onPressed: available && !busy ? () => _join() : null,
                     child: Text(available ? '加入队友语音' : '语音暂不可用'),
                   ),
+                  OutlinedButton(
+                    onPressed: available && !busy
+                        ? () => _join(startMuted: true)
+                        : null,
+                    child: const Text('仅收听'),
+                  ),
+                ],
                 if (connected || voiceState == TeamVoiceState.joining) ...[
                   OutlinedButton(
                     onPressed:
