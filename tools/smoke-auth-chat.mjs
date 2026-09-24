@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 
 const api = process.env.API_BASE_URL ?? 'http://127.0.0.1:28080'
 const mailpit = process.env.MAILPIT_BASE_URL ?? 'http://127.0.0.1:28025'
@@ -88,6 +89,19 @@ const joined = await request('/api/rooms/join', {
 assert.equal(joined.status, 200, 'room join')
 assert.equal(joined.body.id, room.id)
 
+if (process.env.SMOKE_CHAT_WS === 'true') {
+  execFileSync('dart', ['tools/smoke-chat-ws.dart'], {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      UNO_WS_GATEWAY_URL: api,
+      UNO_WS_ROOM_ID: room.id,
+      UNO_WS_HOST_TOKEN: host,
+      UNO_WS_GUEST_TOKEN: guest,
+    },
+  })
+}
+
 const firstId = randomUUID()
 const first = await request(`/api/rooms/${room.id}/messages`, {
   method: 'POST', token: host, body: { clientMessageId: firstId, content: 'Container smoke: hello' },
@@ -105,7 +119,11 @@ assert.equal(second.status, 200, 'guest message')
 assert.ok(second.body.sequence > first.body.sequence)
 const history = await request(`/api/rooms/${room.id}/messages`, { token: guest })
 assert.equal(history.status, 200, 'guest history')
-assert.deepEqual(history.body.items.map(item => item.id), [first.body.id, second.body.id])
+assert.deepEqual(history.body.items.slice(-2).map(item => item.id), [first.body.id, second.body.id])
+assert.equal(history.body.items.length, process.env.SMOKE_CHAT_WS === 'true' ? 3 : 2)
+if (process.env.SMOKE_CHAT_WS === 'true') {
+  assert.equal(history.body.items[0].content, 'Gateway chat WebSocket smoke')
+}
 
 if (process.env.SMOKE_FULL_MATCH === 'true') {
   let waiting = await request(`/api/rooms/${room.id}`, { token: host })

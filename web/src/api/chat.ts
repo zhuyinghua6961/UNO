@@ -18,7 +18,7 @@ const object = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 const invalid = () => new ChatError(502, 'INVALID_RESPONSE', '消息服务返回异常，请稍后重试。')
 
-function item(value: unknown): ChatItem {
+export function parseChatItem(value: unknown): ChatItem {
   if (!object(value) || !uuid.test(String(value.id)) || !uuid.test(String(value.roomId))
     || !['ROOM', 'TEAM_A', 'TEAM_B'].includes(String(value.channel))
     || !Number.isSafeInteger(value.sequence) || (value.sequence as number) < 1
@@ -31,7 +31,7 @@ function item(value: unknown): ChatItem {
 function page(value: unknown): ChatPage {
   if (!object(value) || !Array.isArray(value.items) || !Number.isSafeInteger(value.nextSequence)
     || (value.nextSequence as number) < 0 || typeof value.hasMore !== 'boolean') throw invalid()
-  const items = value.items.map(item)
+  const items = value.items.map(parseChatItem)
   if (items.some((message, index) => index > 0 && message.sequence <= items[index - 1]!.sequence)) throw invalid()
   return { items, nextSequence: value.nextSequence as number, hasMore: value.hasMore as boolean }
 }
@@ -76,7 +76,7 @@ export function createChatApi(fetcher: typeof fetch = (...args) => fetch(...args
       const csrf = await request('/api/auth/csrf')
       if (!object(csrf) || csrf.headerName !== 'X-CSRF-TOKEN' || typeof csrf.token !== 'string' || !csrf.token)
         throw new ChatError(502, 'INVALID_CSRF', '无法取得安全凭证，请刷新页面重试。')
-      const saved = item(await request(`/api/rooms/${roomId}/messages`, {
+      const saved = parseChatItem(await request(`/api/rooms/${roomId}/messages`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf.token },
         body: JSON.stringify({ clientMessageId, content, ...(scope === 'TEAM' ? { channel: 'TEAM' } : {}) }),
       }))

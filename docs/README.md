@@ -26,7 +26,7 @@
 | [stage8](stages/stage8.md) | Web 经典对局 | 网页多个真实账号可以打完经典局 | stage7 | 已完成（本地验收） |
 | [stage9](stages/stage9.md) | Flutter 经典对局 | App 可以和 Web 玩家同桌对战 | stage7 | 进行中（Android/Web 触控整局、iOS 模拟器真实开局与结算已验收） |
 | [stage10](stages/stage10.md) | 四人 2v2 对局 | 两端支持队伍比赛和队伍结算 | stage8、stage9 | 进行中（Web 与 Android/iOS 模拟器混合整局已验收） |
-| [stage11](stages/stage11.md) | 房间／队伍文字 | 真实发送、接收、限流、历史补偿与隔离 | stage5、stage7、stage10 | 进行中（Web 与 Android/iOS 模拟器互发及隔离已验收；消息事件和治理待做） |
+| [stage11](stages/stage11.md) | 房间／队伍文字 | 真实发送、接收、限流、历史补偿与隔离 | stage5、stage7、stage10 | 进行中（跨端文字与实时消息事件已接通；内容治理和最终保留策略待做） |
 | [stage12](stages/stage12.md) | 重连与对局生命周期 | 刷新、掉线、超时、退房和重复连接可控 | stage10、stage11 | 进行中（单实例接管、超时中断、轮间自动推进） |
 | [stage13](stages/stage13.md) | 队友语音后端 | 受限语音凭证、独立队伍频道与退出撤销 | stage3、stage10、stage12 | 进行中（准入、撤销换房本机验收；容量待验） |
 | [stage14](stages/stage14.md) | Web 队友开麦 | 浏览器主动授权、开麦、静音与退出 | stage8、stage13 | 进行中（本机实连与换房通过，人工听感待验） |
@@ -112,6 +112,7 @@
 - [stage9 Flutter 增量验收](verification-stage9-flutter.md)：App 牌桌、实时协议、双平台构建和设备限制。
 - [stage9 iOS 模拟器增量验收](verification-stage9-ios.md)：真实本地服务的账号、组房、回合动作、整局结算与第二局。
 - [stage11 房间文字增量验收](verification-stage11-room-text.md)：消息权限、幂等、游标、双端界面与未验收范围。
+- [stage11 实时文字增量验收](verification-stage11-realtime.md)：WebSocket 订阅、接收权限、双端客户端与网关实测。
 - [stage12 对局生命周期增量验收](verification-stage12-lifecycle.md)：连续漏回合中断、轮间自动推进、历史语义与剩余弱网验收。
 - [stage13–14 队友语音增量验收](verification-stage13-14-voice.md)：LiveKit 准入、队伍隔离、WebRTC 实连与撤销换房。
 - [stage15 Flutter 语音增量验收](verification-stage15-voice.md)：App SDK/UI、自动化生命周期与未完成的真机互听。

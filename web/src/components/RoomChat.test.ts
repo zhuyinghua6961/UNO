@@ -14,9 +14,39 @@ function message(scope: ChatScope, sequence: number): ChatItem {
   }
 }
 
-afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('room chat channel awareness', () => {
+  it('shows a pushed team message immediately and deduplicates the cursor replay', async () => {
+    class Peer {
+      onopen: (() => void) | null = null
+      onmessage: ((event: { data: string }) => void) | null = null
+      send = vi.fn()
+      close = vi.fn()
+    }
+    let peer: Peer | undefined
+    vi.stubGlobal('WebSocket', class { constructor() { peer = new Peer(); return peer } })
+    const team: ChatItem[] = []
+    vi.spyOn(chatApi, 'history').mockImplementation(async (_room, after = 0, _latest, target = 'ROOM') => {
+      const items = (target === 'TEAM' ? team : []).filter(item => item.sequence > after)
+      return { items, nextSequence: items.at(-1)?.sequence ?? after, hasMore: false }
+    })
+    const wrapper = mount(RoomChat, { props: { roomId, teamEnabled: true } })
+    await flushPromises()
+    peer!.onopen?.()
+    const pushed = message('TEAM', 1)
+    peer!.onmessage?.({ data: JSON.stringify({ protocolVersion: 1, type: 'CHAT_MESSAGE', roomId, item: pushed }) })
+    await flushPromises()
+    expect(wrapper.findAll('button').find(button => button.text().includes('队伍文字'))!.text()).toContain('1 条未读')
+    team.push(pushed)
+    await wrapper.findAll('button').find(button => button.text().includes('队伍文字'))!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.chat-list li')).toHaveLength(1)
+    expect(wrapper.text()).toContain('TEAM message 1')
+    wrapper.unmount()
+    expect(peer!.close).toHaveBeenCalledOnce()
+  })
+
   it('counts new messages on the other channel and clears the badge when viewed', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     const room = [message('ROOM', 1)]
@@ -86,7 +116,7 @@ describe('room chat channel awareness', () => {
     room.push(message('ROOM', 2), sent)
     await vi.advanceTimersByTimeAsync(2000)
     await flushPromises()
-    expect(history.mock.calls.at(-1)?.[1]).toBe(1)
+    expect(history.mock.calls.map(call => call[1])).toContain(1)
     expect(wrapper.text()).toContain('ROOM message 2')
     expect(wrapper.findAll('.chat-list li')).toHaveLength(3)
     wrapper.unmount()

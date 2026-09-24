@@ -1,6 +1,7 @@
 package com.example.uno.game.chat;
 
 import com.example.uno.game.auth.GameIdentity;
+import com.example.uno.game.realtime.ChatWebSocketHandler;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
@@ -17,14 +18,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/rooms/{roomId}/messages")
 public class ChatController {
     private final ChatService chat;
+    private final ChatWebSocketHandler socket;
 
-    public ChatController(ChatService chat) { this.chat = chat; }
+    public ChatController(ChatService chat, ChatWebSocketHandler socket) {
+        this.chat = chat;
+        this.socket = socket;
+    }
 
     @PostMapping
     ChatService.ChatItem send(@PathVariable UUID roomId, @AuthenticationPrincipal GameIdentity identity,
             @Valid @RequestBody SendInput input) {
-        return chat.send(roomId, identity, input.clientMessageId(), input.content(),
+        ChatService.ChatItem saved = chat.send(roomId, identity, input.clientMessageId(), input.content(),
                 input.channel() == null ? "ROOM" : input.channel());
+        socket.publish(saved);
+        return saved;
     }
 
     @GetMapping

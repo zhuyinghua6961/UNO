@@ -32,7 +32,7 @@ class SecurityConfiguration {
                 .requestMatchers(HttpMethod.GET, "/api/matches/*/state").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.POST, "/api/matches/*/commands").hasAuthority("PLAYER")
                 .requestMatchers(HttpMethod.POST, "/api/voice/token").hasAuthority("PLAYER")
-                .requestMatchers(HttpMethod.GET, "/ws/game").permitAll()
+                .requestMatchers(HttpMethod.GET, "/ws/game", "/ws/chat").permitAll()
                 .anyRequest().denyAll())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .securityContext(context -> context.securityContextRepository(new NullSecurityContextRepository()))

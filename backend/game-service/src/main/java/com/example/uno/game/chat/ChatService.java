@@ -102,6 +102,14 @@ public class ChatService {
         return new ChatPage(items, items.isEmpty() ? Math.max(after, floor) : items.get(items.size() - 1).sequence(), hasMore);
     }
 
+    /** Recheck the current room/team entitlement immediately before a live delivery. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public boolean visibleTo(ChatItem item, GameIdentity identity) {
+        String scope = "ROOM".equals(item.channel()) ? "ROOM" : "TEAM";
+        ChatPage page = history(item.roomId(), identity, item.sequence() - 1, 1, false, scope);
+        return page.items().stream().anyMatch(candidate -> candidate.id().equals(item.id()));
+    }
+
     @Scheduled(fixedDelay = 3_600_000)
     public void deleteExpired() {
         jdbc.update("DELETE FROM game.chat_messages WHERE expires_at <= ?", Timestamp.from(clock.instant()));

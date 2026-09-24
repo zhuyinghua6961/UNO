@@ -180,7 +180,7 @@ void main() {
     api.roomMessages.addAll([message('ROOM', 2), message('ROOM', 3)]);
     await tester.pump(const Duration(seconds: 2));
     await tester.pump();
-    expect(api.roomAfterValues.last, 1);
+    expect(api.roomAfterValues, contains(1));
     expect(find.text('ROOM message 2'), findsOneWidget);
     expect(find.byType(ListTile), findsNWidgets(3));
     await tester.pumpWidget(const SizedBox());

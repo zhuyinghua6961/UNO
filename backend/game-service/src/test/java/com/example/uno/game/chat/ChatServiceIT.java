@@ -127,6 +127,8 @@ class ChatServiceIT {
         assertEquals(1, oldB.sequence());
         assertEquals(List.of(oldA), chat.history(roomId, a, 0, 10, false, "TEAM").items());
         assertEquals(List.of(oldB), chat.history(roomId, b, 0, 10, false, "TEAM").items());
+        assertTrue(chat.visibleTo(oldA, a));
+        assertFalse(chat.visibleTo(oldA, b));
         assertEquals("CHAT_ROOM_NOT_FOUND", assertThrows(ChatFailure.class,
                 () -> chat.history(roomId, outsider, 0, 10, false, "TEAM")).code());
         assertEquals("INVALID_CHAT_INPUT", assertThrows(ChatFailure.class,
@@ -136,16 +138,21 @@ class ChatServiceIT {
         assertEquals(2, room.members().stream().filter(member -> member.userId().equals(b.userId()))
                 .findFirst().orElseThrow().seat());
         assertTrue(chat.history(roomId, b, 0, 10, false, "TEAM").items().isEmpty());
+        assertFalse(chat.visibleTo(oldA, b));
+        assertFalse(chat.visibleTo(oldB, b));
         assertEquals(1, chat.history(roomId, b, 0, 10, false, "TEAM").nextSequence());
         assertEquals("CHAT_MESSAGE_CONFLICT", assertThrows(ChatFailure.class,
                 () -> chat.send(roomId, b, oldB.clientMessageId(), "B old", "TEAM")).code());
         var newA = chat.send(roomId, b, UUID.randomUUID(), "A new", "TEAM");
         assertEquals(2, newA.sequence());
         assertEquals(List.of(newA), chat.history(roomId, b, 0, 10, false, "TEAM").items());
+        assertTrue(chat.visibleTo(newA, b));
+        assertFalse(chat.visibleTo(oldA, b));
         assertEquals(List.of(oldA, newA), chat.history(roomId, a, 0, 10, false, "TEAM").items());
 
         room = rooms.selectTeam(roomId, b, "B", room.version());
         assertTrue(chat.history(roomId, b, 0, 10, false, "TEAM").items().isEmpty());
+        assertFalse(chat.visibleTo(newA, b));
         assertEquals(1, chat.history(roomId, b, 0, 10, true, "TEAM").nextSequence());
         assertEquals(List.of(oldA, newA), chat.history(roomId, a, 0, 10, false, "TEAM").items());
         assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM game.chat_messages "

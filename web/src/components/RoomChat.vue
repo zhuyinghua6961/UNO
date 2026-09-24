@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { chatApi, chatErrorMessage, type ChatItem, type ChatScope } from '../api/chat'
+import { connectChatSocket } from '../api/chatSocket'
 
 const props = defineProps<{ roomId: string; teamEnabled?: boolean }>()
 const scope = ref<ChatScope>('ROOM')
@@ -16,6 +17,7 @@ const retry = ref<{ id: string; content: string } | null>(null)
 let active = true
 let generation = 0
 let timer: ReturnType<typeof setInterval> | undefined
+let socket: ReturnType<typeof connectChatSocket> | undefined
 
 function merge(target: ChatScope, items: ChatItem[]): number {
   const state = channels[target]
@@ -23,6 +25,30 @@ function merge(target: ChatScope, items: ChatItem[]): number {
   const added = items.filter(message => !known.has(message.id))
   state.messages = [...state.messages, ...added].sort((a, b) => a.sequence - b.sequence).slice(-100)
   return added.length
+}
+
+function receive(item: ChatItem) {
+  if (!active || item.roomId !== props.roomId) return
+  const target = item.channel === 'ROOM' ? 'ROOM' : 'TEAM'
+  if (target === 'TEAM' && !props.teamEnabled) return
+  const state = channels[target]
+  const added = merge(target, [item])
+  if (added && state.initialized && target !== scope.value) state.unread++
+}
+
+function connect() {
+  socket?.close()
+  socket = connectChatSocket(props.roomId, {
+    subscribed: () => {
+      void refresh('ROOM')
+      if (props.teamEnabled) void refresh('TEAM')
+    },
+    message: receive,
+    disconnected: () => {
+      void refresh('ROOM')
+      if (props.teamEnabled) void refresh('TEAM')
+    },
+  })
 }
 
 async function refresh(target: ChatScope, initial = false) {
@@ -74,6 +100,7 @@ function selectScope(next: ChatScope) {
 }
 
 watch(() => props.roomId, () => {
+  socket?.close()
   generation++
   channels.ROOM = channel()
   channels.TEAM = channel()
@@ -84,17 +111,19 @@ watch(() => props.roomId, () => {
   sending.value = false
   void refresh('ROOM', true)
   if (props.teamEnabled) void refresh('TEAM', true)
+  connect()
 })
 
 onMounted(() => {
   void refresh('ROOM', true)
   if (props.teamEnabled) void refresh('TEAM', true)
+  connect()
   timer = setInterval(() => {
     void refresh('ROOM')
     if (props.teamEnabled) void refresh('TEAM')
   }, 2000)
 })
-onUnmounted(() => { active = false; generation++; clearInterval(timer) })
+onUnmounted(() => { active = false; generation++; clearInterval(timer); socket?.close() })
 </script>
 
 <template>

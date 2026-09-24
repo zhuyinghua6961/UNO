@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'room_api.dart';
+import 'room_chat_socket.dart';
 
 class _ChatChannel {
   final List<RoomChatMessage> messages = [];
@@ -34,6 +35,7 @@ class _RoomChatState extends State<RoomChat>
   final draft = TextEditingController();
   final channels = {'ROOM': _ChatChannel(), 'TEAM': _ChatChannel()};
   Timer? timer;
+  RoomChatSocket? socket;
   String scope = 'ROOM';
   int generation = 0;
   bool sending = false;
@@ -57,12 +59,14 @@ class _RoomChatState extends State<RoomChat>
     });
     unawaited(_refresh(channel: 'ROOM', latest: true));
     if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM', latest: true));
+    _connect();
   }
 
   @override
   void didUpdateWidget(covariant RoomChat oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.roomId == widget.roomId &&
+        oldWidget.api == widget.api &&
         oldWidget.teamEnabled == widget.teamEnabled) {
       return;
     }
@@ -77,15 +81,50 @@ class _RoomChatState extends State<RoomChat>
     draft.clear();
     unawaited(_refresh(channel: 'ROOM', latest: true));
     if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM', latest: true));
+    _connect();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     visible = state == AppLifecycleState.resumed;
     if (visible) {
+      _connect();
       unawaited(_refresh(channel: 'ROOM'));
       if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM'));
+    } else {
+      socket?.close();
+      socket = null;
     }
+  }
+
+  void _connect() {
+    socket?.close();
+    socket = RoomChatSocket(
+      roomId: widget.roomId,
+      api: widget.api,
+      onSubscribed: () {
+        if (!mounted || !visible) return;
+        unawaited(_refresh(channel: 'ROOM'));
+        if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM'));
+      },
+      onMessage: (message) {
+        if (!mounted || !visible || message.roomId != widget.roomId) return;
+        final channel = message.channel == 'ROOM' ? 'ROOM' : 'TEAM';
+        if (channel == 'TEAM' && !widget.teamEnabled) return;
+        setState(() {
+          final state = channels[channel]!;
+          final added = _merge(state, [message]);
+          if (added > 0 && state.initialized && channel != scope) {
+            state.unread += added;
+          }
+        });
+      },
+      onDisconnected: () {
+        if (!mounted || !visible) return;
+        unawaited(_refresh(channel: 'ROOM'));
+        if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM'));
+      },
+    )..start();
   }
 
   int _merge(_ChatChannel state, List<RoomChatMessage> incoming) {
@@ -197,6 +236,7 @@ class _RoomChatState extends State<RoomChat>
   void dispose() {
     generation++;
     timer?.cancel();
+    socket?.close();
     WidgetsBinding.instance.removeObserver(this);
     draft.dispose();
     super.dispose();

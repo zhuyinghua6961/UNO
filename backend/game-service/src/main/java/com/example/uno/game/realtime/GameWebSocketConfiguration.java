@@ -10,12 +10,15 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @EnableWebSocket
 class GameWebSocketConfiguration implements WebSocketConfigurer {
     private final GameWebSocketHandler handler;
+    private final ChatWebSocketHandler chat;
     private final GameWebSocketHandshake handshake;
     private final GameAuthSettings settings;
 
-    GameWebSocketConfiguration(GameWebSocketHandler handler, GameWebSocketHandshake handshake,
+    GameWebSocketConfiguration(GameWebSocketHandler handler, ChatWebSocketHandler chat,
+            GameWebSocketHandshake handshake,
             GameAuthSettings settings) {
         this.handler = handler;
+        this.chat = chat;
         this.handshake = handshake;
         this.settings = settings;
     }
@@ -23,6 +26,8 @@ class GameWebSocketConfiguration implements WebSocketConfigurer {
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(handler, "/ws/game").addInterceptors(handshake)
+                .setAllowedOrigins(settings.allowedOrigins().toArray(String[]::new));
+        registry.addHandler(chat, "/ws/chat").addInterceptors(handshake)
                 .setAllowedOrigins(settings.allowedOrigins().toArray(String[]::new));
     }
 }

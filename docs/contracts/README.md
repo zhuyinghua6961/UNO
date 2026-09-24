@@ -90,9 +90,11 @@ Web 的 Cookie 登录需要 CSRF 防护；Flutter 的令牌流程需要明确刷
 
 单条文本消息上限 8192 字节，每连接每 10 秒最多 30 条；速率超限以 1008、`RATE_LIMITED` 关闭连接，客户端可重新订阅并同步状态，不能自动重发未确认命令。同一 game-service 实例中，同一用户对同一局的新订阅接管旧连接：旧连接以 4001、`TAKEN_OVER` 关闭且不能再发动作；Web/App 停止自动重连，用户可以手动在当前端重新接管。每连接同时只订阅一局，不能指定其他身份或接收队列。服务端每次推送前重新核验会话；失效或撤销的连接会关闭。超时扫描默认约每秒执行一次；跨实例接管/广播与完整断线策略尚未完成。HTTP 动作入口仍独立于 WebSocket 接管权。
 
-## 后续聊天协议
+## 房间与队伍聊天协议
 
-WebSocket `CHAT_SEND` 指令和 `CHAT_MESSAGE` 事件尚未实现；现有房间文字通过 HTTP 完成。未来队伍文字指令不能含 senderId、teamId、接收者列表；服务端须从会话和对局队伍快照推导。消息幂等按身份/频道/clientMessageId 处理，由服务器分配消息 ID、时间与频道序号。游戏状态与聊天使用不同序号和补偿机制；聊天不因游戏 expectedVersion 改变而重复发送。
+`/ws/chat` 复用游戏 WebSocket 的 Web Cookie／App Bearer 握手认证和 Origin 检查。客户端先发送 `{protocolVersion:1,type:"SUBSCRIBE",roomId}`；服务器核对当前成员后返回 `CHAT_SUBSCRIBED`。每连接只能订阅一个房间。客户端可发送 `{protocolVersion:1,type:"CHAT_SEND",roomId,clientMessageId,channel:"ROOM"|"TEAM",content}`；成功时服务器向当前有权成员推送 `{protocolVersion:1,type:"CHAT_MESSAGE",roomId,item}`，向发送方另发 `CHAT_ACK`（含同一 item）。失败返回 `CHAT_REJECTED` 或 `ERROR` 及错误码。单条 WebSocket 文本上限 8192 字节，每连接每 10 秒最多 30 条入站消息。
+
+指令不能含 senderId、teamId、接收者列表；服务器从会话及当前房间席位推导身份和队伍，并生成消息 ID、时间和频道序号。发送重试沿用 `clientMessageId` 幂等键。HTTP 发送也会触发同实例实时推送；两端目前仍以 HTTP 游标补取恢复断线、跨实例或漏收消息。聊天序号与游戏状态版本独立，UI 发送仍走 HTTP，以便在无实时连接时保持确认和同 ID 重试。跨实例共享广播尚未实现。
 
 ## 语音后续验收
 

@@ -192,6 +192,16 @@ class RoomApi {
   final http.Client _client;
   final String _baseUrl;
 
+  Uri get chatSocketUri {
+    final base = Uri.parse(_baseUrl);
+    return base.replace(
+      scheme: base.scheme == 'https' ? 'wss' : 'ws',
+      path: '/ws/chat',
+      query: null,
+      fragment: null,
+    );
+  }
+
   Future<Object?> _request(String path, {Object? body, bool post = false}) =>
       session.withAccess((token) async {
         late http.Response response;
