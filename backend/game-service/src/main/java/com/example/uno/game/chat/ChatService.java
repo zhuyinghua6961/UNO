@@ -40,11 +40,12 @@ public class ChatService {
         Member member = member(roomId, identity, true, now);
         String channel = channel(member, scope);
         ChatItem existing = one(jdbc.query("SELECT id, room_id, channel, sequence, sender_user_id, sender_nickname, "
-                        + "client_message_id, content, created_at FROM game.chat_messages "
+                        + "client_message_id, content, created_at, redacted_at FROM game.chat_messages "
                         + "WHERE room_id = ? AND sender_user_id = ? AND client_message_id = ?",
                 (rs, row) -> item(rs), roomId, identity.userId(), clientMessageId));
         if (existing != null) {
-            if (!existing.content().equals(content) || !existing.channel().equals(channel)) throw ChatFailure.conflict();
+            if ((!existing.redacted() && !existing.content().equals(content))
+                    || !existing.channel().equals(channel)) throw ChatFailure.conflict();
             return existing;
         }
         Boolean muted = jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM game.chat_mutes "
@@ -66,7 +67,7 @@ public class ChatService {
                 id, roomId, channel, sequence, identity.userId(), member.nickname(), clientMessageId,
                 content, Timestamp.from(now), Timestamp.from(now.plus(RETENTION)));
         return new ChatItem(id, roomId, channel, sequence, identity.userId(), member.nickname(),
-                clientMessageId, content, now);
+                clientMessageId, content, now, false);
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -89,7 +90,7 @@ public class ChatService {
         if (latest && after != 0) throw ChatFailure.invalid();
         long floor = "ROOM".equals(channel) ? 0 : member.teamJoinSequence();
         List<ChatItem> rows = jdbc.query("SELECT id, room_id, channel, sequence, sender_user_id, sender_nickname, "
-                        + "client_message_id, content, created_at FROM game.chat_messages "
+                        + "client_message_id, content, created_at, redacted_at FROM game.chat_messages "
                         + "WHERE room_id = ? AND channel = ? AND sequence > ? AND created_at >= ? "
                         + "AND expires_at > ? ORDER BY sequence " + (latest ? "DESC" : "ASC") + " LIMIT ?",
                 (rs, row) -> item(rs), roomId, channel, Math.max(after, floor), Timestamp.from(member.joinedAt()),
@@ -118,7 +119,7 @@ public class ChatService {
     public ReportReceipt report(UUID roomId, GameIdentity identity, UUID messageId, String reason) {
         if (reason == null || !List.of("SPAM", "ABUSE", "OTHER").contains(reason)) throw ChatFailure.invalid();
         ChatItem target = one(jdbc.query("SELECT id, room_id, channel, sequence, sender_user_id, "
-                        + "sender_nickname, client_message_id, content, created_at "
+                        + "sender_nickname, client_message_id, content, created_at, redacted_at "
                         + "FROM game.chat_messages WHERE room_id = ? AND id = ? AND expires_at > ?",
                 (rs, row) -> item(rs), roomId, messageId, Timestamp.from(clock.instant())));
         if (target == null || !visibleTo(target, identity)) throw ChatFailure.reportNotFound();
@@ -181,13 +182,14 @@ public class ChatService {
         return new ChatItem(rs.getObject("id", UUID.class), rs.getObject("room_id", UUID.class),
                 rs.getString("channel"), rs.getLong("sequence"), rs.getObject("sender_user_id", UUID.class),
                 rs.getString("sender_nickname"), rs.getObject("client_message_id", UUID.class),
-                rs.getString("content"), rs.getTimestamp("created_at").toInstant());
+                rs.getString("content"), rs.getTimestamp("created_at").toInstant(),
+                rs.getTimestamp("redacted_at") != null);
     }
 
     private static <T> T one(List<T> rows) { return rows.isEmpty() ? null : rows.get(0); }
 
     public record ChatItem(UUID id, UUID roomId, String channel, long sequence, UUID senderUserId,
-            String senderNickname, UUID clientMessageId, String content, Instant createdAt) { }
+            String senderNickname, UUID clientMessageId, String content, Instant createdAt, boolean redacted) { }
     public record ChatPage(List<ChatItem> items, long nextSequence, boolean hasMore) {
         public ChatPage { items = List.copyOf(items); }
     }

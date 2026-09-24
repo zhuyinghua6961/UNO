@@ -111,8 +111,9 @@ class RoomChatMessage {
     this.senderNickname,
     this.clientMessageId,
     this.content,
-    this.createdAt,
-  );
+    this.createdAt, [
+    this.redacted = false,
+  ]);
   final String id;
   final String roomId;
   final String channel;
@@ -122,6 +123,7 @@ class RoomChatMessage {
   final String clientMessageId;
   final String content;
   final DateTime createdAt;
+  final bool redacted;
 
   static RoomChatMessage parse(Object? value) {
     if (value
@@ -139,7 +141,8 @@ class RoomChatMessage {
         when sequence > 0 &&
             const ['ROOM', 'TEAM_A', 'TEAM_B'].contains(channel)) {
       final createdAt = DateTime.tryParse(timestamp);
-      if (createdAt != null) {
+      final redacted = value['redacted'];
+      if (createdAt != null && (redacted == null || redacted is bool)) {
         return RoomChatMessage(
           id,
           roomId,
@@ -150,6 +153,7 @@ class RoomChatMessage {
           clientMessageId,
           content,
           createdAt,
+          redacted == true,
         );
       }
     }
@@ -312,10 +316,11 @@ class RoomApi {
     int after = 0,
     bool latest = false,
     String scope = 'ROOM',
+    int limit = 50,
   }) async {
     final page = RoomChatPage.parse(
       await _request(
-        '/api/rooms/$roomId/messages?after=$after&limit=50&latest=$latest${scope == 'TEAM' ? '&channel=TEAM' : ''}',
+        '/api/rooms/$roomId/messages?after=$after&limit=$limit&latest=$latest${scope == 'TEAM' ? '&channel=TEAM' : ''}',
       ),
     );
     if (page.items.any(

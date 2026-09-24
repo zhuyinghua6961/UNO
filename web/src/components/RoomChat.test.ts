@@ -17,6 +17,29 @@ function message(scope: ChatScope, sequence: number): ChatItem {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('room chat channel awareness', () => {
+  it('reconciles an operator redaction without advancing the message cursor', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const original = message('ROOM', 1)
+    let redacted = false
+    const history = vi.spyOn(chatApi, 'history').mockImplementation(async (_room, after = 0, latest = false, _scope, limit = 50) => {
+      const items = latest && (limit === 50 || redacted)
+        ? [{ ...original, ...(redacted ? { content: '[消息已移除]', redacted: true } : {}) }]
+        : []
+      return { items, nextSequence: items.at(-1)?.sequence ?? after, hasMore: false }
+    })
+    const wrapper = mount(RoomChat, { props: { roomId } })
+    await flushPromises()
+    expect(wrapper.text()).toContain(original.content)
+    redacted = true
+    await vi.advanceTimersByTimeAsync(10000)
+    await flushPromises()
+    expect(wrapper.text()).toContain('[消息已移除]')
+    expect(wrapper.text()).not.toContain(original.content)
+    expect(wrapper.findAll('.chat-list li')).toHaveLength(1)
+    expect(history.mock.calls.some(call => call[2] === true && call[4] === 100)).toBe(true)
+    wrapper.unmount()
+  })
+
   it('reports a visible message and shows the submitted state', async () => {
     vi.spyOn(chatApi, 'history').mockResolvedValue({ items: [message('ROOM', 1)], nextSequence: 1, hasMore: false })
     const report = vi.spyOn(chatApi, 'report').mockResolvedValue('00b56130-9d24-4ee5-955b-75133254f659')

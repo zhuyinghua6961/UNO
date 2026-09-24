@@ -17,6 +17,7 @@ class ChatRoomApi implements RoomApi {
     int after = 0,
     bool latest = false,
     String scope = 'ROOM',
+    int limit = 50,
   }) async {
     if (scope == 'ROOM') roomAfterValues.add(after);
     final items = (scope == 'TEAM' ? teamMessages : roomMessages)
@@ -59,9 +60,16 @@ class DelayedChatRoomApi extends ChatRoomApi {
     int after = 0,
     bool latest = false,
     String scope = 'ROOM',
+    int limit = 50,
   }) {
     if (roomId == 'old-room' && scope == 'ROOM') return oldResponse.future;
-    return super.messages(roomId, after: after, latest: latest, scope: scope);
+    return super.messages(
+      roomId,
+      after: after,
+      latest: latest,
+      scope: scope,
+      limit: limit,
+    );
   }
 }
 
@@ -78,6 +86,38 @@ RoomChatMessage message(String scope, int sequence) => RoomChatMessage(
 );
 
 void main() {
+  testWidgets('reconciles a redacted message already shown in the room', (
+    tester,
+  ) async {
+    final api = ChatRoomApi()..roomMessages.add(message('ROOM', 1));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RoomChat(roomId: 'room-id', api: api),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('ROOM message 1'), findsOneWidget);
+    api.roomMessages[0] = RoomChatMessage(
+      'message-ROOM-1',
+      'room-id',
+      'ROOM',
+      1,
+      'user-id',
+      'Alice',
+      'client-1',
+      '[消息已移除]',
+      DateTime.utc(2026, 9, 24),
+      true,
+    );
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pump();
+    expect(find.text('[消息已移除]'), findsOneWidget);
+    expect(find.text('ROOM message 1'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('reports a visible message with the chosen reason', (
     tester,
   ) async {

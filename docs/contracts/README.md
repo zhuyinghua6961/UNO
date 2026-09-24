@@ -69,6 +69,8 @@ AUTH_ENABLED=true且安全配置有效时开放；原生App须带X-UNO-Client: A
 
 `POST /api/rooms/{roomId}/messages/{messageId}/reports` 只接受 `{reason:"SPAM"|"ABUSE"|"OTHER"}`。服务器验证当前成员能读取被举报消息；返回 `{id,status}`，同一用户对同一消息的重试返回同一记录。每人每 24 小时最多 20 份举报。运营限时禁言使 HTTP `send` 返回 403 `CHAT_MUTED`、WebSocket `CHAT_SEND` 返回 `CHAT_REJECTED`；已成功消息按原 `clientMessageId` 重试仍可读取原结果。
 
+消息 `item.redacted` 是服务器布尔字段。运营撤回后，原消息保持 ID 与频道序号，`content` 变为“[消息已移除]”，`redacted=true`；两端每约 10 秒重新核对目前缓存的最近 100 条消息以替换旧正文，不推进新消息游标。老版本服务端若没有该字段，客户端按未撤回处理。举报证据快照独立按 30 天期限清理。
+
 ## 队友语音 HTTP（服务端与 Web 首版已实现，默认关闭）
 
 `POST /api/voice/token` 请求仅需 `{matchId}`，返回 `{url,token,expiresAt}`，响应禁止缓存。Web 使用 Cookie/Origin/CSRF，App 使用 Bearer；必须另启 `TEAM_VOICE_ENABLED` 和 LiveKit 配置。服务端从当前已验证的身份、进行中的 2v2 对局、四个固定席位及当前房间成员推导 A/B 队和媒体房间，忽略请求中的伪造 teamId/roomName。对手各在独立 LiveKit 房间；令牌只含 `roomJoin`、指定 `room`、`canSubscribe` 和 `canPublishSources:["microphone"]`，不授予数据、视频、建房或管理权限。JWT 至多 60 秒可用于初始连接，同一玩家每 3 秒最多取得一次。

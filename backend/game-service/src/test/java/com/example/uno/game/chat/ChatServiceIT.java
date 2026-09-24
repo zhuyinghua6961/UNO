@@ -208,6 +208,14 @@ class ChatServiceIT {
                 + "WHERE id = ?", UUID.class, report.id()));
         assertEquals("reported text", jdbc.queryForObject("SELECT content_snapshot FROM game.chat_reports "
                 + "WHERE id = ?", String.class, report.id()));
+        jdbc.update("UPDATE game.chat_messages SET content = '[消息已移除]', redacted_at = ? WHERE id = ?",
+                Timestamp.from(Instant.now()), sent.id());
+        var redacted = chat.history(room.id(), b2, 0, 10, false, "TEAM").items().get(0);
+        assertTrue(redacted.redacted());
+        assertEquals("[消息已移除]", redacted.content());
+        assertTrue(chat.send(room.id(), b1, sentId, "reported text", "TEAM").redacted());
+        assertEquals("reported text", jdbc.queryForObject("SELECT content_snapshot FROM game.chat_reports "
+                + "WHERE id = ?", String.class, report.id()));
 
         var another = chat.send(room.id(), b1, UUID.randomUUID(), "second team text", "TEAM");
         for (int index = 0; index < 19; index++) {

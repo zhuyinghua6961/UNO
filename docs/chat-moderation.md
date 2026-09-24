@@ -10,11 +10,12 @@
 docker compose --env-file deploy/.env -f deploy/compose.yaml exec -T postgres psql -U uno -d uno_game < deploy/moderation/review.sql
 docker compose --env-file deploy/.env -f deploy/compose.yaml exec -T postgres psql -U uno -d uno_game -v user_id=UUID < deploy/moderation/mute-24h.sql
 docker compose --env-file deploy/.env -f deploy/compose.yaml exec -T postgres psql -U uno -d uno_game -v report_id=UUID < deploy/moderation/resolve.sql
+docker compose --env-file deploy/.env -f deploy/compose.yaml exec -T postgres psql -U uno -d uno_game -v message_id=UUID < deploy/moderation/redact.sql
 docker compose --env-file deploy/.env -f deploy/compose.yaml exec -T postgres psql -U uno -d uno_game -v user_id=UUID < deploy/moderation/unmute.sql
 docker compose --env-file deploy/.env -f deploy/compose.yaml exec -T postgres psql -U uno -d uno_identity -v user_id=UUID < deploy/moderation/disable-account.sql
 ```
 
-复核报告的消息、房间、被举报用户 ID 后，按实际需要禁言 24 小时并将报告标记为已处理；证据不足时可只标记为已处理。误禁言可执行 `deploy/moderation/unmute.sql`，传入相同的 `user_id`。禁言立即影响 HTTP 和 WebSocket 新消息发送；原消息的同 ID 重试仍返回原结果，避免把成功发送误报为失败。
+复核报告的消息、房间、被举报用户 ID 后，按实际需要移除原消息、禁言 24 小时并将报告标记为已处理；证据不足时可只标记为已处理。移除操作把正文替换成“[消息已移除]”并保留频道序号，已打开的聊天面板在最近消息核对时更新；举报中原有证据快照仍按 30 天期限保存。误禁言可执行 `deploy/moderation/unmute.sql`，传入相同的 `user_id`。禁言立即影响 HTTP 和 WebSocket 新消息发送；原消息的同 ID 重试仍返回原结果，避免把成功发送误报为失败。
 
 严重滥用可在 `uno_identity` 库执行 `deploy/moderation/disable-account.sql` 并传入 `user_id`；它禁用账号并撤销其全部会话与未消费账号令牌。聊天 WebSocket 会周期重查会话。完成后还须检查该用户所在的进行中对局与媒体连接；已建立的 LiveKit 音频连接仍需单独撤销，本流程不能替代 stage15/18 的语音封禁验收。
 

@@ -142,6 +142,16 @@ if (process.env.SMOKE_CHAT_MODERATION === 'true') {
     method: 'POST', token: guest, body: { reason: 'SPAM' },
   })
   assert.equal(duplicate.body.id, report.body.id, 'one report per player and message')
+  operatorSql('redact', 'uno_game', 'message_id', first.body.id)
+  const redacted = await request(`/api/rooms/${room.id}/messages?latest=true`, { token: guest })
+  assert.equal(redacted.body.items.find(item => item.id === first.body.id).content, '[消息已移除]')
+  assert.equal(redacted.body.items.find(item => item.id === first.body.id).redacted, true)
+  const retriedRedacted = await request(`/api/rooms/${room.id}/messages`, {
+    method: 'POST', token: host,
+    body: { clientMessageId: firstId, content: 'Container smoke: hello' },
+  })
+  assert.equal(retriedRedacted.body.id, first.body.id)
+  assert.equal(retriedRedacted.body.redacted, true)
   operatorSql('mute-24h', 'uno_game', 'user_id', renamed.body.id)
   const muted = await request(`/api/rooms/${room.id}/messages`, {
     method: 'POST', token: host,
@@ -160,7 +170,7 @@ if (process.env.SMOKE_CHAT_MODERATION === 'true') {
     method: 'POST', token: host,
     body: { clientMessageId: randomUUID(), content: 'Allowed after unmute' },
   })).status, 200, 'unmute restores chat send')
-  console.log('PASS: member report, idempotent receipt, operator mute/resolve/unmute and HTTP enforcement.')
+  console.log('PASS: member report, operator redaction, mute/resolve/unmute and HTTP enforcement.')
 }
 
 if (process.env.SMOKE_FULL_MATCH === 'true') {

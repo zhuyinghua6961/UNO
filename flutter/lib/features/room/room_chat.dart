@@ -12,6 +12,7 @@ class _ChatChannel {
   int unread = 0;
   bool initialized = false;
   bool polling = false;
+  bool reconciling = false;
   String error = '';
 }
 
@@ -35,6 +36,7 @@ class _RoomChatState extends State<RoomChat>
   final draft = TextEditingController();
   final channels = {'ROOM': _ChatChannel(), 'TEAM': _ChatChannel()};
   Timer? timer;
+  Timer? reconciliationTimer;
   RoomChatSocket? socket;
   String scope = 'ROOM';
   int generation = 0;
@@ -58,6 +60,10 @@ class _RoomChatState extends State<RoomChat>
     timer = Timer.periodic(const Duration(seconds: 2), (_) {
       unawaited(_refresh(channel: 'ROOM'));
       if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM'));
+    });
+    reconciliationTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      unawaited(_reconcile(channel: 'ROOM'));
+      if (widget.teamEnabled) unawaited(_reconcile(channel: 'TEAM'));
     });
     unawaited(_refresh(channel: 'ROOM', latest: true));
     if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM', latest: true));
@@ -110,6 +116,8 @@ class _RoomChatState extends State<RoomChat>
         if (!mounted || !visible) return;
         unawaited(_refresh(channel: 'ROOM'));
         if (widget.teamEnabled) unawaited(_refresh(channel: 'TEAM'));
+        unawaited(_reconcile(channel: 'ROOM'));
+        if (widget.teamEnabled) unawaited(_reconcile(channel: 'TEAM'));
       },
       onMessage: (message) {
         if (!mounted || !visible || message.roomId != widget.roomId) return;
@@ -132,14 +140,57 @@ class _RoomChatState extends State<RoomChat>
   }
 
   int _merge(_ChatChannel state, List<RoomChatMessage> incoming) {
-    final known = state.messages.map((message) => message.id).toSet();
-    final added = incoming.where((message) => known.add(message.id)).toList();
+    final positions = {
+      for (var index = 0; index < state.messages.length; index++)
+        state.messages[index].id: index,
+    };
+    final added = <RoomChatMessage>[];
+    for (final message in incoming) {
+      final index = positions[message.id];
+      if (index == null) {
+        positions[message.id] = state.messages.length + added.length;
+        added.add(message);
+      } else if (message.redacted) {
+        if (index < state.messages.length) {
+          state.messages[index] = message;
+        } else {
+          added[index - state.messages.length] = message;
+        }
+      }
+    }
     state.messages.addAll(added);
     state.messages.sort((a, b) => a.sequence.compareTo(b.sequence));
     if (state.messages.length > 100) {
       state.messages.removeRange(0, state.messages.length - 100);
     }
     return added.length;
+  }
+
+  Future<void> _reconcile({required String channel}) async {
+    final state = channels[channel]!;
+    final requestedGeneration = generation;
+    if (!state.initialized || state.reconciling || !visible || !mounted) return;
+    state.reconciling = true;
+    try {
+      final page = await widget.api.messages(
+        widget.roomId,
+        latest: true,
+        scope: channel,
+        limit: 100,
+      );
+      if (!mounted || generation != requestedGeneration) return;
+      final known = state.messages.map((message) => message.id).toSet();
+      setState(
+        () => _merge(
+          state,
+          page.items.where((item) => known.contains(item.id)).toList(),
+        ),
+      );
+    } catch (_) {
+      // Cursor refresh displays connectivity failures and remains the catchup source.
+    } finally {
+      state.reconciling = false;
+    }
   }
 
   Future<void> _refresh({required String channel, bool latest = false}) async {
@@ -279,6 +330,7 @@ class _RoomChatState extends State<RoomChat>
   void dispose() {
     generation++;
     timer?.cancel();
+    reconciliationTimer?.cancel();
     socket?.close();
     WidgetsBinding.instance.removeObserver(this);
     draft.dispose();

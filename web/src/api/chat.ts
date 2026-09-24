@@ -2,6 +2,7 @@ export type ChatItem = {
   id: string; roomId: string; channel: 'ROOM' | 'TEAM_A' | 'TEAM_B'; sequence: number
   senderUserId: string; senderNickname: string; clientMessageId: string
   content: string; createdAt: string
+  redacted?: boolean
 }
 export type ChatPage = { items: ChatItem[]; nextSequence: number; hasMore: boolean }
 export type ChatScope = 'ROOM' | 'TEAM'
@@ -25,7 +26,8 @@ export function parseChatItem(value: unknown): ChatItem {
     || !Number.isSafeInteger(value.sequence) || (value.sequence as number) < 1
     || !uuid.test(String(value.senderUserId)) || !uuid.test(String(value.clientMessageId))
     || typeof value.senderNickname !== 'string' || typeof value.content !== 'string'
-    || typeof value.createdAt !== 'string' || !Number.isFinite(Date.parse(value.createdAt))) throw invalid()
+    || typeof value.createdAt !== 'string' || !Number.isFinite(Date.parse(value.createdAt))
+    || (value.redacted !== undefined && typeof value.redacted !== 'boolean')) throw invalid()
   return value as ChatItem
 }
 
@@ -66,8 +68,8 @@ export function createChatApi(fetcher: typeof fetch = (...args) => fetch(...args
   }
 
   return {
-    async history(roomId: string, after = 0, latest = false, scope: ChatScope = 'ROOM'): Promise<ChatPage> {
-      const query = new URLSearchParams({ after: String(after), limit: '50', latest: String(latest) })
+    async history(roomId: string, after = 0, latest = false, scope: ChatScope = 'ROOM', limit = 50): Promise<ChatPage> {
+      const query = new URLSearchParams({ after: String(after), limit: String(limit), latest: String(latest) })
       if (scope === 'TEAM') query.set('channel', 'TEAM')
       const result = page(await request(`/api/rooms/${roomId}/messages?${query}`))
       if (result.items.some(message => scope === 'ROOM' ? message.channel !== 'ROOM' : message.channel === 'ROOM'))

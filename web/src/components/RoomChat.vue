@@ -22,14 +22,29 @@ const reported = ref<string[]>([])
 let active = true
 let generation = 0
 let timer: ReturnType<typeof setInterval> | undefined
+let reconciliationTimer: ReturnType<typeof setInterval> | undefined
 let socket: ReturnType<typeof connectChatSocket> | undefined
 
 function merge(target: ChatScope, items: ChatItem[]): number {
   const state = channels[target]
   const known = new Set(state.messages.map(message => message.id))
   const added = items.filter(message => !known.has(message.id))
-  state.messages = [...state.messages, ...added].sort((a, b) => a.sequence - b.sequence).slice(-100)
+  const replacements = new Map(items.filter(message => message.redacted).map(message => [message.id, message]))
+  state.messages = [...state.messages.map(message => replacements.get(message.id) ?? message), ...added]
+    .sort((a, b) => a.sequence - b.sequence).slice(-100)
   return added.length
+}
+
+async function reconcile(target: ChatScope) {
+  const state = channels[target]
+  if (!state.initialized || !active || document.visibilityState === 'hidden') return
+  const requestedGeneration = generation
+  try {
+    const result = await chatApi.history(props.roomId, 0, true, target, 100)
+    if (!active || requestedGeneration !== generation) return
+    const known = new Set(state.messages.map(message => message.id))
+    merge(target, result.items.filter(message => known.has(message.id)))
+  } catch { /* The ordinary cursor refresh remains authoritative for connectivity errors. */ }
 }
 
 function receive(item: ChatItem) {
@@ -47,6 +62,8 @@ function connect() {
     subscribed: () => {
       void refresh('ROOM')
       if (props.teamEnabled) void refresh('TEAM')
+      void reconcile('ROOM')
+      if (props.teamEnabled) void reconcile('TEAM')
     },
     message: receive,
     disconnected: () => {
@@ -149,8 +166,12 @@ onMounted(() => {
     void refresh('ROOM')
     if (props.teamEnabled) void refresh('TEAM')
   }, 2000)
+  reconciliationTimer = setInterval(() => {
+    void reconcile('ROOM')
+    if (props.teamEnabled) void reconcile('TEAM')
+  }, 10000)
 })
-onUnmounted(() => { active = false; generation++; clearInterval(timer); socket?.close() })
+onUnmounted(() => { active = false; generation++; clearInterval(timer); clearInterval(reconciliationTimer); socket?.close() })
 </script>
 
 <template>
