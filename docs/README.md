@@ -24,7 +24,7 @@
 | [stage6](stages/stage6.md) | 经典 UNO 规则引擎 | 可独立测试的发牌、出牌、罚牌、质疑、胜负 | stage1 | 部分完成（产品边界待确认） |
 | [stage7](stages/stage7.md) | 实时对局后端 | 服务器裁决、私有视图、命令去重与状态同步 | stage3、stage5、stage6 | 部分完成（跨实例广播与完整断线策略待 stage12） |
 | [stage8](stages/stage8.md) | Web 经典对局 | 网页多个真实账号可以打完经典局 | stage7 | 已完成（本地验收） |
-| [stage9](stages/stage9.md) | Flutter 经典对局 | App 可以和 Web 玩家同桌对战 | stage7 | 进行中（Android/Web 整局已验收，iOS 模拟器已验证真实开局和动作） |
+| [stage9](stages/stage9.md) | Flutter 经典对局 | App 可以和 Web 玩家同桌对战 | stage7 | 进行中（Android/Web 触控整局、iOS 模拟器真实开局与结算已验收） |
 | [stage10](stages/stage10.md) | 四人 2v2 对局 | 两端支持队伍比赛和队伍结算 | stage8、stage9 | 进行中（容器整局已验收，混合设备待做） |
 | [stage11](stages/stage11.md) | 房间／队伍文字 | 真实发送、接收、限流、历史补偿与隔离 | stage5、stage7、stage10 | 进行中（房间/队伍文字和双端轮询未读已接入） |
 | [stage12](stages/stage12.md) | 重连与对局生命周期 | 刷新、掉线、超时、退房和重复连接可控 | stage10、stage11 | 进行中（单实例接管、超时中断、轮间自动推进） |
@@ -110,7 +110,7 @@
 - [stage3验收记录](verification-stage3.md)：本轮实际验证与剩余范围。
 - [stage8 Web 验收](verification-stage8-web.md)：两个真实账号完整经典局、第二局与桌面/窄屏证据。
 - [stage9 Flutter 增量验收](verification-stage9-flutter.md)：App 牌桌、实时协议、双平台构建和设备限制。
-- [stage9 iOS 模拟器增量验收](verification-stage9-ios.md)：真实本地服务的账号、组房、开局与回合动作。
+- [stage9 iOS 模拟器增量验收](verification-stage9-ios.md)：真实本地服务的账号、组房、回合动作、整局结算与第二局。
 - [stage11 房间文字增量验收](verification-stage11-room-text.md)：消息权限、幂等、游标、双端界面与未验收范围。
 - [stage12 对局生命周期增量验收](verification-stage12-lifecycle.md)：连续漏回合中断、轮间自动推进、历史语义与剩余弱网验收。
 - [stage13–14 队友语音增量验收](verification-stage13-14-voice.md)：LiveKit 准入、队伍隔离、WebRTC 实连与撤销换房。

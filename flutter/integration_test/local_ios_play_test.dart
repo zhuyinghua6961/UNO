@@ -113,6 +113,28 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.pump();
 }
 
+Future<http.Response> _submit(
+  AuthSession session,
+  String matchId,
+  MatchState state,
+  Map<String, Object?> action,
+) => session.withAccess(
+  (token) => http.post(
+    Uri.parse('$apiBase/api/matches/$matchId/commands'),
+    headers: {
+      'X-UNO-Client': 'APP',
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'protocolVersion': 1,
+      'commandId': _id(),
+      'expectedVersion': state.view.version,
+      ...action,
+    }),
+  ),
+);
+
 Future<void> _guestMove(
   AuthSession session,
   String matchId,
@@ -126,23 +148,10 @@ Future<void> _guestMove(
     'DRAW_FOUR_RESPONSE' => 'ACCEPT_DRAW_FOUR',
     _ => throw TestFailure('unexpected guest phase ${view.phase}'),
   };
-  final response = await session.withAccess(
-    (token) => http.post(
-      Uri.parse('$apiBase/api/matches/$matchId/commands'),
-      headers: {
-        'X-UNO-Client': 'APP',
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'protocolVersion': 1,
-        'commandId': _id(),
-        'expectedVersion': view.version,
-        'type': type,
-        if (type == 'CHOOSE_INITIAL_COLOR') 'chosenColor': 'RED',
-      }),
-    ),
-  );
+  final response = await _submit(session, matchId, state, {
+    'type': type,
+    if (type == 'CHOOSE_INITIAL_COLOR') 'chosenColor': 'RED',
+  });
   expect(
     response.statusCode,
     200,
@@ -150,11 +159,85 @@ Future<void> _guestMove(
   );
 }
 
+bool _playable(MatchView view, MatchCard card) {
+  if (card.color == null || card.color == view.activeColor) return true;
+  final top = view.topCard;
+  return top.color != null &&
+      card.kind == top.kind &&
+      (card.kind != 'NUMBER' || card.number == top.number);
+}
+
+Map<String, Object?> _automaticAction(MatchView view) {
+  switch (view.phase) {
+    case 'ROUND_OVER':
+      return {'type': 'NEXT_ROUND'};
+    case 'INITIAL_WILD_COLOR':
+      return {'type': 'CHOOSE_INITIAL_COLOR', 'chosenColor': 'RED'};
+    case 'DRAW_FOUR_RESPONSE':
+      return {'type': 'ACCEPT_DRAW_FOUR'};
+    case 'TURN':
+    case 'AFTER_DRAW':
+      MatchCard? card;
+      for (final candidate in view.ownHand) {
+        if (view.phase == 'AFTER_DRAW' && candidate.id != view.drawnCardId) {
+          continue;
+        }
+        if (_playable(view, candidate)) {
+          card = candidate;
+          break;
+        }
+      }
+      if (card == null) {
+        return {'type': view.phase == 'TURN' ? 'DRAW' : 'PASS'};
+      }
+      return {
+        'type': 'PLAY',
+        'cardId': card.id,
+        if (card.color == null) 'chosenColor': 'RED',
+        'callUno': view.ownHand.length == 2,
+      };
+    default:
+      throw TestFailure('unexpected automatic phase ${view.phase}');
+  }
+}
+
+Future<MatchState> _finishMatch(
+  String matchId,
+  AuthSession hostSession,
+  AuthSession guestSession,
+  MatchApi hostMatches,
+  MatchApi guestMatches,
+) async {
+  for (var actionNumber = 0; actionNumber < 2500; actionNumber++) {
+    final publicState = await hostMatches.state(matchId);
+    if (publicState.status == 'ENDED') return publicState;
+    expect(publicState.status, 'PLAYING');
+    final actorId =
+        publicState.view.players[publicState.view.currentSeat].userId;
+    final useHost =
+        publicState.view.phase == 'ROUND_OVER' ||
+        actorId == hostSession.user!.id;
+    final session = useHost ? hostSession : guestSession;
+    final privateState = useHost
+        ? publicState
+        : await guestMatches.state(matchId);
+    final action = _automaticAction(privateState.view);
+    final response = await _submit(session, matchId, privateState, action);
+    if (response.statusCode == 409) continue;
+    expect(
+      response.statusCode,
+      200,
+      reason: 'automatic action ${action['type']}: ${response.body}',
+    );
+  }
+  throw TestFailure('classic match did not finish within 2500 actions');
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'iOS signs in, starts a real classic match and submits a UI action',
+    'iOS signs in, plays a real classic match, sees settlement and starts again',
     (tester) async {
       expect(
         apiBase,
@@ -214,8 +297,8 @@ void main() {
       );
       expect(find.text('我的账号'), findsOneWidget);
 
-    await _tap(tester, find.text('大厅').last);
-    await _tap(tester, find.text('创建好友房'));
+      await _tap(tester, find.text('大厅').last);
+      await _tap(tester, find.text('创建好友房'));
       await _waitFor(
         tester,
         () => find.text('等待室').evaluate().isNotEmpty,
@@ -224,14 +307,18 @@ void main() {
       final room = await hostRooms.current();
       expect(room, isNotNull);
       var guestRoom = await guestRooms.join(room!.code);
-    guestRoom = await guestRooms.ready(guestRoom, true);
-    await _tap(tester, find.text('刷新状态'));
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 500)));
-    await tester.pump();
-    await _tap(tester, find.widgetWithText(FilledButton, '准备'));
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 500)));
-    await tester.pump();
-    await _tap(tester, find.text('开始对局'));
+      guestRoom = await guestRooms.ready(guestRoom, true);
+      await _tap(tester, find.text('刷新状态'));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 500)),
+      );
+      await tester.pump();
+      await _tap(tester, find.widgetWithText(FilledButton, '准备'));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 500)),
+      );
+      await tester.pump();
+      await _tap(tester, find.text('开始对局'));
       await _waitFor(
         tester,
         () => find.text('经典牌桌').evaluate().isNotEmpty,
@@ -284,6 +371,57 @@ void main() {
         progressed,
         isTrue,
         reason: 'iOS UI action must reach the real game service',
+      );
+
+      final finished = await _finishMatch(
+        matchId,
+        hostSession,
+        guestSession,
+        hostMatches,
+        guestMatches,
+      );
+      expect(finished.view.phase, 'MATCH_OVER');
+      final hostHistory = await hostMatches.history();
+      final guestHistory = await guestMatches.history();
+      expect(hostHistory.items.first.matchId, matchId);
+      expect(guestHistory.items.first.matchId, matchId);
+      expect(
+        {hostHistory.items.first.result, guestHistory.items.first.result},
+        {'WIN', 'LOSS'},
+      );
+
+      await tester.pump(const Duration(seconds: 1));
+      await tester.scrollUntilVisible(
+        find.textContaining('赢得了对局'),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.textContaining('赢得了对局'), findsOneWidget);
+      await _tap(tester, find.text('返回等待室 · 再来一局'));
+      await _waitFor(
+        tester,
+        () => find.text('等待室').evaluate().isNotEmpty,
+        'returned waiting room',
+      );
+      guestRoom = await guestRooms.get(room.id);
+      guestRoom = await guestRooms.ready(guestRoom, true);
+      await _tap(tester, find.text('刷新状态'));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 500)),
+      );
+      await tester.pump();
+      await _tap(tester, find.widgetWithText(FilledButton, '准备'));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 500)),
+      );
+      await tester.pump();
+      await _tap(tester, find.text('开始对局'));
+      final secondMatchId = (await hostMatches.current(room.id))!.matchId;
+      expect(secondMatchId, isNot(matchId));
+      await _waitFor(
+        tester,
+        () => find.text('经典牌桌').evaluate().isNotEmpty,
+        'second classic table',
       );
     },
     skip: !enabled,
