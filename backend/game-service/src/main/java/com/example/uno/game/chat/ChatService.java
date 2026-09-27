@@ -83,11 +83,19 @@ public class ChatService {
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public ChatPage history(UUID roomId, GameIdentity identity, long after, int limit,
             boolean latest, String scope) {
+        return subscriptionPage(roomId, identity, null, after, limit, latest, scope).page();
+    }
+
+    /** Fetch a subscription page under one membership snapshot, resetting the cursor after a team change. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public SubscriptionPage subscriptionPage(UUID roomId, GameIdentity identity, String expectedChannel,
+            long after, int limit, boolean latest, String scope) {
         if (after < 0 || limit < 1 || limit > 100) throw ChatFailure.invalid();
         Instant now = clock.instant();
         Member member = member(roomId, identity, false, now);
         String channel = channel(member, scope);
         if (latest && after != 0) throw ChatFailure.invalid();
+        if (expectedChannel != null && !expectedChannel.equals(channel)) after = 0;
         long floor = "ROOM".equals(channel) ? 0 : member.teamJoinSequence();
         List<ChatItem> rows = jdbc.query("SELECT id, room_id, channel, sequence, sender_user_id, sender_nickname, "
                         + "client_message_id, content, created_at, redacted_at FROM game.chat_messages "
@@ -99,11 +107,13 @@ public class ChatService {
             List<ChatItem> recent = rows.size() > limit ? rows.subList(0, limit) : rows;
             List<ChatItem> ordered = new java.util.ArrayList<>(recent);
             java.util.Collections.reverse(ordered);
-            return new ChatPage(ordered, ordered.isEmpty() ? floor : ordered.get(ordered.size() - 1).sequence(), false);
+            return new SubscriptionPage(channel, new ChatPage(ordered,
+                    ordered.isEmpty() ? floor : ordered.get(ordered.size() - 1).sequence(), false));
         }
         boolean hasMore = rows.size() > limit;
         List<ChatItem> items = hasMore ? rows.subList(0, limit) : rows;
-        return new ChatPage(items, items.isEmpty() ? Math.max(after, floor) : items.get(items.size() - 1).sequence(), hasMore);
+        return new SubscriptionPage(channel, new ChatPage(items,
+                items.isEmpty() ? Math.max(after, floor) : items.get(items.size() - 1).sequence(), hasMore));
     }
 
     /** Recheck the current room/team entitlement immediately before a live delivery. */
@@ -193,6 +203,7 @@ public class ChatService {
     public record ChatPage(List<ChatItem> items, long nextSequence, boolean hasMore) {
         public ChatPage { items = List.copyOf(items); }
     }
+    public record SubscriptionPage(String channel, ChatPage page) { }
     public record ReportReceipt(UUID id, String status) { }
     private record Member(String nickname, Instant joinedAt, int seat, long teamJoinSequence,
             String mode, String state, Instant expiresAt) { }

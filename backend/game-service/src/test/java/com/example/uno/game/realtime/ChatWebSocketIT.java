@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.example.uno.game.GameApplication;
 import com.example.uno.game.auth.GameIdentity;
 import com.example.uno.game.auth.HttpSessionVerifier;
+import com.example.uno.game.chat.ChatService;
 import com.example.uno.game.rooms.RoomService;
 import com.example.uno.game.rooms.RoomView;
 import java.net.URI;
@@ -68,7 +69,12 @@ class ChatWebSocketIT {
 
     @BeforeAll
     static void start() {
-        application = new SpringApplicationBuilder(GameApplication.class, FakeIdentityService.class).run(
+        application = startInstance();
+        endpoint = endpointFor(application);
+    }
+
+    private static ConfigurableApplicationContext startInstance() {
+        return new SpringApplicationBuilder(GameApplication.class, FakeIdentityService.class).run(
                 "--server.port=0", "--spring.datasource.url=" + database.getJdbcUrl(),
                 "--spring.datasource.username=" + database.getUsername(),
                 "--spring.datasource.password=" + database.getPassword(),
@@ -76,8 +82,12 @@ class ChatWebSocketIT {
                 "--uno.auth.allowed-origins=http://localhost:5173",
                 "--uno.auth.identity-base-url=http://localhost:1",
                 "--uno.auth.allow-insecure-http=true",
+                "--uno.chat.message-poll-ms=60000",
                 "--uno.auth.service-key=" + "a".repeat(64));
-        endpoint = URI.create("ws://localhost:" + application.getEnvironment().getProperty("local.server.port")
+    }
+
+    private static URI endpointFor(ConfigurableApplicationContext context) {
+        return URI.create("ws://localhost:" + context.getEnvironment().getProperty("local.server.port")
                 + "/ws/chat");
     }
 
@@ -132,6 +142,35 @@ class ChatWebSocketIT {
             for (Peer peer : List.of(pA1, pA2, pOutsider))
                 assertNull(peer.messages.poll(300, TimeUnit.MILLISECONDS));
 
+            // Simulate a commit on another instance, which has no access to this handler's publish hook.
+            ChatService chat = application.getBean(ChatService.class);
+            ChatWebSocketHandler handler = application.getBean(ChatWebSocketHandler.class);
+            UUID remoteId = UUID.randomUUID();
+            chat.send(roomId, a2, remoteId, "A team from another instance", "TEAM");
+            handler.pollSubscriptions();
+            for (Peer peer : List.of(pA1, pA2)) {
+                JsonNode remote = peer.nextMessage();
+                assertEquals("CHAT_MESSAGE", remote.path("type").asText());
+                assertEquals(remoteId.toString(), remote.path("item").path("clientMessageId").asText());
+                assertEquals("TEAM_A", remote.path("item").path("channel").asText());
+            }
+            for (Peer peer : List.of(pB1, pB2, pOutsider))
+                assertNull(peer.messages.poll(200, TimeUnit.MILLISECONDS));
+            handler.pollSubscriptions();
+            for (Peer peer : List.of(pA1, pA2, pB1, pB2))
+                assertNull(peer.messages.poll(200, TimeUnit.MILLISECONDS));
+
+            ChatService.ChatItem first = chat.send(roomId, a1, UUID.randomUUID(), "ordered one", "ROOM");
+            ChatService.ChatItem second = chat.send(roomId, b2, UUID.randomUUID(), "ordered two", "ROOM");
+            handler.publish(second); // A later local publication must not skip an earlier remote commit.
+            for (Peer peer : List.of(pA1, pB1, pA2, pB2))
+                assertNull(peer.messages.poll(100, TimeUnit.MILLISECONDS));
+            handler.pollSubscriptions();
+            for (Peer peer : List.of(pA1, pB1, pA2, pB2)) {
+                assertEquals(first.id().toString(), peer.nextMessage().path("item").path("id").asText());
+                assertEquals(second.id().toString(), peer.nextMessage().path("item").path("id").asText());
+            }
+
             URI reportEndpoint = URI.create("http://localhost:" + endpoint.getPort() + "/api/rooms/"
                     + roomId + "/messages/" + bEvent.path("item").path("id").asText() + "/reports");
             HttpRequest report = HttpRequest.newBuilder(reportEndpoint)
@@ -182,10 +221,106 @@ class ChatWebSocketIT {
             assertNull(pB2.messages.poll(300, TimeUnit.MILLISECONDS));
 
             sessions.remove("b");
-            application.getBean(ChatWebSocketHandler.class).revalidateConnections();
+            handler.revalidateConnections();
             assertEquals(1008, pB1.nextClose());
         } finally {
             for (Peer peer : List.of(pA1, pB1, pA2, pB2, pOutsider)) peer.socket.abort();
+            sessions.clear();
+        }
+    }
+
+    @Test
+    void pollingResetsTeamCursorAfterSeatChangeWithoutRevealingOldTeamHistory() throws Exception {
+        GameIdentity a1 = player("Team host");
+        GameIdentity b1 = player("Team guest B");
+        GameIdentity a2 = player("Team guest A");
+        sessions.put("ta", a1);
+        sessions.put("tb", b1);
+        sessions.put("tc", a2);
+        RoomService rooms = application.getBean(RoomService.class);
+        RoomView room = rooms.create(a1, "TEAM_2V2", 4);
+        room = rooms.join(b1, room.code());
+        room = rooms.join(a2, room.code());
+        UUID roomId = room.id();
+        ChatService chat = application.getBean(ChatService.class);
+        ChatWebSocketHandler handler = application.getBean(ChatWebSocketHandler.class);
+        UUID oldB = UUID.randomUUID();
+        chat.send(roomId, b1, oldB, "old B message", "TEAM");
+        Peer pA1 = connect("ta");
+        Peer pB1 = connect("tb");
+        Peer pA2 = connect("tc");
+        try {
+            String subscribe = json.writeValueAsString(Map.of(
+                    "protocolVersion", 1, "type", "SUBSCRIBE", "roomId", roomId));
+            for (Peer peer : List.of(pA1, pB1, pA2)) {
+                peer.socket.sendText(subscribe, true).join();
+                assertEquals("CHAT_SUBSCRIBED", peer.nextMessage().path("type").asText());
+            }
+            UUID aMessage = UUID.randomUUID();
+            chat.send(roomId, a1, aMessage, "A before switch", "TEAM");
+            handler.pollSubscriptions();
+            for (Peer peer : List.of(pA1, pA2))
+                assertEquals(aMessage.toString(), peer.nextMessage().path("item").path("clientMessageId").asText());
+            assertNull(pB1.messages.poll(200, TimeUnit.MILLISECONDS));
+
+            rooms.selectTeam(roomId, a2, "B", room.version());
+            handler.pollSubscriptions();
+            assertNull(pA2.messages.poll(200, TimeUnit.MILLISECONDS), "Old B history must stay hidden");
+
+            UUID newB = UUID.randomUUID();
+            chat.send(roomId, a2, newB, "new B message", "TEAM");
+            handler.pollSubscriptions();
+            for (Peer peer : List.of(pB1, pA2))
+                assertEquals(newB.toString(), peer.nextMessage().path("item").path("clientMessageId").asText());
+            assertNull(pA1.messages.poll(200, TimeUnit.MILLISECONDS));
+        } finally {
+            for (Peer peer : List.of(pA1, pB1, pA2)) peer.socket.abort();
+            sessions.clear();
+        }
+    }
+
+    @Test
+    void separateGameInstancesDeliverCommittedTeamMessageToRemoteSubscriber() throws Exception {
+        GameIdentity a1 = player("Instance A");
+        GameIdentity b1 = player("Instance B sender");
+        GameIdentity a2 = player("Instance A peer");
+        GameIdentity b2 = player("Instance B peer");
+        sessions.put("ia", a1);
+        sessions.put("ib", b1);
+        sessions.put("ic", b2);
+        RoomService rooms = application.getBean(RoomService.class);
+        RoomView room = rooms.create(a1, "TEAM_2V2", 4);
+        room = rooms.join(b1, room.code());
+        room = rooms.join(a2, room.code());
+        room = rooms.join(b2, room.code());
+        UUID roomId = room.id();
+        try (ConfigurableApplicationContext second = startInstance()) {
+            URI remoteEndpoint = endpointFor(second);
+            Peer pA1 = connect("ia", remoteEndpoint);
+            Peer pB2 = connect("ic", remoteEndpoint);
+            try {
+                String subscribe = json.writeValueAsString(Map.of(
+                        "protocolVersion", 1, "type", "SUBSCRIBE", "roomId", roomId));
+                for (Peer peer : List.of(pA1, pB2)) {
+                    peer.socket.sendText(subscribe, true).join();
+                    assertEquals("CHAT_SUBSCRIBED", peer.nextMessage().path("type").asText());
+                }
+                UUID messageId = UUID.randomUUID();
+                application.getBean(ChatService.class).send(roomId, b1, messageId,
+                        "from the other Game instance", "TEAM");
+                ChatWebSocketHandler remoteHandler = second.getBean(ChatWebSocketHandler.class);
+                remoteHandler.pollSubscriptions();
+                JsonNode event = pB2.nextMessage();
+                assertEquals(messageId.toString(), event.path("item").path("clientMessageId").asText());
+                assertEquals("TEAM_B", event.path("item").path("channel").asText());
+                assertNull(pA1.messages.poll(200, TimeUnit.MILLISECONDS));
+                remoteHandler.pollSubscriptions();
+                assertNull(pB2.messages.poll(200, TimeUnit.MILLISECONDS));
+            } finally {
+                pA1.socket.abort();
+                pB2.socket.abort();
+            }
+        } finally {
             sessions.clear();
         }
     }
@@ -195,10 +330,14 @@ class ChatWebSocketIT {
     }
 
     private static Peer connect(String token) {
+        return connect(token, endpoint);
+    }
+
+    private static Peer connect(String token, URI socketEndpoint) {
         Peer peer = new Peer();
         peer.socket = HttpClient.newHttpClient().newWebSocketBuilder()
                 .header("X-UNO-Client", "APP").header("Authorization", "Bearer " + token)
-                .buildAsync(endpoint, peer).join();
+                .buildAsync(socketEndpoint, peer).join();
         return peer;
     }
 

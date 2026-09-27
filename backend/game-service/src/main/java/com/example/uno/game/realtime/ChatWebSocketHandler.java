@@ -75,8 +75,21 @@ public final class ChatWebSocketHandler extends TextWebSocketHandler {
         }
         if ("SUBSCRIBE".equals(inbound.get("type")) && SUBSCRIBE_FIELDS.containsAll(inbound.keySet())) {
             try {
-                chat.history(roomId, client.auth.identity(), 0, 1, true, "ROOM");
-                client.roomId = roomId;
+                ChatService.SubscriptionPage room = chat.subscriptionPage(
+                        roomId, client.auth.identity(), null, 0, 1, true, "ROOM");
+                ChatService.SubscriptionPage team = null;
+                try {
+                    team = chat.subscriptionPage(roomId, client.auth.identity(), null, 0, 1, true, "TEAM");
+                } catch (ChatFailure failure) {
+                    if (!"INVALID_CHAT_INPUT".equals(failure.code())) throw failure;
+                }
+                synchronized (client) {
+                    client.roomId = roomId;
+                    client.teamChannel = team == null ? null : team.channel();
+                    client.lastSequence.clear();
+                    client.lastSequence.put(room.channel(), room.page().nextSequence());
+                    if (team != null) client.lastSequence.put(team.channel(), team.page().nextSequence());
+                }
                 send(client, Map.of("type", "CHAT_SUBSCRIBED", "roomId", roomId));
             } catch (ChatFailure failure) {
                 send(client, Map.of("type", "ERROR", "code", failure.code()));
@@ -108,12 +121,68 @@ public final class ChatWebSocketHandler extends TextWebSocketHandler {
             if (!item.roomId().equals(recipient.roomId) || !verify(recipient)) continue;
             try {
                 if (chat.visibleTo(item, recipient.auth.identity()))
-                    send(recipient, Map.of("type", "CHAT_MESSAGE", "roomId", item.roomId(), "item", item));
+                    sendIfNew(recipient, item, false);
             } catch (IOException failure) {
                 close(recipient, CloseStatus.SERVER_ERROR);
             } catch (RuntimeException failure) {
                 // Delivery is best effort after commit. Cursor history repairs missed events.
             }
+        }
+    }
+
+    /** Repair commits made on other instances and local events missed after transaction commit. */
+    @Scheduled(fixedDelayString = "${uno.chat.message-poll-ms:1000}")
+    public void pollSubscriptions() {
+        for (Client client : clients.values()) {
+            UUID roomId = client.roomId;
+            if (roomId == null) continue;
+            try {
+                pollScope(client, roomId, "ROOM");
+                if (clients.get(client.session.getId()) != client) continue;
+                if (client.teamChannel != null) pollScope(client, roomId, "TEAM");
+            } catch (ChatFailure failure) {
+                if (!"INVALID_CHAT_INPUT".equals(failure.code()))
+                    close(client, CloseStatus.POLICY_VIOLATION);
+            } catch (IOException | RuntimeException failure) {
+                close(client, CloseStatus.SERVER_ERROR);
+            }
+        }
+    }
+
+    private void pollScope(Client client, UUID roomId, String scope) throws IOException {
+        String expected;
+        long after;
+        synchronized (client) {
+            if (!roomId.equals(client.roomId)) return;
+            expected = "ROOM".equals(scope) ? "ROOM" : client.teamChannel;
+            after = client.lastSequence.getOrDefault(expected, 0L);
+        }
+        ChatService.SubscriptionPage page = chat.subscriptionPage(
+                roomId, client.auth.identity(), expected, after, 100, false, scope);
+        if (!page.page().items().isEmpty() && !verify(client)) return;
+        synchronized (client) {
+            if (!roomId.equals(client.roomId)) return;
+            if ("TEAM".equals(scope) && !page.channel().equals(client.teamChannel)) {
+                client.teamChannel = page.channel();
+                client.lastSequence.put(page.channel(), 0L);
+            }
+            for (ChatService.ChatItem item : page.page().items()) {
+                if (!chat.visibleTo(item, client.auth.identity())) continue;
+                sendIfNew(client, item, true);
+            }
+            client.lastSequence.merge(page.channel(), page.page().nextSequence(), Math::max);
+        }
+    }
+
+    private void sendIfNew(Client client, ChatService.ChatItem item, boolean fromOrderedPage) throws IOException {
+        synchronized (client) {
+            long last = client.lastSequence.getOrDefault(item.channel(), 0L);
+            boolean teamChanged = !"ROOM".equals(item.channel()) && !item.channel().equals(client.teamChannel);
+            if (!item.roomId().equals(client.roomId)
+                    || item.sequence() <= last
+                    || (!fromOrderedPage && (teamChanged || item.sequence() > last + 1))) return;
+            send(client, Map.of("type", "CHAT_MESSAGE", "roomId", item.roomId(), "item", item));
+            client.lastSequence.put(item.channel(), item.sequence());
         }
     }
 
@@ -165,6 +234,8 @@ public final class ChatWebSocketHandler extends TextWebSocketHandler {
         final WebSocketSession session;
         final GameWebSocketHandshake.SessionAuth auth;
         volatile UUID roomId;
+        volatile String teamChannel;
+        final Map<String, Long> lastSequence = new HashMap<>();
         private long windowStarted = System.nanoTime();
         private int messages;
 
