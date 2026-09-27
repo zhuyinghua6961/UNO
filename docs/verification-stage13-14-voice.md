@@ -19,11 +19,12 @@
 5. Web `npm test`：12 个文件、78 项通过；`npm run build` 通过。game-service 目标 PostgreSQL 集成测试（VoiceServiceIT、MatchServiceIT、RoomServiceIT、ChatServiceIT、GameDatabaseIT）通过；迁移增加的外键已同步更新测试数据清理。Compose 配置、脚本语法和 `git diff --check` 通过。
 6. 隔离的 `uno-stage17-check` Compose 栈原有 PostgreSQL 卷直接升级 game-service 镜像，Flyway 从 V9 迁移到 V10；网关 `bootstrap` 保持账号、房间、牌局、文字、语音功能开启。本机测试账号服务的速率限制表仅在隔离栈内为重复自动化运行清空过。
 7. 2026-09-24 在同一隔离栈升级 Identity、Game、Web 镜像，Flyway 从 V10 迁移到 V11。`AuthIT`、`VoiceServiceIT`、`GameDatabaseIT` 验证内部批量会话核验、吊销后代次轮换、身份服务不可用时关闭在场房间及旧代次清理。`npm --prefix web run test:e2e:voice-revoke` 使用四个真实账号和 LiveKit：A1 Web 会话登出后，旧连接释放麦克风；仍有效且已静音的 A2 自动进入新房间，未重新调用 `getUserMedia`；重放 A1 尚未到期的 JWT 不能看到新房间的队友。`npm --prefix web run test:e2e:voice` 再次通过完整终局/旧令牌清理回归。Web 78 项测试和生产构建通过。重复自动化触发账号 IP 限流后，仅清空隔离栈的测试限流记录再执行。
+8. 2026-09-28 浏览器双向音频补验：`web/e2e/team-voice.cjs` 在同队 A1、A2 均加入后，从各自订阅的远端 `MediaStream` 用 Web Audio 取 PCM 时域样本，分别确认均方根幅度大于 0.001；B1 所在对手房间没有对应音轨。`npm --prefix web run test:e2e:voice` 与 `npm --prefix web run test:e2e:voice-revoke` 在原有本地 `uno-stage17-check` LiveKit 测试栈均通过，分别覆盖整局/终局清理及会话吊销/旧令牌隔离。这证明虚拟麦克风样本双向到达浏览器，未测真实扬声器听感。
 
 ## 尚未达到 stage13/14 验收的项目
 
 - 自托管 LiveKit 的 `RemoveParticipant` 不会撤销已签发 JWT；旧 JWT 到期前仍可能短暂重建旧房间，因此旧代次重复清理仍必要。会话检查采用轮询，吊销到旧房间断开有数秒延迟；单轮最多复核 8 局。跨节点、高并发以及媒体管理接口故障时的时延还没有压测。
-- 未用两套真实麦克风、扬声器和人耳验证双向可听效果；fake audio 测试只证明真实 WebRTC 房间连接、远端订阅和本地采集轨道生命周期。权限拒绝、设备占用、播放限制、网络切换和 Safari 等浏览器行为仍需测试。
+- 未用两套真实麦克风、扬声器和人耳验证双向可听效果；fake audio 测试证明本机真实 WebRTC 房间连接、双向音频样本到达、远端订阅和本地采集轨道生命周期。权限拒绝、设备占用、播放限制、网络切换和 Safari 等浏览器行为仍需测试。
 - Flutter 已有语音 SDK/UI 和房间删除后的自动重连，但还没有真实设备互听。当前回环媒体地址不适用于另一台手机或公网。发布前需 HTTPS/WSS、可达 ICE/TURN、密钥管理、网络与设备矩阵验收。
 
 LiveKit 的 [服务端令牌文档](https://docs.livekit.io/home/server/generating-tokens/) 与 [RoomService API](https://docs.livekit.io/reference/other/roomservice-api/) 是权限和撤销行为依据；Web SDK 使用 [官方 JavaScript 客户端](https://github.com/livekit/client-sdk-js)。

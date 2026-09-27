@@ -64,6 +64,37 @@ async function nativeMutation(path, token, body) {
   return { status: response.status, body: await response.json().catch(() => null) }
 }
 
+async function remoteAudioRms(page) {
+  return page.evaluate(async () => {
+    const element = document.querySelector('.voice-audio audio')
+    if (!(element?.srcObject instanceof MediaStream)) throw new Error('Remote audio stream is missing')
+    const context = new AudioContext()
+    const source = context.createMediaStreamSource(element.srcObject)
+    const analyser = context.createAnalyser()
+    analyser.fftSize = 2048
+    const silentOutput = context.createGain()
+    silentOutput.gain.value = 0
+    source.connect(analyser)
+    analyser.connect(silentOutput)
+    silentOutput.connect(context.destination)
+    const samples = new Float32Array(analyser.fftSize)
+    let highest = 0
+    try {
+      await context.resume()
+      for (let attempt = 0; attempt < 50; attempt++) {
+        analyser.getFloatTimeDomainData(samples)
+        const energy = samples.reduce((sum, value) => sum + value * value, 0)
+        highest = Math.max(highest, Math.sqrt(energy / samples.length))
+        if (highest > 0.001) break
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      return highest
+    } finally {
+      await context.close()
+    }
+  })
+}
+
 async function main() {
   const browser = await chromium.launch({ headless: true,
     args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] })
@@ -144,6 +175,10 @@ async function main() {
     assert.ok(replayGrant, 'first teammate grant was captured')
     await a1.waitForFunction(() => document.querySelectorAll('.voice-audio audio').length === 1,
       null, { timeout: 20000 })
+    await a2.waitForFunction(() => document.querySelectorAll('.voice-audio audio').length === 1,
+      null, { timeout: 20000 })
+    assert.ok(await remoteAudioRms(a1) > 0.001, 'A1 did not receive A2 microphone samples')
+    assert.ok(await remoteAudioRms(a2) > 0.001, 'A2 did not receive A1 microphone samples')
     assert.equal(await b1.locator('.voice-audio audio').count(), 0, 'opponent audio is isolated')
     if (process.env.UNO_E2E_VOICE_REVOKE === '1') {
       await a2.getByRole('button', { name: '关闭麦克风' }).click()
@@ -179,7 +214,7 @@ async function main() {
       }, replayGrant)
       assert.equal(oldRoomParticipants, 0, 'replayed JWT cannot hear the valid teammate')
       assert.deepEqual(errors, [])
-      console.log('PASS: revoked voice session loses media; valid teammate migrates without changing mic choice; replayed JWT is isolated.')
+      console.log('PASS: teammates receive bidirectional fake microphone samples; revoked voice session loses media; valid teammate migrates without changing mic choice; replayed JWT is isolated.')
       return
     }
     await a2.getByRole('button', { name: '关闭麦克风' }).click()
@@ -255,7 +290,7 @@ async function main() {
     }, replayGrant)
     assert.equal(replayOutcome, 'deleted', 'the retained cleanup task removes a room recreated by an old grant')
     assert.deepEqual(errors, [])
-    console.log('PASS: team audio isolation and microphone lifecycle; a still-valid terminal grant can reconnect but retained cleanup deletes its room again.')
+    console.log('PASS: teammates receive bidirectional fake microphone samples; team isolation and microphone lifecycle hold; retained cleanup deletes a room recreated by a terminal grant.')
   } finally {
     await Promise.all(contexts.map(context => context.close()))
     await browser.close()
