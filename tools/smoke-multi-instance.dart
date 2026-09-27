@@ -72,6 +72,161 @@ Future<WebSocket> connect(Uri base, String path, String token) {
   );
 }
 
+Future<String> docker(List<String> args) async {
+  final result = await Process.run('docker', args);
+  require(
+    result.exitCode == 0,
+    'docker ${args.first} failed: ${result.stderr}',
+  );
+  return (result.stdout as String).trim();
+}
+
+Future<void> verifyCrashTarget(String container, Uri first) async {
+  require(
+    RegExp(r'^uno-stage12-multi-game-service-[0-9]+$').hasMatch(container),
+    'Crash test only accepts an isolated uno-stage12-multi Game container',
+  );
+  final identity = await docker([
+    'inspect',
+    '--format',
+    '{{index .Config.Labels "com.docker.compose.project"}}|{{index .Config.Labels "com.docker.compose.service"}}|{{.State.Status}}',
+    container,
+  ]);
+  require(
+    identity == 'uno-stage12-multi|game-service|running',
+    'Crash target must be a running Game container in uno-stage12-multi',
+  );
+  final published = await docker(['port', container, '8082/tcp']);
+  require(
+    first.host == '127.0.0.1' &&
+        published.split('\n').any((line) => line == '127.0.0.1:${first.port}'),
+    'Game A URL must match the isolated container localhost port',
+  );
+}
+
+Future<void> waitForReadiness(HttpClient client, String container) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 30));
+  while (DateTime.now().isBefore(deadline)) {
+    try {
+      final published = await docker(['port', container, '8082/tcp']);
+      final address = published
+          .split('\n')
+          .firstWhere((line) => line.startsWith('127.0.0.1:'));
+      final response = await request(
+        client,
+        Uri.parse('http://$address'),
+        '/actuator/health/readiness',
+      );
+      if (response.status == 200 && response.body['status'] == 'UP') return;
+    } catch (_) {
+      // A newly restarted container may not accept connections yet.
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+  }
+  throw StateError('Restarted Game A did not become ready within 30 seconds');
+}
+
+Future<void> verifyCrashRecovery(
+  HttpClient client,
+  Uri first,
+  Uri second,
+  String matchId,
+  String actorToken,
+  Json action,
+  String subscribe,
+  String command,
+  String container,
+) async {
+  await verifyCrashTarget(container, first);
+  final oldSocket = await connect(first, '/ws/game', actorToken);
+  final oldEvents = StreamIterator<dynamic>(oldSocket);
+  var stopped = false;
+  try {
+    oldSocket.add(subscribe);
+    final initial = await next(oldEvents, 'Game A before crash');
+    require(
+      initial['type'] == 'MATCH_SNAPSHOT',
+      'Game A rejected subscription',
+    );
+    final oldView = initial['view'] as Json;
+    require(
+      oldView['version'] == 1,
+      'Initial match version changed unexpectedly',
+    );
+
+    await docker(['stop', '--time', '0', container]);
+    stopped = true;
+    final blocked = await request(
+      client,
+      second,
+      '/api/matches/$matchId/commands',
+      method: 'POST',
+      token: actorToken,
+      body: action,
+    );
+    require(
+      blocked.status == 409 && blocked.body['code'] == 'MATCH_SOCKET_OWNED',
+      'Game B HTTP command bypassed the crashed connection owner',
+    );
+
+    final newSocket = await connect(second, '/ws/game', actorToken);
+    final newEvents = StreamIterator<dynamic>(newSocket);
+    try {
+      newSocket.add(subscribe);
+      final recovered = await next(newEvents, 'Game B after crash');
+      require(
+        recovered['type'] == 'MATCH_SNAPSHOT',
+        'Game B rejected subscription after Game A crashed',
+      );
+      final newView = recovered['view'] as Json;
+      require(
+        newView['version'] == oldView['version'] &&
+            newView['deadlineAt'] == oldView['deadlineAt'] &&
+            jsonEncode(newView['ownHand']) == jsonEncode(oldView['ownHand']),
+        'Recovered match lost its version, deadline, or private hand',
+      );
+      newSocket.add(command);
+      final acknowledged = await next(newEvents, 'Game B recovered command');
+      require(
+        acknowledged['type'] == 'COMMAND_ACK' &&
+            (acknowledged['result'] as Json)['appliedVersion'] == 2,
+        'Game B did not apply the next action after Game A crashed',
+      );
+      await newSocket.close();
+      await newEvents.cancel();
+      final retry = await request(
+        client,
+        second,
+        '/api/matches/$matchId/commands',
+        method: 'POST',
+        token: actorToken,
+        body: action,
+      );
+      require(
+        retry.status == 200 && retry.body['duplicate'] == true,
+        'Game B HTTP retry did not find the recovered command',
+      );
+    } finally {
+      await newSocket.close();
+      await newEvents.cancel();
+    }
+  } finally {
+    try {
+      if (stopped) {
+        await docker(['start', container]);
+        await waitForReadiness(client, container);
+      }
+    } finally {
+      try {
+        await oldSocket.close();
+        await oldEvents.cancel();
+      } catch (_) {
+        // The container stop can sever the old socket without a close frame.
+      }
+    }
+  }
+}
+
 Future<void> main() async {
   final env = Platform.environment;
   final gateway = Uri.parse(env['UNO_GATEWAY_URL']!);
@@ -193,70 +348,84 @@ Future<void> main() async {
       'command': action,
     });
 
-    final oldSocket = await connect(first, '/ws/game', actorToken);
-    final newSocket = await connect(second, '/ws/game', actorToken);
-    final oldEvents = StreamIterator<dynamic>(oldSocket);
-    final newEvents = StreamIterator<dynamic>(newSocket);
-    try {
-      oldSocket.add(subscribe);
-      require(
-        (await next(oldEvents, 'first Game snapshot'))['type'] ==
-            'MATCH_SNAPSHOT',
-        'First Game instance rejected match subscription',
-      );
-      newSocket.add(subscribe);
-      require(
-        (await next(newEvents, 'second Game snapshot'))['type'] ==
-            'MATCH_SNAPSHOT',
-        'Second Game instance rejected takeover',
-      );
-      final blocked = await request(
+    if (env['SMOKE_GAME_CRASH'] == 'true') {
+      await verifyCrashRecovery(
         client,
         first,
-        '/api/matches/$matchId/commands',
-        method: 'POST',
-        token: actorToken,
-        body: action,
+        second,
+        matchId,
+        actorToken,
+        action,
+        subscribe,
+        command,
+        env['GAME_INSTANCE_A_CONTAINER']!,
       );
-      require(
-        blocked.status == 409 && blocked.body['code'] == 'MATCH_SOCKET_OWNED',
-        'HTTP action bypassed current WebSocket owner',
-      );
-      if (oldSocket.readyState == WebSocket.open) oldSocket.add(command);
-      require(
-        !await oldEvents.moveNext().timeout(const Duration(seconds: 10)),
-        'Old Game socket received an action response after takeover',
-      );
-      require(
-        oldSocket.closeCode == 4001 && oldSocket.closeReason == 'TAKEN_OVER',
-        'Old Game socket was not closed as taken over',
-      );
-      newSocket.add(command);
-      final acknowledged = await next(newEvents, 'new Game command');
-      require(
-        acknowledged['type'] == 'COMMAND_ACK' &&
-            (acknowledged['result'] as Json)['appliedVersion'] == 2,
-        'New Game socket could not submit the next action',
-      );
-      await newSocket.close();
-      await newEvents.cancel();
-      final retry = await request(
-        client,
-        first,
-        '/api/matches/$matchId/commands',
-        method: 'POST',
-        token: actorToken,
-        body: action,
-      );
-      require(
-        retry.status == 200 && retry.body['duplicate'] == true,
-        'HTTP retry did not recover the committed action after socket close',
-      );
-    } finally {
-      await oldSocket.close();
-      await newSocket.close();
-      await oldEvents.cancel();
-      await newEvents.cancel();
+    } else {
+      final oldSocket = await connect(first, '/ws/game', actorToken);
+      final newSocket = await connect(second, '/ws/game', actorToken);
+      final oldEvents = StreamIterator<dynamic>(oldSocket);
+      final newEvents = StreamIterator<dynamic>(newSocket);
+      try {
+        oldSocket.add(subscribe);
+        require(
+          (await next(oldEvents, 'first Game snapshot'))['type'] ==
+              'MATCH_SNAPSHOT',
+          'First Game instance rejected match subscription',
+        );
+        newSocket.add(subscribe);
+        require(
+          (await next(newEvents, 'second Game snapshot'))['type'] ==
+              'MATCH_SNAPSHOT',
+          'Second Game instance rejected takeover',
+        );
+        final blocked = await request(
+          client,
+          first,
+          '/api/matches/$matchId/commands',
+          method: 'POST',
+          token: actorToken,
+          body: action,
+        );
+        require(
+          blocked.status == 409 && blocked.body['code'] == 'MATCH_SOCKET_OWNED',
+          'HTTP action bypassed current WebSocket owner',
+        );
+        if (oldSocket.readyState == WebSocket.open) oldSocket.add(command);
+        require(
+          !await oldEvents.moveNext().timeout(const Duration(seconds: 10)),
+          'Old Game socket received an action response after takeover',
+        );
+        require(
+          oldSocket.closeCode == 4001 && oldSocket.closeReason == 'TAKEN_OVER',
+          'Old Game socket was not closed as taken over',
+        );
+        newSocket.add(command);
+        final acknowledged = await next(newEvents, 'new Game command');
+        require(
+          acknowledged['type'] == 'COMMAND_ACK' &&
+              (acknowledged['result'] as Json)['appliedVersion'] == 2,
+          'New Game socket could not submit the next action',
+        );
+        await newSocket.close();
+        await newEvents.cancel();
+        final retry = await request(
+          client,
+          first,
+          '/api/matches/$matchId/commands',
+          method: 'POST',
+          token: actorToken,
+          body: action,
+        );
+        require(
+          retry.status == 200 && retry.body['duplicate'] == true,
+          'HTTP retry did not recover the committed action after socket close',
+        );
+      } finally {
+        await oldSocket.close();
+        await newSocket.close();
+        await oldEvents.cancel();
+        await newEvents.cancel();
+      }
     }
     final departed = await request(
       client,
@@ -270,7 +439,9 @@ Future<void> main() async {
       'Multi-instance smoke match did not interrupt on deliberate departure',
     );
     print(
-      'PASS: two Game containers share chat, enforce takeover, gate HTTP, and preserve command retry.',
+      env['SMOKE_GAME_CRASH'] == 'true'
+          ? 'PASS: Game A crash preserves private state; Game B reclaims, applies and deduplicates the action.'
+          : 'PASS: two Game containers share chat, enforce takeover, gate HTTP, and preserve command retry.',
     );
   } finally {
     client.close(force: true);

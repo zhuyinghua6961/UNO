@@ -13,6 +13,13 @@ if (process.env.SMOKE_MULTI_INSTANCE === 'true') {
     'The moderation smoke targets the default Compose project')
   assert.ok(process.env.GAME_INSTANCE_A_URL && process.env.GAME_INSTANCE_B_URL,
     'Set both direct Game instance URLs')
+  if (process.env.SMOKE_GAME_CRASH === 'true') {
+    assert.ok(process.env.GAME_INSTANCE_A_CONTAINER,
+      'Set the isolated Game A container name for the crash test')
+  }
+} else {
+  assert.notEqual(process.env.SMOKE_GAME_CRASH, 'true',
+    'The crash test requires SMOKE_MULTI_INSTANCE=true')
 }
 
 function operatorSql(file, database, variable, value) {

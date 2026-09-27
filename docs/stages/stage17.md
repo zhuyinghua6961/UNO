@@ -46,3 +46,5 @@
 2026-09-25 本地试玩包增量：从干净提交 `2fe5ffa` 运行 Web、Maven 数据库集成、Flutter 静态检查/测试及 Android debug 构建，生成 `0.3.2-local-playtest` 归档；归档与包内校验和复核通过，实际 APK 在 Android 模拟器安装、启动并打开账号页。见 [本地试玩包验收](../verification-stage17-local-playtest.md)。该包的 Android 地址只适配本机 Compose 网关；本次未用此包完成整局，真机、iOS IPA、互听、TLS/TURN、CI 和生产交付仍待验收。
 
 2026-09-28 双实例部署增量：从提交 `15ef055` 构建相同 Game 镜像的两个独立容器，连接同一 PostgreSQL V16。经真实随机账号、Mailpit、Gateway 和指定实例 WebSocket 验证跨容器文字、接管、HTTP 操作权、经典局、四人 2v2、结算与历史；命令、镜像标识和未覆盖范围见 [本地双 Game 容器联调](../verification-stage17-multi-instance.md)。生产负载均衡、容量、TLS/TURN 与真机仍待验收。
+
+同日单实例停止补验：在隔离栈中停止持有对局连接的 Game A，Game B 接管后保持私有状态并继续出牌，重复命令幂等，A 重启就绪；普通双实例联调复跑通过。脚本对重启后 Docker 动态端口重新发现，结果与限制见 [本地双 Game 容器联调](../verification-stage17-multi-instance.md)。

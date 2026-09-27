@@ -47,12 +47,17 @@ API_BASE_URL=http://127.0.0.1:38080 MAILPIT_BASE_URL=http://127.0.0.1:38025 \
   GAME_INSTANCE_B_URL=http://127.0.0.1:65341 \
   SMOKE_MULTI_INSTANCE=true node tools/smoke-auth-chat.mjs
 API_BASE_URL=http://127.0.0.1:38080 MAILPIT_BASE_URL=http://127.0.0.1:38025 \
+  GAME_INSTANCE_A_URL=http://127.0.0.1:65340 \
+  GAME_INSTANCE_B_URL=http://127.0.0.1:65341 \
+  GAME_INSTANCE_A_CONTAINER=uno-stage12-multi-game-service-1 \
+  SMOKE_MULTI_INSTANCE=true SMOKE_GAME_CRASH=true node tools/smoke-auth-chat.mjs
+API_BASE_URL=http://127.0.0.1:38080 MAILPIT_BASE_URL=http://127.0.0.1:38025 \
   SMOKE_FULL_MATCH=true SMOKE_TEAM_MATCH=true node tools/smoke-auth-chat.mjs
 API_BASE_URL=http://127.0.0.1:38080 MAILPIT_BASE_URL=http://127.0.0.1:38025 \
   SMOKE_CHAT_WS=true node tools/smoke-auth-chat.mjs
 ```
 
-跨实例检查会创建随机测试账号、打开进行中对局、验证接管和消息补偿，再主动退局；不要与 `SMOKE_FULL_MATCH` 或运营内容处理开关合并。它需要本机 Dart SDK。Gateway 的双实例整局检查则从新账号分别完成经典局和四人 2v2。实际镜像、迁移和结果见 [双 Game 容器验收](../docs/verification-stage17-multi-instance.md)。完成后可用同样的 Compose 参数执行 `down`，不要加 `-v` 删除测试卷。
+跨实例检查会创建随机测试账号、打开进行中对局、验证接管和消息补偿，再主动退局；不要与 `SMOKE_FULL_MATCH` 或运营内容处理开关合并。它需要本机 Dart SDK。`SMOKE_GAME_CRASH` 仅允许停止 `uno-stage12-multi` 项目中与 Game A URL 匹配的 Game 容器，恢复后会等待就绪；Docker 可能为重启的 A 分配新回环端口，下一次测试前需重新运行 `docker port`。Gateway 的双实例整局检查则从新账号分别完成经典局和四人 2v2。实际镜像、迁移和结果见 [双 Game 容器验收](../docs/verification-stage17-multi-instance.md)。完成后可用同样的 Compose 参数执行 `down`，不要加 `-v` 删除测试卷。
 
 ## 数据库与可选基础设施
 

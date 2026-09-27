@@ -54,3 +54,5 @@
 2026-09-28 HTTP 动作权增量：HTTP 命令按对局与玩家行锁检查当前 WebSocket 归属，有当前归属时返回 409 `MATCH_SOCKET_OWNED`；连接关闭后按连接标识删除归属，旧命令 ID 可从 HTTP 获得幂等回执。Game 服务完整数据库集成测试通过，详见 [跨实例接管验收](../verification-stage12-cross-instance-takeover.md)。独立进程/网关、崩溃恢复、真机弱网及容量仍待验收。
 
 同日双容器补验：两个独立 Game JVM 共用 PostgreSQL，在真实账号下重复验证同账号跨实例订阅、旧连接关闭、HTTP 操作权、新连接出牌与命令 ID 重试；经 Gateway 完成经典/2v2 整局、历史与中断退局。见 [本地双 Game 容器联调](../verification-stage17-multi-instance.md)。生产网关负载均衡、进程故障、设备网络切换和容量仍待验证。
+
+同日单容器停止补验：在隔离双 Game 栈中停止持有对局连接的 A，B 保留旧连接的 HTTP 操作权限制，新 WebSocket 可接管并恢复相同私有手牌、版本和截止时间，继续提交及去重；A 重启后 readiness 恢复，普通跨实例路径复测通过。见 [本地双 Game 容器联调](../verification-stage17-multi-instance.md)。生产网关故障转移、设备网络切换和容量仍待验证。
