@@ -42,3 +42,5 @@
 2026-09-24 本地预览包增量：发布脚本从干净提交运行 Web 测试/构建和 Maven `clean verify`，拒绝复用旧编译产物及覆盖已有归档。实际生成 `release/0.2.0-local-preview.tar.gz`，manifest 指向提交 `3547f896c514e719b0e6c8d602264370e7f0a6c6`，包内文件和归档校验和均通过。见 [本地预览包验收](../verification-stage17-preview-package.md)。此包没有移动端安装包、镜像和生产部署配置；数据库集成、真机互听、TLS/TURN、备份恢复与 CI 仍待完成。
 
 同日备份增量：隔离 Compose 栈的 identity/game 库分别完成压缩 dump、SHA-256 校验、唯一新库恢复与源/恢复表行数及迁移数核对，演练库已清理，源数据卷未动。见 [备份恢复演练](../verification-stage17-backup-restore.md)。这仅覆盖本地路径；生产加密异地备份、自动保留、应用切换和回滚仍待实施。
+
+2026-09-25 本地试玩包增量：从干净提交 `2fe5ffa` 运行 Web、Maven 数据库集成、Flutter 静态检查/测试及 Android debug 构建，生成 `0.3.2-local-playtest` 归档；归档与包内校验和复核通过，实际 APK 在 Android 模拟器安装、启动并打开账号页。见 [本地试玩包验收](../verification-stage17-local-playtest.md)。该包的 Android 地址只适配本机 Compose 网关；本次未用此包完成整局，真机、iOS IPA、互听、TLS/TURN、CI 和生产交付仍待验收。

@@ -14,4 +14,6 @@ node tools/package-release.mjs 0.2.0-local-preview
 
 2026-09-24 实际生成的 `0.2.0-local-preview` 来源提交为 `3547f896c514e719b0e6c8d602264370e7f0a6c6`，校验结果与剩余门槛见 [stage17 本地预览包验收](../docs/verification-stage17-preview-package.md)。
 
+2026-09-25 实际生成的 `0.3.2-local-playtest` 来源提交为 `2fe5ffa8e377c51379586b0ba17d06ae93e477a5`。它包含已在 Android 模拟器安装和启动的 debug APK；源码/归档校验、执行的测试及未覆盖范围见 [stage17 本地试玩包验收](../docs/verification-stage17-local-playtest.md)。使用时以包内 manifest 和 SHA-256 为准。
+
 移动端归档约定：`<version>/flutter/android/` 存明确标记用途的 APK/AAB，`<version>/flutter/ios/` 存经用户签名的 IPA。Android debug 包和 release 包必须区分；签名密钥永远不放本目录。发布版本号以 manifest 为准，现阶段 JAR 内部仍为 0.1.0-SNAPSHOT。

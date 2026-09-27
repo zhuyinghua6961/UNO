@@ -1,6 +1,6 @@
 # UNO 实现阶段总索引
 
-更新：2026-09-24。本文是后续实现的统一入口，按 **stage1 → stage18** 拆分，不代表已经执行所有阶段。
+更新：2026-09-27。本文是后续实现的统一入口，按 **stage1 → stage18** 拆分，不代表已经执行所有阶段。
 
 技术约束：Vue Web、Spring Cloud 后端、Flutter Android/iOS、Docker 部署；业务目录为 backend、web、flutter、deploy、release。范围包括独立账号、经典对局、2v2、房间/队伍文字、队友语音和发布交付。
 
@@ -123,6 +123,7 @@
 - [stage16 统计增量验收](verification-stage16-stats.md)：经典/团队胜负与中断的独立汇总、双端展示及未覆盖范围。
 - [stage17 容器栈增量验收](verification-stage17-container.md)：独立 Compose 环境、镜像构建与真实账号/房间/文字流程。
 - [stage17 本地预览包验收](verification-stage17-preview-package.md)：干净提交构建、清单、校验和与未覆盖的发布门槛。
+- [stage17 本地试玩包验收](verification-stage17-local-playtest.md)：包含 Android 模拟器 APK 的归档、全量构建检查和设备安装启动证据。
 - [stage17 隔离备份恢复演练](verification-stage17-backup-restore.md)：两服务库的压缩备份、校验、新库恢复与数据核对。
 - [Flutter账号增量验收](verification-stage4-flutter.md)：自动测试、原生构建与未完成的设备/跨端验证。
 - [工程基线与未决事项](engineering-baseline.md)：约定、前置决策、环境差异和复现路径。
