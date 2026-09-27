@@ -44,3 +44,5 @@
 同日备份增量：隔离 Compose 栈的 identity/game 库分别完成压缩 dump、SHA-256 校验、唯一新库恢复与源/恢复表行数及迁移数核对，演练库已清理，源数据卷未动。见 [备份恢复演练](../verification-stage17-backup-restore.md)。这仅覆盖本地路径；生产加密异地备份、自动保留、应用切换和回滚仍待实施。
 
 2026-09-25 本地试玩包增量：从干净提交 `2fe5ffa` 运行 Web、Maven 数据库集成、Flutter 静态检查/测试及 Android debug 构建，生成 `0.3.2-local-playtest` 归档；归档与包内校验和复核通过，实际 APK 在 Android 模拟器安装、启动并打开账号页。见 [本地试玩包验收](../verification-stage17-local-playtest.md)。该包的 Android 地址只适配本机 Compose 网关；本次未用此包完成整局，真机、iOS IPA、互听、TLS/TURN、CI 和生产交付仍待验收。
+
+2026-09-28 双实例部署增量：从提交 `15ef055` 构建相同 Game 镜像的两个独立容器，连接同一 PostgreSQL V16。经真实随机账号、Mailpit、Gateway 和指定实例 WebSocket 验证跨容器文字、接管、HTTP 操作权、经典局、四人 2v2、结算与历史；命令、镜像标识和未覆盖范围见 [本地双 Game 容器联调](../verification-stage17-multi-instance.md)。生产负载均衡、容量、TLS/TURN 与真机仍待验收。

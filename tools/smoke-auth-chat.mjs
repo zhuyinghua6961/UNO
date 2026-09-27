@@ -6,6 +6,14 @@ import { readFileSync } from 'node:fs'
 const api = process.env.API_BASE_URL ?? 'http://127.0.0.1:28080'
 const mailpit = process.env.MAILPIT_BASE_URL ?? 'http://127.0.0.1:28025'
 const clientHeaders = { 'X-UNO-Client': 'APP' }
+if (process.env.SMOKE_MULTI_INSTANCE === 'true') {
+  assert.notEqual(process.env.SMOKE_FULL_MATCH, 'true',
+    'Run the multi-instance takeover and full-match smoke separately')
+  assert.notEqual(process.env.SMOKE_CHAT_MODERATION, 'true',
+    'The moderation smoke targets the default Compose project')
+  assert.ok(process.env.GAME_INSTANCE_A_URL && process.env.GAME_INSTANCE_B_URL,
+    'Set both direct Game instance URLs')
+}
 
 function operatorSql(file, database, variable, value) {
   execFileSync('docker', [
@@ -133,6 +141,19 @@ if (process.env.SMOKE_CHAT_WS === 'true') {
   assert.equal(history.body.items[0].content, 'Gateway chat WebSocket smoke')
 }
 
+if (process.env.SMOKE_MULTI_INSTANCE === 'true') {
+  execFileSync('dart', ['tools/smoke-multi-instance.dart'], {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      UNO_GATEWAY_URL: api,
+      UNO_ROOM_ID: room.id,
+      UNO_HOST_TOKEN: host,
+      UNO_GUEST_TOKEN: guest,
+    },
+  })
+}
+
 if (process.env.SMOKE_CHAT_MODERATION === 'true') {
   const report = await request(`/api/rooms/${room.id}/messages/${first.body.id}/reports`, {
     method: 'POST', token: guest, body: { reason: 'SPAM' },
@@ -252,8 +273,10 @@ if (process.env.SMOKE_FULL_MATCH === 'true') {
   console.log('PASS: containerized classic match settles and both private history results agree.')
 }
 
-const left = await request(`/api/rooms/${room.id}/leave`, { method: 'POST', token: guest })
-assert.equal(left.status, 204, 'guest leave')
+if (process.env.SMOKE_MULTI_INSTANCE !== 'true') {
+  const left = await request(`/api/rooms/${room.id}/leave`, { method: 'POST', token: guest })
+  assert.equal(left.status, 204, 'guest leave')
+}
 const afterLeave = await request(`/api/rooms/${room.id}/messages`, { token: guest })
 assert.equal(afterLeave.status, 404, 'former member must lose chat access')
 

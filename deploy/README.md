@@ -25,6 +25,35 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml down
 
 `SMOKE_CHAT_MODERATION` 同时验证受限 SQL 撤回消息、历史占位文本和原消息的幂等重试。
 
+## 本地双 Game 实例联调
+
+从干净提交在隔离 Compose 项目运行两个 Game 容器。覆盖文件仅把每个 Game 的 8082 端口映射到随机的本机回环端口；按本机端口占用情况修改以下三个固定端口，不复用已有测试栈的数据卷：
+
+```sh
+GATEWAY_PORT=38080 MAILPIT_WEB_PORT=38025 MAILPIT_SMTP_PORT=31025 \
+  docker compose -p uno-stage12-multi --env-file deploy/.env \
+  -f deploy/compose.yaml -f deploy/compose.auth-local.yaml \
+  -f deploy/compose.multi-instance-local.yaml \
+  up --build -d --scale game-service=2 gateway
+docker port uno-stage12-multi-game-service-1 8082/tcp
+docker port uno-stage12-multi-game-service-2 8082/tcp
+```
+
+将后两条命令显示的端口填入 `GAME_INSTANCE_A_URL`、`GAME_INSTANCE_B_URL`。下方 `65340/65341` 是一次实测示例，每次启动都可能不同：
+
+```sh
+API_BASE_URL=http://127.0.0.1:38080 MAILPIT_BASE_URL=http://127.0.0.1:38025 \
+  GAME_INSTANCE_A_URL=http://127.0.0.1:65340 \
+  GAME_INSTANCE_B_URL=http://127.0.0.1:65341 \
+  SMOKE_MULTI_INSTANCE=true node tools/smoke-auth-chat.mjs
+API_BASE_URL=http://127.0.0.1:38080 MAILPIT_BASE_URL=http://127.0.0.1:38025 \
+  SMOKE_FULL_MATCH=true SMOKE_TEAM_MATCH=true node tools/smoke-auth-chat.mjs
+API_BASE_URL=http://127.0.0.1:38080 MAILPIT_BASE_URL=http://127.0.0.1:38025 \
+  SMOKE_CHAT_WS=true node tools/smoke-auth-chat.mjs
+```
+
+跨实例检查会创建随机测试账号、打开进行中对局、验证接管和消息补偿，再主动退局；不要与 `SMOKE_FULL_MATCH` 或运营内容处理开关合并。它需要本机 Dart SDK。Gateway 的双实例整局检查则从新账号分别完成经典局和四人 2v2。实际镜像、迁移和结果见 [双 Game 容器验收](../docs/verification-stage17-multi-instance.md)。完成后可用同样的 Compose 参数执行 `down`，不要加 `-v` 删除测试卷。
+
 ## 数据库与可选基础设施
 
 默认账号功能关闭。若需本地测试真实账号后端，显式合并 `compose.auth-local.yaml`，它启用邮箱认证并添加仅回环可访问的Mailpit，不发送公网邮件。先重新运行配置初始化脚本补充AUTH_MAIL_KEY，旧密钥不会覆盖。详见 [账号运行指南](../docs/authentication.md)。

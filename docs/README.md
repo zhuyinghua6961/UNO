@@ -26,8 +26,8 @@
 | [stage8](stages/stage8.md) | Web 经典对局 | 网页多个真实账号可以打完经典局 | stage7 | 已完成（本地验收） |
 | [stage9](stages/stage9.md) | Flutter 经典对局 | App 可以和 Web 玩家同桌对战 | stage7 | 进行中（Android/Web 触控整局、iOS 模拟器真实开局与结算已验收） |
 | [stage10](stages/stage10.md) | 四人 2v2 对局 | 两端支持队伍比赛和队伍结算 | stage8、stage9 | 进行中（Web 与 Android/iOS 模拟器混合整局已验收） |
-| [stage11](stages/stage11.md) | 房间／队伍文字 | 真实发送、接收、限流、历史补偿与隔离 | stage5、stage7、stage10 | 进行中（实时文字、跨实例数据库补偿与运营撤回已接通；独立进程/网关、真机弱网及隐私说明待做） |
-| [stage12](stages/stage12.md) | 重连与对局生命周期 | 刷新、掉线、超时、退房和重复连接可控 | stage10、stage11 | 进行中（跨实例接管、HTTP 归属校验、超时/主动退出中断、快照补偿；设备故障待做） |
+| [stage11](stages/stage11.md) | 房间／队伍文字 | 真实发送、接收、限流、历史补偿与隔离 | stage5、stage7、stage10 | 进行中（实时文字、跨实例补偿与运营撤回已接通；本地双容器已联调，真机弱网及隐私说明待做） |
+| [stage12](stages/stage12.md) | 重连与对局生命周期 | 刷新、掉线、超时、退房和重复连接可控 | stage10、stage11 | 进行中（跨实例接管、HTTP 归属校验、中断与快照补偿；本地双容器已联调，设备故障待做） |
 | [stage13](stages/stage13.md) | 队友语音后端 | 受限语音凭证、独立队伍频道与退出撤销 | stage3、stage10、stage12 | 进行中（准入、撤销换房本机验收；容量待验） |
 | [stage14](stages/stage14.md) | Web 队友开麦 | 浏览器主动授权、开麦、静音与退出 | stage8、stage13 | 进行中（本机实连与换房通过，人工听感待验） |
 | [stage15](stages/stage15.md) | Flutter 队友开麦 | App 队友语音与 Web/App 互通 | stage9、stage13、stage14 | 进行中 |
@@ -124,6 +124,7 @@
 - [stage16 经典战绩增量验收](verification-stage16-history.md)：终局快照、私有历史、双端账号页与容器整局核对。
 - [stage16 统计增量验收](verification-stage16-stats.md)：经典/团队胜负与中断的独立汇总、双端展示及未覆盖范围。
 - [stage17 容器栈增量验收](verification-stage17-container.md)：独立 Compose 环境、镜像构建与真实账号/房间/文字流程。
+- [stage17 双 Game 容器联调](verification-stage17-multi-instance.md)：两个独立 JVM 的文字补偿、接管、经典/2v2 整局与战绩。
 - [stage17 本地预览包验收](verification-stage17-preview-package.md)：干净提交构建、清单、校验和与未覆盖的发布门槛。
 - [stage17 本地试玩包验收](verification-stage17-local-playtest.md)：包含 Android 模拟器 APK 的归档、全量构建检查和设备安装启动证据。
 - [stage17 隔离备份恢复演练](verification-stage17-backup-restore.md)：两服务库的压缩备份、校验、新库恢复与数据核对。

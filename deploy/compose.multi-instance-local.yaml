@@ -1,0 +1,6 @@
+# Only for isolated local integration runs. Each replica gets a random loopback port
+# so the test can connect to a specific Game instance without exposing it publicly.
+services:
+  game-service:
+    ports:
+      - "127.0.0.1::8082"

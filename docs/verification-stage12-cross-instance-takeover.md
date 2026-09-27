@@ -20,3 +20,5 @@ HTTP `/api/matches/{matchId}/commands` 现在与 WebSocket 动作共用对局行
 ## 剩余门槛
 
 两个应用上下文仍在同一测试 JVM。独立 Game 进程经真实 Gateway/负载均衡器、真机弱网切换、同时接管与 HTTP 命令的压力测试尚未完成。Web/App 正常对局使用 WebSocket；HTTP 在没有当前 WebSocket 归属时仍可按账号身份出牌。进程崩溃可能留下归属记录并暂时阻止 HTTP 出牌；新 WebSocket 订阅可重新认领。多连接轮询的数据库容量尚未测量。
+
+2026-09-28 后续补验：两个独立 Game 容器对相同账号的 WebSocket 接管、旧命令拒绝、HTTP 归属检查与新连接命令已通过；经 Gateway 的经典/2v2 整局和战绩也通过，见 [本地双 Game 容器联调](verification-stage17-multi-instance.md)。上段保留的是较早的同 JVM 验收边界；生产负载均衡、真机网络切换、崩溃恢复和容量仍未测量。
