@@ -31,6 +31,8 @@ Android API 36.1 `Medium_Phone_API_36.1` 模拟器增量：App 首次加入仅�
 
 隔离 Compose 栈下，Android 模拟器通过 ADB 反向转发 `tcp:28080`、`tcp:28025`、`tcp:7880` 和 `tcp:7881` 接入 Gateway、Mailpit、LiveKit。运行 `cd web && UNO_E2E_DEVICE_ID=emulator-5554 npm run test:e2e:android-voice-signaling`，在系统“附近设备”权限弹窗出现后点击“Allow”，测试通过：App 界面显示“已加入 · 麦克风关闭”，随后主动退出；与三名 Web 浏览器玩家完成同场 2v2，四份战绩一致。对局 ID `fe2c8bde-61ea-4c08-bff1-2263b9d7a1b9`。本测试没有发布或接收音轨，不能证明 Android 扬声器或麦克风实际工作；真机、非队友音频隔离和网络切换仍需验收。
 
+2026-09-28 复测：原 Android 自动化仍需人工处理“附近设备”运行时权限，首次将文字与语音合并运行时卡在语音连接。`web/e2e/mixed-mobile-team.cjs` 现等 App 安装启动后，通过 ADB 仅给本地测试包授予 `BLUETOOTH_CONNECT`；未修改产品权限流程。API 36.1 模拟器（`emulator-5554`）在原有 `uno-stage17-check` Compose 栈上运行 `UNO_E2E_DEVICE_ID=emulator-5554 UNO_E2E_MOBILE_CHAT=1 UNO_E2E_MOBILE_VOICE=1 npm --prefix web run test:e2e:mixed-android-team` 通过：四个真实账号、Web/App 房间与队伍文字隔离、App 仅收听加入/退出、两端操作、2v2 结算和四份战绩一致；对局 ID `77a0ff3a-ea4d-492e-b103-967bb349b1b2`。本次模拟器以无窗口、无宿主音频模式运行，仍不证明 Android 音轨采集或实际可听。
+
 媒体试验边界：同一模拟器上尝试 iOS 开麦时，面板曾返回权限拒绝；手动安装 Runner 后用 `simctl privacy grant microphone com.example.unoApp` 授权，模拟器 TCC 记录显示允许，但启用麦克风仍使 Runner 在系统 `AURemoteIO::Initialize` 超时处中止。仅收听状态下让 Web 队友发布音轨，也触发同类系统崩溃（本机诊断报告 `Runner-2026-09-24-141431.ips`、`Runner-2026-09-24-141920.ips`）。这些失败没有证明真机上的同一故障，也没有形成音频互听证据；必须在目标真机与可达媒体网络重新验证。
 
 - Android/iOS 真实设备上与 App、Web 队友双向听见声音，并确认非队友无法订阅；本机 `127.0.0.1` LiveKit 媒体地址不适合外部设备。

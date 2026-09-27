@@ -1,7 +1,8 @@
 // Run against the isolated local auth/voice Compose stack and a booted mobile simulator.
 const { chromium } = require('playwright')
 const { randomUUID } = require('node:crypto')
-const { spawn } = require('node:child_process')
+const { spawn, spawnSync } = require('node:child_process')
+const { homedir } = require('node:os')
 const path = require('node:path')
 const assert = require('node:assert/strict')
 
@@ -83,6 +84,25 @@ function startMobile(roomCode) {
   return mobile
 }
 
+async function grantAndroidVoicePermission(mobile) {
+  if (platform !== 'Android' || !voiceEnabled) return
+  const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT
+    ?? path.join(homedir(), 'Library/Android/sdk')
+  const adb = path.join(sdk, 'platform-tools', 'adb')
+  for (let attempt = 0; attempt < 480; attempt++) {
+    if (mobile.failure) throw mobile.failure
+    if (mobile.output.some(line => line.includes('mobile joins three Web players'))) {
+      const granted = spawnSync(adb, ['-s', deviceId, 'shell', 'pm', 'grant',
+        'com.example.uno_app', 'android.permission.BLUETOOTH_CONNECT'], { encoding: 'utf8' })
+      assert.equal(granted.status, 0,
+        `grant Android test Bluetooth permission: ${granted.error?.message ?? granted.stderr}`)
+      return
+    }
+    await delay(500)
+  }
+  throw new Error('Android test app did not start before Bluetooth permission grant')
+}
+
 function automaticAction(view) {
   const action = { protocolVersion: 1, commandId: randomUUID(), expectedVersion: view.version }
   if (view.phase === 'INITIAL_WILD_COLOR') return { ...action, type: 'CHOOSE_INITIAL_COLOR', chosenColor: 'RED' }
@@ -146,6 +166,8 @@ async function main() {
       await page.getByRole('heading', { name: '等待室' }).waitFor()
     }
     mobile = startMobile(room.code)
+    const permission = grantAndroidVoicePermission(mobile)
+      .catch(error => { mobile.failure = error })
     const roomUrl = `/api/rooms/${room.id}`
     // A first Android or iOS build/install can exceed three minutes.
     for (let attempt = 0; attempt < 480; attempt++) {
@@ -155,6 +177,8 @@ async function main() {
       await delay(1000)
     }
     assert.equal(room.members.length, 4, `${platform} did not join: ${mobile.output.slice(-12).join(' | ')}`)
+    await permission
+    if (mobile.failure) throw mobile.failure
     assert.deepEqual(room.members.map(member => member.team), ['A', 'B', 'A', 'B'])
     if (chatEnabled) {
       const roomText = `App room ${room.code}`
