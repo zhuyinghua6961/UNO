@@ -34,8 +34,10 @@ class GameWebSocketSubscriptionTest {
         GameIdentity identity = new GameIdentity(UUID.randomUUID(), UUID.randomUUID(), "Player", "APP",
                 Instant.now().plusSeconds(600));
         MatchService matches = mock(MatchService.class);
+        MatchSocketOwnership ownership = mock(MatchSocketOwnership.class);
         HttpSessionVerifier verifier = mock(HttpSessionVerifier.class);
         when(verifier.verify("token", "APP")).thenReturn(java.util.Optional.of(identity));
+        when(ownership.isCurrent(any(UUID.class), any(UUID.class), any(UUID.class))).thenReturn(true);
         CountDownLatch firstReadStarted = new CountDownLatch(1);
         CountDownLatch allowFirstRead = new CountDownLatch(1);
         AtomicInteger reads = new AtomicInteger();
@@ -57,7 +59,7 @@ class GameWebSocketSubscriptionTest {
             sent.add(invocation.getArgument(0));
             return null;
         }).when(session).sendMessage(any(TextMessage.class));
-        GameWebSocketHandler handler = new GameWebSocketHandler(matches, verifier);
+        GameWebSocketHandler handler = new GameWebSocketHandler(matches, verifier, ownership);
         handler.afterConnectionEstablished(session);
         String subscribe = "{\"protocolVersion\":1,\"type\":\"SUBSCRIBE\",\"matchId\":\"" + matchId + "\"}";
         CompletableFuture<Void> pending = CompletableFuture.runAsync(() -> {

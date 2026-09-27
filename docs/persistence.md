@@ -4,6 +4,8 @@
 
 历史范围说明：本页保留stage2的基础表设计；2026-09-07新增identity V3及可关闭的认证业务，当前行为以 [账号指南](authentication.md) 为准，不能再将下文“凭证尚未消费”理解为当前版本现状。2026-09-23 game V2 新增等待房间、V3 新增经典对局表；V1/V2 历史迁移保持原样。
 
+2026-09-27 game V16 新增 `match_socket_ownership`：每位对局玩家至多一条当前 WebSocket 操作连接归属记录，外键指向 `match_players` 并随其删除；跨 Game 实例订阅接管与命令使用该行锁串行化。此表只约束 WebSocket 动作，HTTP 动作入口尚待统一，见 [跨实例接管验收](verification-stage12-cross-instance-takeover.md)。
+
 ## 所有权与目录
 
 | 服务 | 数据库 / 登录角色 | 迁移 |

@@ -28,14 +28,17 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
     private static final CloseStatus TAKEN_OVER = new CloseStatus(4001, "TAKEN_OVER");
     private final MatchService matches;
     private final HttpSessionVerifier verifier;
+    private final MatchSocketOwnership ownership;
     private final JsonMapper json = new JsonMapper();
     private final ConcurrentHashMap<String, Client> clients = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<SubscriptionKey, Client> subscriptions = new ConcurrentHashMap<>();
     private final Object[] subscriptionLocks = new Object[256];
 
-    public GameWebSocketHandler(MatchService matches, HttpSessionVerifier verifier) {
+    public GameWebSocketHandler(MatchService matches, HttpSessionVerifier verifier,
+            MatchSocketOwnership ownership) {
         this.matches = matches;
         this.verifier = verifier;
+        this.ownership = ownership;
         for (int index = 0; index < subscriptionLocks.length; index++) subscriptionLocks[index] = new Object();
     }
 
@@ -78,6 +81,7 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
                 SubscriptionKey key = new SubscriptionKey(inbound.matchId(), client.auth.identity().userId());
                 synchronized (lockFor(key)) {
                     matches.snapshot(inbound.matchId(), client.auth.identity());
+                    ownership.claim(inbound.matchId(), key.userId(), client.ownerToken);
                     SubscriptionKey previousKey = client.subscription;
                     if (previousKey != null) subscriptions.remove(previousKey, client);
                     client.matchId = inbound.matchId();
@@ -88,6 +92,7 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
                     // Refresh after registration so its broadcast cannot be the only copy.
                     try {
                         sendSnapshot(client, inbound.matchId(), matches.snapshot(inbound.matchId(), client.auth.identity()));
+                        owns(client);
                     } catch (MatchFailure failure) {
                         close(client, CloseStatus.POLICY_VIOLATION);
                     }
@@ -110,7 +115,8 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
                         close(client, TAKEN_OVER);
                         return;
                     }
-                    receipt = matches.command(inbound.matchId(), client.auth.identity(), inbound.command());
+                    receipt = ownership.command(inbound.matchId(), client.auth.identity(),
+                            client.ownerToken, inbound.command());
                 }
                 synchronized (client) {
                     send(client, Map.of("type", "COMMAND_ACK", "matchId", inbound.matchId(), "result", receipt));
@@ -118,6 +124,8 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
                             receipt.deadlineAt(), null);
                 }
                 if (!receipt.duplicate()) broadcast(inbound.matchId(), client.session.getId());
+            } catch (MatchSocketOwnership.TakenOver failure) {
+                close(client, TAKEN_OVER);
             } catch (MatchFailure failure) {
                 send(client, Map.of("type", "COMMAND_REJECTED", "matchId", inbound.matchId(),
                         "commandId", inbound.command().commandId(), "code", failure.code()));
@@ -134,10 +142,13 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
             if (!matchId.equals(recipient.matchId) || recipient.session.getId().equals(originSessionId)) continue;
             if (!verify(recipient)) continue;
             try {
+                if (!owns(recipient)) continue;
                 sendSnapshot(recipient, matchId, matches.snapshot(matchId, recipient.auth.identity()));
             } catch (MatchFailure failure) {
                 close(recipient, CloseStatus.POLICY_VIOLATION);
             } catch (IOException exception) {
+                close(recipient, CloseStatus.SERVER_ERROR);
+            } catch (RuntimeException exception) {
                 close(recipient, CloseStatus.SERVER_ERROR);
             }
         }
@@ -162,9 +173,10 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
     public void pollSubscriptions() {
         for (Client client : clients.values()) {
             UUID matchId = client.matchId;
-            if (matchId == null || client.lastSnapshot != null && !"PLAYING".equals(client.lastSnapshot.status()))
-                continue;
+            if (matchId == null) continue;
             try {
+                if (!owns(client)) continue;
+                if (client.lastSnapshot != null && !"PLAYING".equals(client.lastSnapshot.status())) continue;
                 MatchService.MatchState current = matches.snapshot(matchId, client.auth.identity());
                 SnapshotMarker marker = SnapshotMarker.of(current);
                 if (marker.equals(client.lastSnapshot) || !verify(client)) continue;
@@ -183,7 +195,18 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
     /** Revoked or expired sessions stop receiving updates even while idle. */
     @Scheduled(fixedDelay = 30000)
     public void revalidateConnections() {
-        for (Client client : clients.values()) verify(client);
+        for (Client client : clients.values()) {
+            if (!verify(client)) continue;
+            try { owns(client); }
+            catch (RuntimeException failure) { close(client, CloseStatus.SERVER_ERROR); }
+        }
+    }
+
+    private boolean owns(Client client) {
+        SubscriptionKey key = client.subscription;
+        if (key == null || ownership.isCurrent(key.matchId(), key.userId(), client.ownerToken)) return true;
+        close(client, TAKEN_OVER);
+        return false;
     }
 
     private boolean verify(Client client) {
@@ -242,6 +265,7 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
     private static final class Client {
         final WebSocketSession session;
         final GameWebSocketHandshake.SessionAuth auth;
+        final UUID ownerToken = UUID.randomUUID();
         volatile UUID matchId;
         volatile SubscriptionKey subscription;
         volatile SnapshotMarker lastSnapshot;

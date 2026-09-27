@@ -81,8 +81,12 @@ class GameWebSocketIT {
 
     @BeforeAll
     static void start() {
-        application = new SpringApplicationBuilder(
-                GameApplication.class, FakeIdentityService.class).run(
+        application = startInstance();
+        endpoint = endpointFor(application);
+    }
+
+    private static ConfigurableApplicationContext startInstance() {
+        return new SpringApplicationBuilder(GameApplication.class, FakeIdentityService.class).run(
                 "--server.port=0", "--spring.datasource.url=" + database.getJdbcUrl(),
                 "--spring.datasource.username=" + database.getUsername(),
                 "--spring.datasource.password=" + database.getPassword(),
@@ -92,7 +96,10 @@ class GameWebSocketIT {
                 "--uno.auth.allow-insecure-http=true",
                 "--uno.matches.snapshot-poll-ms=60000",
                 "--uno.auth.service-key=" + "a".repeat(64));
-        endpoint = URI.create("ws://localhost:" + application.getEnvironment().getProperty("local.server.port")
+    }
+
+    private static URI endpointFor(ConfigurableApplicationContext context) {
+        return URI.create("ws://localhost:" + context.getEnvironment().getProperty("local.server.port")
                 + "/ws/game");
     }
 
@@ -301,6 +308,66 @@ class GameWebSocketIT {
         } finally {
             hostPeer.socket.abort();
             guestPeer.socket.abort();
+            sessions.clear();
+        }
+    }
+
+    @Test
+    void takeoverAcrossGameInstancesRevokesOldCommandSocketBeforeItCanWrite() throws Exception {
+        GameIdentity host = player("LeaseHost");
+        GameIdentity guest = player("LeaseGuest");
+        sessions.put(HOST_TOKEN, host);
+        sessions.put(GUEST_TOKEN, guest);
+        RoomService rooms = application.getBean(RoomService.class);
+        MatchService matches = application.getBean(MatchService.class);
+        RoomView room = rooms.create(host, "CLASSIC", 2);
+        room = rooms.join(guest, room.code());
+        room = rooms.ready(room.id(), host, true, room.version());
+        room = rooms.ready(room.id(), guest, true, room.version());
+        UUID matchId = matches.start(room.id(), host, room.version()).matchId();
+        JsonNode view = json.valueToTree(matches.snapshot(matchId, host).view());
+        UUID actorId = UUID.fromString(view.path("players").get(view.path("currentSeat").asInt())
+                .path("userId").asText());
+        String actorToken = actorId.equals(host.userId()) ? HOST_TOKEN : GUEST_TOKEN;
+        GameIdentity actor = actorId.equals(host.userId()) ? host : guest;
+        JsonNode actorView = json.valueToTree(matches.snapshot(matchId, actor).view());
+        String subscribe = json.writeValueAsString(Map.of(
+                "protocolVersion", 1, "type", "SUBSCRIBE", "matchId", matchId));
+        String command = json.writeValueAsString(Map.of("protocolVersion", 1, "type", "COMMAND",
+                "matchId", matchId, "command", autoplayAction(actorView)));
+        Peer first = connect(actorToken);
+        try (ConfigurableApplicationContext second = startInstance()) {
+            Peer replacement = connect(actorToken, endpointFor(second));
+            try {
+                first.socket.sendText(subscribe, true).join();
+                assertEquals("MATCH_SNAPSHOT", first.nextMessage().path("type").asText());
+                replacement.socket.sendText(subscribe, true).join();
+                assertEquals("MATCH_SNAPSHOT", replacement.nextMessage().path("type").asText());
+
+                first.socket.sendText(command, true).join();
+                Peer.CloseEvent displaced = first.nextCloseEvent();
+                assertEquals(4001, displaced.statusCode());
+                assertEquals("TAKEN_OVER", displaced.reason());
+                assertEquals(1, matches.snapshot(matchId, actor).view().version());
+
+                Peer third = connect(actorToken);
+                try {
+                    third.socket.sendText(subscribe, true).join();
+                    assertEquals("MATCH_SNAPSHOT", third.nextMessage().path("type").asText());
+                    second.getBean(GameWebSocketHandler.class).pollSubscriptions();
+                    assertEquals(4001, replacement.nextClose());
+                    third.socket.sendText(command, true).join();
+                    JsonNode ack = third.nextMessage();
+                    assertEquals("COMMAND_ACK", ack.path("type").asText(), ack.toString());
+                    assertEquals(2, ack.path("result").path("appliedVersion").asLong());
+                } finally {
+                    third.socket.abort();
+                }
+            } finally {
+                replacement.socket.abort();
+            }
+        } finally {
+            first.socket.abort();
             sessions.clear();
         }
     }
@@ -622,10 +689,14 @@ class GameWebSocketIT {
     }
 
     private Peer connect(String token) {
+        return connect(token, endpoint);
+    }
+
+    private Peer connect(String token, URI socketEndpoint) {
         Peer peer = new Peer();
         peer.socket = HttpClient.newHttpClient().newWebSocketBuilder()
                 .header("X-UNO-Client", "APP").header("Authorization", "Bearer " + token)
-                .buildAsync(endpoint, peer).join();
+                .buildAsync(socketEndpoint, peer).join();
         return peer;
     }
 
