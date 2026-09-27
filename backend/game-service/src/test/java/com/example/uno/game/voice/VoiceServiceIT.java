@@ -65,7 +65,8 @@ class VoiceServiceIT {
 
     @BeforeEach
     void reset() {
-        jdbc.update("TRUNCATE game.voice_cleanup, game.voice_token_issuance, game.match_commands, "
+        jdbc.update("TRUNCATE game.match_socket_ownership, game.voice_cleanup, "
+                + "game.voice_token_issuance, game.match_commands, "
                 + "game.match_players, game.matches, game.room_members, game.rooms");
         media = new FakeMedia();
         sessions = new FakeSessions();

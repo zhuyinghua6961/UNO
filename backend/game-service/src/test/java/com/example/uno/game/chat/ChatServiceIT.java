@@ -49,7 +49,7 @@ class ChatServiceIT {
 
     @BeforeEach
     void empty() {
-        jdbc.update("TRUNCATE game.chat_reports, game.chat_mutes, game.chat_messages, "
+        jdbc.update("TRUNCATE game.match_socket_ownership, game.chat_reports, game.chat_mutes, game.chat_messages, "
                 + "game.chat_channel_sequences, game.voice_cleanup, "
                 + "game.voice_token_issuance, game.match_commands, "
                 + "game.match_players, game.matches, game.room_members, game.rooms");

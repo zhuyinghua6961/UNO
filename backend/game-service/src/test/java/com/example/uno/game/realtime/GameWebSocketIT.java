@@ -333,8 +333,9 @@ class GameWebSocketIT {
         JsonNode actorView = json.valueToTree(matches.snapshot(matchId, actor).view());
         String subscribe = json.writeValueAsString(Map.of(
                 "protocolVersion", 1, "type", "SUBSCRIBE", "matchId", matchId));
+        Map<String, Object> action = autoplayAction(actorView);
         String command = json.writeValueAsString(Map.of("protocolVersion", 1, "type", "COMMAND",
-                "matchId", matchId, "command", autoplayAction(actorView)));
+                "matchId", matchId, "command", action));
         Peer first = connect(actorToken);
         try (ConfigurableApplicationContext second = startInstance()) {
             Peer replacement = connect(actorToken, endpointFor(second));
@@ -343,6 +344,10 @@ class GameWebSocketIT {
                 assertEquals("MATCH_SNAPSHOT", first.nextMessage().path("type").asText());
                 replacement.socket.sendText(subscribe, true).join();
                 assertEquals("MATCH_SNAPSHOT", replacement.nextMessage().path("type").asText());
+
+                HttpResponse<String> blockedHttp = httpCommand(matchId, actorToken, action);
+                assertEquals(409, blockedHttp.statusCode(), blockedHttp.body());
+                assertEquals("MATCH_SOCKET_OWNED", json.readTree(blockedHttp.body()).path("code").asText());
 
                 first.socket.sendText(command, true).join();
                 Peer.CloseEvent displaced = first.nextCloseEvent();
@@ -360,6 +365,18 @@ class GameWebSocketIT {
                     JsonNode ack = third.nextMessage();
                     assertEquals("COMMAND_ACK", ack.path("type").asText(), ack.toString());
                     assertEquals(2, ack.path("result").path("appliedVersion").asLong());
+                    third.socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+                    assertEquals(1000, third.nextClose());
+                    JdbcTemplate jdbc = application.getBean(JdbcTemplate.class);
+                    long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+                    while (jdbc.queryForObject("SELECT count(*) FROM game.match_socket_ownership "
+                            + "WHERE match_id = ? AND user_id = ?", Integer.class, matchId, actor.userId()) != 0
+                            && System.nanoTime() < until) Thread.sleep(20);
+                    assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM game.match_socket_ownership "
+                            + "WHERE match_id = ? AND user_id = ?", Integer.class, matchId, actor.userId()));
+                    HttpResponse<String> retriedHttp = httpCommand(matchId, actorToken, action);
+                    assertEquals(200, retriedHttp.statusCode(), retriedHttp.body());
+                    assertTrue(json.readTree(retriedHttp.body()).path("duplicate").asBoolean());
                 } finally {
                     third.socket.abort();
                 }
@@ -690,6 +707,18 @@ class GameWebSocketIT {
 
     private Peer connect(String token) {
         return connect(token, endpoint);
+    }
+
+    private HttpResponse<String> httpCommand(UUID matchId, String token, Map<String, Object> action)
+            throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:"
+                        + application.getEnvironment().getProperty("local.server.port")
+                        + "/api/matches/" + matchId + "/commands"))
+                .header("X-UNO-Client", "APP")
+                .header("Authorization", "Bearer " + token)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(action))).build();
+        return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private Peer connect(String token, URI socketEndpoint) {

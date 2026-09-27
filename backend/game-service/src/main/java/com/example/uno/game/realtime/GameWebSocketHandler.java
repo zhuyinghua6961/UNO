@@ -83,7 +83,10 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
                     matches.snapshot(inbound.matchId(), client.auth.identity());
                     ownership.claim(inbound.matchId(), key.userId(), client.ownerToken);
                     SubscriptionKey previousKey = client.subscription;
-                    if (previousKey != null) subscriptions.remove(previousKey, client);
+                    if (previousKey != null) {
+                        subscriptions.remove(previousKey, client);
+                        if (!previousKey.equals(key)) release(previousKey, client.ownerToken);
+                    }
                     client.matchId = inbound.matchId();
                     client.subscription = key;
                     Client displaced = subscriptions.put(key, client);
@@ -232,14 +235,25 @@ public final class GameWebSocketHandler extends TextWebSocketHandler {
     private void close(Client client, CloseStatus status) {
         clients.remove(client.session.getId(), client);
         if (client.subscription != null) subscriptions.remove(client.subscription, client);
+        if (client.subscription != null) release(client.subscription, client.ownerToken);
         try { if (client.session.isOpen()) client.session.close(status); }
         catch (IOException ignored) { }
+    }
+
+    private void release(SubscriptionKey key, UUID ownerToken) {
+        try { ownership.release(key.matchId(), key.userId(), ownerToken); }
+        catch (RuntimeException ignored) {
+            // A failed cleanup cannot keep an invalid transport open. A new subscriber can always take over.
+        }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         Client client = clients.remove(session.getId());
-        if (client != null && client.subscription != null) subscriptions.remove(client.subscription, client);
+        if (client != null && client.subscription != null) {
+            subscriptions.remove(client.subscription, client);
+            release(client.subscription, client.ownerToken);
+        }
     }
 
     @Override
