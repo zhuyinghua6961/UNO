@@ -46,6 +46,7 @@ if (includeIosSimulator) {
   run('flutter', ['pub', 'get'], join(root, 'flutter'))
 }
 run('node', ['tools/sync-assets.mjs'])
+run('npm', ['--prefix', 'web', 'ci'])
 run('npm', ['--prefix', 'web', 'test'])
 run('npm', ['--prefix', 'web', 'run', 'build'])
 run('mvn', ['-f', 'backend/pom.xml', '-Pdatabase-it', 'clean', 'verify'])
@@ -95,7 +96,7 @@ const manifest = {
   sourceDirty: false,
   validation: [...(includeIosSimulator ? [
     'xcodebuild -version', 'flutter pub get (flutter; full Xcode selected)',
-  ] : []), 'npm --prefix web test', 'npm --prefix web run build',
+  ] : []), 'npm --prefix web ci', 'npm --prefix web test', 'npm --prefix web run build',
     'mvn -f backend/pom.xml -Pdatabase-it clean verify',
     'dart analyze lib test integration_test (flutter)', 'flutter test',
     'flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://10.0.2.2:28080',
