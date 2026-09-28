@@ -45,6 +45,40 @@ jobs:
           cache-dependency-path: backend/**/pom.xml
       - run: mvn -B -f backend/pom.xml -Pdatabase-it clean verify
 
+  stack-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: node tools/sync-assets.mjs
+      - run: node tools/init-local-env.mjs
+      - run: |
+          docker compose -p uno-ci --env-file deploy/.env \
+            -f deploy/compose.yaml -f deploy/compose.auth-local.yaml \
+            up --build -d --wait --wait-timeout 180
+      - run: EXPECT_AUTH_AVAILABLE=true EXPECT_GAME_AUTH_AVAILABLE=true node tools/smoke-api.mjs
+      - run: SMOKE_FULL_MATCH=true SMOKE_TEAM_MATCH=true node tools/smoke-auth-chat.mjs
+      - run: npm ci
+        working-directory: web
+      - run: npx playwright install --with-deps chromium
+        working-directory: web
+      - run: npm run test:e2e:network
+        working-directory: web
+        env:
+          UNO_E2E_ORIGIN: http://127.0.0.1:8088
+          UNO_E2E_MAILPIT: http://127.0.0.1:28025
+      - if: always()
+        run: |
+          docker compose -p uno-ci --env-file deploy/.env \
+            -f deploy/compose.yaml -f deploy/compose.auth-local.yaml down
+
   android:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
