@@ -39,15 +39,18 @@ public class InternalServiceFilter extends OncePerRequestFilter {
         response.setHeader("X-Request-Id", ApiErrors.requestId(request));
         try {
             List<String> credentials = Collections.list(request.getHeaders("Authorization"));
-            if (!settings.enabled() || credentials.size() != 1 || !MessageDigest.isEqual(expected,
+            if (!settings.enabled()) {
+                throw new AuthFailure(401, "SERVICE_UNAUTHORIZED", "服务凭证无效");
+            }
+            if (credentials.size() != 1 || !MessageDigest.isEqual(expected,
                     credentials.get(0).getBytes(StandardCharsets.US_ASCII))) {
+                limiter.acquire("internal-invalid", request.getRemoteAddr(), settings.invalidRequestsPerWindow());
                 throw new AuthFailure(401, "SERVICE_UNAUTHORIZED", "服务凭证无效");
             }
             if (request.getHeader("Origin") != null || request.getHeader("Cookie") != null
                     || request.getHeader("Sec-Fetch-Site") != null || (!request.isSecure() && !settings.allowInsecureHttp())) {
                 throw new AuthFailure(403, "INTERNAL_REQUEST_REJECTED", "服务间请求不允许使用该传输方式");
             }
-            limiter.acquire("internal", "game-service", settings.requestsPerWindow());
             var context = SecurityContextHolder.createEmptyContext();
             context.setAuthentication(new UsernamePasswordAuthenticationToken("game-service", null,
                     List.of(new SimpleGrantedAuthority("SESSION_INTROSPECT"))));

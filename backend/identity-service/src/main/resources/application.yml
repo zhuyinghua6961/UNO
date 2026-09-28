@@ -55,7 +55,7 @@ uno:
     enabled: ${IDENTITY_INTERNAL_AUTH_ENABLED:false}
     game-service-key: ${IDENTITY_GAME_SERVICE_KEY:}
     allow-insecure-http: ${IDENTITY_INTERNAL_ALLOW_HTTP:false}
-    requests-per-window: 10000
+    invalid-requests-per-window: 120
   auth:
     enabled: ${AUTH_ENABLED:false}
     secure-cookies: ${AUTH_COOKIE_SECURE:true}

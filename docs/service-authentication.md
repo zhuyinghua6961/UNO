@@ -50,7 +50,7 @@ Web沿用identity签发的host-only HttpOnly Cookie，名为`__Host-UNO-SESSION`
 - 读取上限4096字节；默认连接超时1秒、完整请求/响应预算2秒，不自动重试，不跟随重定向。已经返回响应头但一直不结束的正文也受总超时限制。
 - 没有正向身份缓存，因此退出、刷新轮换、密码重置、禁用会在下一次游戏HTTP身份检查生效。已经开始执行的请求不保证中途取消，WebSocket连接撤销仍由stage12/13实现。
 
-identity对内部路径使用单独SecurityFilterChain，不接受用户Bearer、浏览器Cookie、Origin或Fetch Metadata。只有服务凭证通过后才解析JSON和访问数据库。内部调用计数存PostgreSQL，默认game-service共用15分钟10000次窗口，达到限制后game返回503；这是开发上限，不是生产容量承诺。
+identity对内部路径使用单独SecurityFilterChain，不接受用户Bearer、浏览器Cookie、Origin或Fetch Metadata。只有服务凭证通过后才解析JSON和访问账号会话；无效凭证只访问限流表。有效的game-service凭证不会消耗内部鉴权限流额度，避免正常对局流量达到共享上限后整局身份校验变成503。无效服务凭证按来源IP单独计数，默认15分钟最多120次，超出后返回429；计数存于PostgreSQL。该策略不代表生产容量或边缘流量防护承诺。
 
 Gateway没有`/internal/**`路由，访问得到404；常见伪造身份头被剥离，但即使绕过gateway也不能靠它们授权。没有对浏览器公开内部凭证交换入口。
 

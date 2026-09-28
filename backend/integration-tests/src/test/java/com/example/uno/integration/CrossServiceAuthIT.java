@@ -10,11 +10,13 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.sql.DriverManager;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -113,6 +115,44 @@ class CrossServiceAuthIT {
         assertTrue(bootstrap.path("features").path("authentication").asBoolean());
         assertTrue(bootstrap.path("features").path("gameplay").asBoolean());
         assertTrue(bootstrap.path("features").path("roomText").asBoolean());
+    }
+
+    @Test
+    void invalidServiceAttemptsAreLimitedWithoutExhaustingValidGameAuthorization() throws Exception {
+        JsonNode account = createAccount();
+        String token = account.path("accessToken").asText();
+        String formerSharedBucket = digest("internal:game-service");
+        String invalidSourceBucket = digest("internal-invalid:127.0.0.1");
+        try (var connection = DriverManager.getConnection(databaseUrl("uno_identity"), "uno_identity", "integration-identity-only")) {
+            try (var statement = connection.prepareStatement("""
+                    INSERT INTO auth_rate_limits (bucket_key, window_started_at, attempts) VALUES (?, NOW(), ?)
+                    ON CONFLICT (bucket_key) DO UPDATE SET window_started_at = NOW(), attempts = EXCLUDED.attempts
+                    """)) {
+                statement.setString(1, formerSharedBucket);
+                statement.setInt(2, 9999);
+                statement.executeUpdate();
+                statement.setString(1, invalidSourceBucket);
+                statement.setInt(2, 120);
+                statement.executeUpdate();
+            }
+            try {
+                for (int attempt = 0; attempt < 3; attempt++) {
+                    var valid = app(gateway.base(), "GET", "/api/system/session", null, token);
+                    assertEquals(200, valid.statusCode(), valid.body());
+                }
+                var invalid = call(identity.base(), "POST", "/internal/auth/introspect",
+                        Map.of("token", token, "clientType", "APP"), Map.of("Authorization", "Basic invalid"));
+                assertEquals(429, invalid.statusCode(), invalid.body());
+                assertEquals("RATE_LIMITED", json(invalid).path("code").asText());
+                assertEquals(200, app(game.base(), "GET", "/api/system/session", null, token).statusCode());
+            } finally {
+                try (var delete = connection.prepareStatement("DELETE FROM auth_rate_limits WHERE bucket_key IN (?, ?)")) {
+                    delete.setString(1, formerSharedBucket);
+                    delete.setString(2, invalidSourceBucket);
+                    delete.executeUpdate();
+                }
+            }
+        }
     }
 
     @Test
@@ -426,6 +466,10 @@ class CrossServiceAuthIT {
 
     private static String databaseUrl(String name) {
         return "jdbc:postgresql://" + database.getHost() + ":" + database.getMappedPort(5432) + "/" + name;
+    }
+
+    private static String digest(String value) throws Exception {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
     }
 
     private void executeIdentitySql(String sql, Object parameter) throws Exception {

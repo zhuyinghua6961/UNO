@@ -1,6 +1,7 @@
 package com.example.uno.identity.internal;
 
 import com.example.uno.identity.auth.AuthRateLimiter;
+import com.example.uno.identity.auth.AuthFailure;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,7 +34,7 @@ class InternalServiceFilterTest {
             assertNull(authentication.getCredentials());
         });
         assertTrue(reached.get());
-        verify(limiter).acquire("internal", "game-service", 10000);
+        verifyNoInteractions(limiter);
     }
 
     @Test
@@ -59,8 +60,31 @@ class InternalServiceFilterTest {
             var response = new MockHttpServletResponse();
             new InternalServiceFilter(settings(false), limiter).doFilter(request, response, (incoming, outgoing) -> fail("Invalid service auth"));
             assertEquals(401, response.getStatus());
-            verifyNoInteractions(limiter);
+            verify(limiter).acquire("internal-invalid", "127.0.0.1", 120);
         }
+    }
+
+    @Test
+    void invalidCredentialBudgetDoesNotBlockTheRealGameService() throws Exception {
+        var limiter = mock(AuthRateLimiter.class);
+        doThrow(new AuthFailure(429, "RATE_LIMITED", "请求过于频繁，请稍后再试"))
+                .when(limiter).acquire("internal-invalid", "192.0.2.10", 120);
+        var invalid = request();
+        invalid.setSecure(true);
+        invalid.setRemoteAddr("192.0.2.10");
+        invalid.removeHeader("Authorization");
+        var denied = new MockHttpServletResponse();
+        var filter = new InternalServiceFilter(settings(false), limiter);
+        filter.doFilter(invalid, denied, (incoming, outgoing) -> fail("Invalid service auth"));
+        assertEquals(429, denied.getStatus());
+
+        var valid = request();
+        valid.setSecure(true);
+        var reached = new AtomicBoolean();
+        filter.doFilter(valid, new MockHttpServletResponse(), (incoming, outgoing) -> reached.set(true));
+        assertTrue(reached.get());
+        verify(limiter).acquire("internal-invalid", "192.0.2.10", 120);
+        verifyNoMoreInteractions(limiter);
     }
 
     @Test
@@ -82,7 +106,7 @@ class InternalServiceFilterTest {
         assertThrows(IllegalArgumentException.class, () -> new InternalAuthSettings(true, "short", false, 10000));
     }
 
-    private InternalAuthSettings settings(boolean allowHttp) { return new InternalAuthSettings(true, KEY, allowHttp, 10000); }
+    private InternalAuthSettings settings(boolean allowHttp) { return new InternalAuthSettings(true, KEY, allowHttp, 120); }
 
     private MockHttpServletRequest request() {
         var request = new MockHttpServletRequest("POST", "/internal/auth/introspect");
