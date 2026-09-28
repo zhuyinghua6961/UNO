@@ -56,3 +56,5 @@
 同日从干净提交 `dea3750` 生成 `0.3.5-local-playtest`，纳入 Android/Web 双向音轨订阅改动。Web 93 项、Maven 单元 59/集成 87 项、Flutter 33 项通过；归档与解包后 240 个文件校验通过；包内 Android debug APK 和 iOS Simulator App 均安装启动并截图。见 [0.3.5 本地试玩包验收](../verification-stage17-local-playtest-0.3.5.md)。仍没有真机 IPA、正式签名、同版镜像或生产网络配置。
 
 同日从干净提交 `61c3d2e` 生成 `0.3.6-local-playtest`，纳入 V17 已发语音令牌的会话撤销修复。Web 93 项、Maven 单元 59/集成 88 项、Flutter 33 项通过；归档与解包后 240 个文件校验通过；包内 Android debug APK 和 iOS Simulator App 均安装启动并显示首页。见 [0.3.6 本地试玩包验收](../verification-stage17-local-playtest-0.3.6.md)。真机 IPA、正式签名、同版镜像和生产网络仍缺。
+
+同日开始 [本地镜像包与容器地址变更验收](../verification-stage17-image-bundle-dns.md)：从已校验的 `0.3.6` 包生成四个带源码标签的离线镜像并完成账号、经典整局、四人 2v2 和文字 WebSocket 联调；发现 Game 重建后 Gateway 缓存旧 IP 返回 500、Gateway 换 IP 后 Web 代理返回 502。Gateway 与 Web DNS 刷新候选修复在强制 IP 变更后复测通过。仍需从修复提交生成同版包并复验，生产网络、真机和回滚门槛未完成。

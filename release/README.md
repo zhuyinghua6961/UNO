@@ -12,7 +12,9 @@ node tools/package-release.mjs 0.2.0-local-preview
 
 macOS 完整 Xcode 环境可设置 `PACKAGE_IOS_SIMULATOR=true`，让同一脚本再构建并归档 `flutter/ios-simulator/Runner.app`。它只供 iOS 模拟器安装，仅带模拟器 ad-hoc 签名，不是开发者签名 IPA；本机全局开发目录若指向 CommandLineTools，按 [stage4 记录](../docs/verification-stage4-flutter.md)在当前命令的 PATH 中设置临时 `xcrun` 包装脚本。
 
-`0.1.0-scaffold` 是历史骨架包。新脚本产物是**本地预览包，不是生产安装包**。其中 Android debug APK 仅供模拟器连接 Compose 默认的宿主机 `10.0.2.2:28080` 网关，不能用于实机或公网；不包括 IPA、正式签名、Docker 镜像、账号密钥、用户数据。Docker 配置需要在原源码仓库构建，不能仅凭这个包离线重建镜像。manifest 记录实际提交号及此次脚本执行的检查。
+`0.1.0-scaffold` 是历史骨架包。新脚本产物是**本地预览包，不是生产安装包**。其中 Android debug APK 仅供模拟器连接 Compose 默认的宿主机 `10.0.2.2:28080` 网关，不能用于实机或公网；不包括 IPA、正式签名、账号密钥、用户数据。manifest 记录实际提交号及此次脚本执行的检查。新版包包含本地 Compose 配置、数据库初始化 SQL 和生成本机密钥的脚本；用另行生成的镜像包和 `--no-build` 可从解包目录启动。源码构建 Dockerfile 仍需原仓库。
+
+从已验证的本地试玩包生成四个离线镜像，在干净提交中执行 `node tools/build-local-images.mjs <包名>`。脚本先核对原始 tar.gz、包内清单及全部文件 SHA-256，只复制包内三个 JAR、Web 静态文件和 Nginx 配置进入 Docker 上下文，使用固定 digest 的基础镜像。输出 `release/<包名>-images/images.tar.gz`、镜像 ID/架构/源码与构建提交 manifest 及 SHA256SUMS。可用 `docker load -i` 导入。实际部署须将 Compose 的 `UNO_LOCAL_IMAGE_TAG` 设置为镜像 manifest 中的 `tag`，合并 `compose.images-local.yaml` 并执行 `up --no-build`；不能把未生成的镜像当成发布物。`linux/arm64` 镜像包不等于其他架构镜像，也不等于仓库 digest。详情见 [本地镜像包验收](../docs/verification-stage17-image-bundle-dns.md)。
 
 2026-09-24 实际生成的 `0.2.0-local-preview` 来源提交为 `3547f896c514e719b0e6c8d602264370e7f0a6c6`，校验结果与剩余门槛见 [stage17 本地预览包验收](../docs/verification-stage17-preview-package.md)。
 

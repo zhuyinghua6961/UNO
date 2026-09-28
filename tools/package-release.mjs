@@ -71,9 +71,14 @@ if (includeIosSimulator) {
     join(output, 'flutter', 'ios-simulator', 'Runner.app'), { recursive: true })
 }
 await mkdir(join(output, 'deploy'))
-for (const file of ['README.md', 'compose.yaml', 'livekit.yaml', 'nginx.conf', '.env.example', 'backend.Dockerfile', 'web.Dockerfile']) {
+for (const file of ['README.md', 'compose.yaml', 'compose.auth-local.yaml', 'compose.voice-local.yaml',
+  'compose.images-local.yaml', 'livekit.yaml', 'nginx.conf', '.env.example',
+  'backend.Dockerfile', 'web.Dockerfile', 'package-backend.Dockerfile', 'package-web.Dockerfile']) {
   await cp(join(root, 'deploy', file), join(output, 'deploy', file))
 }
+await cp(join(root, 'deploy', 'postgres'), join(output, 'deploy', 'postgres'), { recursive: true })
+await mkdir(join(output, 'tools'))
+await cp(join(root, 'tools', 'init-local-env.mjs'), join(output, 'tools', 'init-local-env.mjs'))
 const manifest = {
   label,
   createdAt: new Date().toISOString(),
@@ -88,9 +93,9 @@ const manifest = {
       'flutter build ios --simulator --no-codesign --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:28080',
     ] : [])],
   included: ['web-static', 'backend-jars', 'android-emulator-debug-apk',
-    ...(includeIosSimulator ? ['ios-simulator-app'] : []), 'deployment-source-reference'],
+    ...(includeIosSimulator ? ['ios-simulator-app'] : []), 'local-compose-config-and-env-generator'],
   excluded: ['flutter-ipa', 'release-signed-mobile-builds', 'docker-images', 'secrets'],
-  notes: `Local preview only. The Android debug APK targets an emulator using the Compose gateway at 10.0.2.2:28080; it is not a phone or production installer.${includeIosSimulator ? ' The Runner.app has only a simulator ad-hoc signature and targets the localhost gateway; it is not an IPA or an iPhone installer.' : ''} Dockerfiles require the original source repository. Browser/device end-to-end, signed mobile builds, and production deployment are separate gates.`,
+  notes: `Local preview only. The Android debug APK targets an emulator using the Compose gateway at 10.0.2.2:28080; it is not a phone or production installer.${includeIosSimulator ? ' The Runner.app has only a simulator ad-hoc signature and targets the localhost gateway; it is not an IPA or an iPhone installer.' : ''} Local Compose can use the separate verified image archive with --no-build. Source-based Dockerfiles require the original repository. Browser/device end-to-end, signed mobile builds, and production deployment are separate gates.`,
 }
 await writeFile(join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
 const sums = []

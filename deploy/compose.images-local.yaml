@@ -1,0 +1,15 @@
+# Combine with compose.yaml and the desired local auth/voice overlays.
+# Up must use --no-build so this deployment consumes the checked image bundle.
+services:
+  identity-service:
+    image: uno-local/identity-service:${UNO_LOCAL_IMAGE_TAG:?Set the tag from the image bundle manifest}
+    pull_policy: never
+  game-service:
+    image: uno-local/game-service:${UNO_LOCAL_IMAGE_TAG:?Set the tag from the image bundle manifest}
+    pull_policy: never
+  gateway:
+    image: uno-local/gateway:${UNO_LOCAL_IMAGE_TAG:?Set the tag from the image bundle manifest}
+    pull_policy: never
+  web:
+    image: uno-local/web:${UNO_LOCAL_IMAGE_TAG:?Set the tag from the image bundle manifest}
+    pull_policy: never
