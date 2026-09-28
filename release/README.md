@@ -30,4 +30,6 @@ macOS 完整 Xcode 环境可设置 `PACKAGE_IOS_SIMULATOR=true`，让同一脚�
 
 同日生成的 `0.3.13-local-playtest` 来自 `65820f647ba1459bd64d220f28e556c6b96c6e50`，试玩归档 SHA-256 为 `c5e4d35c54f6b470e9f8ade3bec677dc20d6d573fe4eb499ee503b7905fe2ac5`，`linux/arm64` 离线镜像归档 SHA-256 为 `a46efcdb9e4b67bfc588bde1ab8b621c5bfa486e6fd8e3318ed1da3b84b5fbeb`。它修复有效会话触发内部鉴权共享额度后收到 503 的机制，并在独立空库包内栈完成整局与 iOS 模拟器测试 App 恢复流程；见 [包验收](../docs/verification-stage17-local-playtest-0.3.13.md)。
 
+同日生成的 `0.3.14-local-playtest` 来自 `e498aa184ddc73042b3fe69d08885521066ea90a`，试玩归档 SHA-256 为 `a679eaf9a0b6d2a08b99b00f49df39f222ac93a4a79408f3746a6d48cf08a8a4`，`linux/arm64` 离线镜像归档 SHA-256 为 `b076e4238bc61c420c68c11545beb9e6e59a2f24c41668640591053509e1ea12`。本版装入 iOS 队友语音远端音轨清理顺序修复；独立解包栈完成经典/2v2、浏览器双向音频及 iOS/Android 混合端整局，普通移动包安装启动通过。实际范围和限制见 [包验收](../docs/verification-stage17-local-playtest-0.3.14.md)。
+
 移动端归档约定：`<version>/flutter/android/` 存明确标记用途的 APK/AAB，`<version>/flutter/ios-simulator/` 存可选的模拟器 App，`<version>/flutter/ios/` 留给经用户签名的 IPA。Android debug 包和 release 包必须区分；签名密钥永远不放本目录。发布版本号以 manifest 为准，现阶段 JAR 内部仍为 0.1.0-SNAPSHOT。

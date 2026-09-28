@@ -69,7 +69,7 @@ docker compose -p uno-package-0313-voice --env-file "$VOICE_ROOT/deploy/.env" \
 
 ## 源码修复后的 iOS 远端音轨补验
 
-上述 0.3.13 镜像栈保持原样运行；以下 Flutter App 使用当前源码重新构建，**修复尚未进入 0.3.13 发布包**。新增 Web 虚拟麦克风向 iOS 仅收听端持续发布音轨的测试。修复前，iOS 订阅后直接离会的完整流程和离会后空等 30 秒的最小流程多次发生 `SIGABRT`；系统崩溃报告的故障线程为 WebRTC worker，栈顶经过 `_ReportRPCTimeout`、`AURemoteIO::Initialize`、`AudioUnitInitialize`。先让 Web 停止发布并等待 iOS 收到退订事件，再让 iOS 离会的对照流程通过。该实验将风险缩到远端音频仍活跃时的清理顺序，不能单独证明系统音频超时的全部成因。
+上述 0.3.13 镜像栈保持原样运行；以下 Flutter App 使用当前源码重新构建，**修复未进入 0.3.13 发布包，已进入 [0.3.14 本地试玩包](verification-stage17-local-playtest-0.3.14.md)**。新增 Web 虚拟麦克风向 iOS 仅收听端持续发布音轨的测试。修复前，iOS 订阅后直接离会的完整流程和离会后空等 30 秒的最小流程多次发生 `SIGABRT`；系统崩溃报告的故障线程为 WebRTC worker，栈顶经过 `_ReportRPCTimeout`、`AURemoteIO::Initialize`、`AudioUnitInitialize`。先让 Web 停止发布并等待 iOS 收到退订事件，再让 iOS 离会的对照流程通过。该实验将风险缩到远端音频仍活跃时的清理顺序，不能单独证明系统音频超时的全部成因。
 
 App 离会时现先调用 LiveKit 的远端音轨 `unsubscribe()`，等音轨释放后再 `disconnect()` / `dispose()`。语音面板显示“正在退出语音”，直到异步清理完成才开放再次加入。修复后原场景的离会后 30 秒回归通过一次；包含 Web/App 双向文字、四人 2v2 双方 UI 出牌、终局和战绩一致的 iOS 远端音轨流程连续通过两次，对局 `3460fbbf-ad4e-445a-9fa8-7240e6a096d2`、`d7ed9f2a-f29c-4df8-af05-8f1b2b93c041`。这验证了 iOS 收到 LiveKit 远端音轨订阅事件及离会清理，仍未测量 iOS 扬声器输出的 PCM 样本或真机听感。
 
