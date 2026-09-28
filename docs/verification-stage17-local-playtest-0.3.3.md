@@ -24,4 +24,4 @@
 
 ## 未通过的发布门槛
 
-包内没有 iOS IPA、正式签名 Android 包或不可变镜像。没有在真机上安装或验收双向麦克风互听、弱网切换、跨网 TLS/TURN 与生产部署；也没有从这份包独立完成完整账号及整局操作。Android debug 包指向模拟器的 `10.0.2.2:28080`，不能直接用作手机或公网安装包。Flutter 的 `flutter_webrtc` 与 `livekit_client` 构建时仍提示未来 Kotlin Gradle Plugin 兼容性风险。当前证据对应 [stage18 候选验收矩阵](verification-stage18-0.3.3-candidate.md)。
+包内没有 iOS IPA、正式签名 Android 包或不可变镜像。没有在真机上安装或验收双向麦克风互听、弱网切换、跨网 TLS/TURN 与生产部署；也没有从这份包独立完成完整账号及整局操作。Android debug 包指向模拟器的 `10.0.2.2:28080`，不能直接用作手机或公网安装包。Flutter 的 `flutter_webrtc` 与 `livekit_client` 构建时仍提示未来 Kotlin Gradle Plugin 兼容性风险。后续新增 iOS Simulator App 的包见 [0.3.4 验收](verification-stage17-local-playtest-0.3.4.md)及 [stage18 候选矩阵](verification-stage18-0.3.4-candidate.md)。

@@ -1,6 +1,6 @@
 # UNO 实现阶段总索引
 
-更新：2026-09-27。本文是后续实现的统一入口，按 **stage1 → stage18** 拆分，不代表已经执行所有阶段。
+更新：2026-09-28。本文是后续实现的统一入口，按 **stage1 → stage18** 拆分，不代表已经执行所有阶段。
 
 技术约束：Vue Web、Spring Cloud 后端、Flutter Android/iOS、Docker 部署；业务目录为 backend、web、flutter、deploy、release。范围包括独立账号、经典对局、2v2、房间/队伍文字、队友语音和发布交付。
 
@@ -8,7 +8,7 @@
 
 - 已有可构建的三端骨架、素材、状态接口、通信权限基础、16 个骨架测试和开发归档。
 - GitHub 私有仓库 `zhuyinghua6961/UNO` 已创建并关联 origin；2026-09-07 按用户授权进行首次本地提交（以 git log 为准），未推送，三个分支的名称和用途仍未确认。
-- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9–stage15进行中（stage13/14 的撤销换房已本机验收，人工听感仍待验收）、stage16经典/团队战绩与昵称进行中、stage17本地容器增量进行中**；stage18未开始。Web 分别与 Android/iOS 模拟器完成四人 2v2 整局和房间/队伍文字互发；三浏览器已在本机 LiveKit 完成队友音轨订阅、会话吊销后换房和终局释放。Flutter 双平台模拟器的仅收听信令已验收，真实麦克风互听与真机弱网仍待验收。
+- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9–stage15进行中（stage13/14 的撤销换房已本机验收，人工听感仍待验收）、stage16经典/团队战绩与昵称进行中、stage17本地容器增量进行中、stage18验收矩阵进行中。**Web 分别与 Android/iOS 模拟器完成四人 2v2 整局和房间/队伍文字互发；本机浏览器双向收到虚拟麦克风音频样本。Flutter 双平台模拟器的仅收听信令已验收，真实麦克风互听与真机弱网仍待验收。
 - stage1 的工程约定和复现指南已补充，产品规则/登录渠道/三个分支仍待确认；stage2 按 [工程基线](engineering-baseline.md) 中的明确依赖例外推进。
 - Docker Hub 网络阻碍与 Flutter 分析命令差异见 [骨架验收记录](verification.md)；本地容器栈的后续实测见 [stage17 增量验收](verification-stage17-container.md)。
 
@@ -33,7 +33,7 @@
 | [stage15](stages/stage15.md) | Flutter 队友开麦 | App 队友语音与 Web/App 互通 | stage9、stage13、stage14 | 进行中 |
 | [stage16](stages/stage16.md) | 个人中心与对局记录 | 真实资料、偏好、个人/队伍战绩和历史 | stage10、stage12 | 进行中（经典/团队/中断历史、分模式统计与昵称；其他偏好待做） |
 | [stage17](stages/stage17.md) | Docker、环境与持续集成 | 可复现的测试部署、TLS/TURN、备份和构建流水线 | stage14、stage15、stage16 | 进行中（本地容器栈已验收） |
-| [stage18](stages/stage18.md) | 综合验收与发布 | 安全、弱网、容量、真机验证和可追溯安装制品 | stage17 | 未开始 |
+| [stage18](stages/stage18.md) | 综合验收与发布 | 安全、弱网、容量、真机验证和可追溯安装制品 | stage17 | 进行中（候选矩阵建立，发布门槛未通过） |
 
 阶段编号是推荐组织顺序，实际依赖以上表为准。例如 stage6 可在账号开发期间独立推进；stage8/stage9、stage14/stage15 是同一后端能力的不同端交付；stage16 不必等待语音。这不是自动开启并行代理或额外任务的授权。
 
@@ -127,6 +127,8 @@
 - [stage17 双 Game 容器联调](verification-stage17-multi-instance.md)：两个独立 JVM 的文字补偿、接管、经典/2v2 整局与战绩。
 - [stage17 本地预览包验收](verification-stage17-preview-package.md)：干净提交构建、清单、校验和与未覆盖的发布门槛。
 - [stage17 本地试玩包验收](verification-stage17-local-playtest.md)：包含 Android 模拟器 APK 的归档、全量构建检查和设备安装启动证据。
+- [stage17 0.3.4 本地试玩包验收](verification-stage17-local-playtest-0.3.4.md)：同一归档包含 Android debug APK 与 iOS Simulator App，两个平台的安装启动及校验记录。
+- [stage18 0.3.4 候选验收矩阵](verification-stage18-0.3.4-candidate.md)：逐项列出 Web/Android/iOS 当前证据和仍未达到的发布门槛。
 - [stage17 隔离备份恢复演练](verification-stage17-backup-restore.md)：两服务库的压缩备份、校验、新库恢复与数据核对。
 - [Flutter账号增量验收](verification-stage4-flutter.md)：自动测试、原生构建与未完成的设备/跨端验证。
 - [工程基线与未决事项](engineering-baseline.md)：约定、前置决策、环境差异和复现路径。

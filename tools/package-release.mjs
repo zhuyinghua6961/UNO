@@ -90,7 +90,7 @@ const manifest = {
   included: ['web-static', 'backend-jars', 'android-emulator-debug-apk',
     ...(includeIosSimulator ? ['ios-simulator-app'] : []), 'deployment-source-reference'],
   excluded: ['flutter-ipa', 'release-signed-mobile-builds', 'docker-images', 'secrets'],
-  notes: `Local preview only. The Android debug APK targets an emulator using the Compose gateway at 10.0.2.2:28080; it is not a phone or production installer.${includeIosSimulator ? ' The unsigned Runner.app targets only an iOS Simulator and its localhost gateway; it is not an IPA or an iPhone installer.' : ''} Dockerfiles require the original source repository. Browser/device end-to-end, signed mobile builds, and production deployment are separate gates.`,
+  notes: `Local preview only. The Android debug APK targets an emulator using the Compose gateway at 10.0.2.2:28080; it is not a phone or production installer.${includeIosSimulator ? ' The Runner.app has only a simulator ad-hoc signature and targets the localhost gateway; it is not an IPA or an iPhone installer.' : ''} Dockerfiles require the original source repository. Browser/device end-to-end, signed mobile builds, and production deployment are separate gates.`,
 }
 await writeFile(join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
 const sums = []
