@@ -25,7 +25,7 @@ services:
       IDENTITY_GAME_SERVICE_KEY: ${IDENTITY_GAME_SERVICE_KEY:?Run node tools/init-local-env.mjs first}
     depends_on:
       identity-service:
-        condition: service_started
+        condition: service_healthy
 
   mailpit:
     image: axllent/mailpit:v1.27.8

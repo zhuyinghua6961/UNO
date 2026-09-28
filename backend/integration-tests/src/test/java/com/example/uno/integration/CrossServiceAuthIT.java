@@ -329,6 +329,7 @@ class CrossServiceAuthIT {
         JsonNode account = createAccount();
         String token = account.path("accessToken").asText();
         assertEquals(200, app(game.base(), "GET", "/api/system/session", null, token).statusCode());
+        assertEquals(200, call(gateway.base(), "GET", "/actuator/health/readiness", null, Map.of()).statusCode());
         int port = URI.create(identity.base()).getPort();
         stop(identity);
         try {
@@ -339,11 +340,14 @@ class CrossServiceAuthIT {
             assertFalse(unavailable.body().contains(SERVICE_KEY));
             assertFalse(unavailable.body().contains("Exception"));
             assertEquals(200, app(game.base(), "GET", "/api/system/bootstrap", null, null).statusCode());
+            assertEquals(503, call(gateway.base(), "GET", "/actuator/health/readiness", null, Map.of()).statusCode());
+            assertEquals(200, call(gateway.base(), "GET", "/actuator/health/liveness", null, Map.of()).statusCode());
         } finally {
             var restartEnvironment = new HashMap<>(identityEnvironment);
             restartEnvironment.put("SERVER_PORT", Integer.toString(port));
             identity = launch("identity-service", restartEnvironment, List.of("--uno.auth.mail-poll-ms=100"));
         }
+        assertEquals(200, call(gateway.base(), "GET", "/actuator/health/readiness", null, Map.of()).statusCode());
         assertEquals(200, app(gateway.base(), "GET", "/api/system/session", null, token).statusCode());
     }
 
