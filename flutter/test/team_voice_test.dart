@@ -61,6 +61,7 @@ class _FakeTransport implements VoiceTransport {
   bool disposed = false;
   bool mic = false;
   Completer<void>? joinGate;
+  Completer<void>? leaveGate;
 
   @override
   Stream<VoiceEvent> get events => controller.stream;
@@ -85,6 +86,7 @@ class _FakeTransport implements VoiceTransport {
   @override
   Future<void> leave() async {
     leaves++;
+    await leaveGate?.future;
     mic = false;
   }
 
@@ -434,6 +436,51 @@ void main() {
     await tester.pump(const Duration(milliseconds: 3400));
     expect(api.tokenCalls, 1);
     expect(transport.mic, false);
+    await tester.pumpWidget(const SizedBox());
+    api.close();
+    session.dispose();
+  });
+
+  testWidgets('leave stays busy until transport cleanup completes', (
+    tester,
+  ) async {
+    final session = _session();
+    final api = _FakeVoiceApi(session);
+    final transport = _FakeTransport()..leaveGate = Completer<void>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TeamVoicePanel(
+            matchId: 'match-1',
+            session: session,
+            api: api,
+            transportFactory: () => transport,
+            devicePermission: _FakeDevicePermission(true),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('仅收听'));
+    await tester.pump();
+    await tester.tap(find.text('退出语音'));
+    await tester.pump();
+    expect(find.text('正在退出语音…'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '加入队友语音'))
+          .onPressed,
+      isNull,
+    );
+    transport.leaveGate!.complete();
+    await tester.pump();
+    expect(find.text('麦克风关闭'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '加入队友语音'))
+          .onPressed,
+      isNotNull,
+    );
     await tester.pumpWidget(const SizedBox());
     api.close();
     session.dispose();

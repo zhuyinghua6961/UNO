@@ -16,6 +16,13 @@ import 'package:uno_app/features/room/room_chat.dart';
 const enabled = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_E2E');
 const voiceEnabled = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_VOICE_E2E');
 const publishVoice = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_PUBLISH_E2E');
+const verifyRemoteAudio = bool.fromEnvironment(
+  'UNO_LOCAL_MOBILE_TEAM_REMOTE_AUDIO_E2E',
+);
+const voiceOnly = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_VOICE_ONLY_E2E');
+const voiceOnlyHoldSeconds = int.fromEnvironment(
+  'UNO_LOCAL_MOBILE_TEAM_VOICE_ONLY_HOLD_SECONDS',
+);
 const chatEnabled = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_CHAT_E2E');
 const apiBase = String.fromEnvironment('API_BASE_URL');
 const roomCode = String.fromEnvironment('UNO_TEAM_ROOM_CODE');
@@ -498,11 +505,13 @@ void main() {
           isTrue,
           reason: 'Web teammate must confirm remote audio subscription',
         );
+      }
+      if (publishVoice || verifyRemoteAudio) {
         await _waitFor(
           tester,
           () => find.text('已接入队友音轨', skipOffstage: false).evaluate().isNotEmpty,
           'subscribed Web teammate audio track',
-          attempts: 160,
+          attempts: 240,
         );
         debugPrint('UNO_MOBILE_VOICE_SUBSCRIBED');
       }
@@ -518,6 +527,17 @@ void main() {
           .position
           .jumpTo(0);
       await tester.pump();
+    }
+
+    if (voiceOnly) {
+      if (voiceOnlyHoldSeconds > 0) {
+        await tester.runAsync(
+          () => Future<void>.delayed(Duration(seconds: voiceOnlyHoldSeconds)),
+        );
+        await tester.pump();
+      }
+      debugPrint('UNO_MOBILE_VOICE_ONLY_DONE');
+      return;
     }
 
     var acted = false;

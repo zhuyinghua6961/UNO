@@ -19,7 +19,10 @@
     "test:e2e:ios-team-chat": "UNO_E2E_PLATFORM=iOS UNO_E2E_MOBILE_CHAT=1 node e2e/mixed-mobile-team.cjs",
     "test:e2e:android-team-chat": "UNO_E2E_PLATFORM=Android UNO_E2E_MOBILE_CHAT=1 node e2e/mixed-mobile-team.cjs",
     "test:e2e:ios-voice-signaling": "UNO_E2E_PLATFORM=iOS UNO_E2E_MOBILE_VOICE=1 node e2e/mixed-mobile-team.cjs",
+    "test:e2e:ios-voice-remote": "UNO_E2E_PLATFORM=iOS UNO_E2E_MOBILE_VOICE=1 UNO_E2E_MOBILE_REMOTE_AUDIO=1 UNO_E2E_MOBILE_CHAT=1 node e2e/mixed-mobile-team.cjs",
+    "test:e2e:ios-voice-cleanup": "UNO_E2E_PLATFORM=iOS UNO_E2E_MOBILE_VOICE=1 UNO_E2E_MOBILE_REMOTE_AUDIO=1 UNO_E2E_VOICE_ONLY=1 UNO_E2E_VOICE_ONLY_HOLD_SECONDS=30 node e2e/mixed-mobile-team.cjs",
     "test:e2e:android-voice-signaling": "UNO_E2E_PLATFORM=Android UNO_E2E_MOBILE_VOICE=1 node e2e/mixed-mobile-team.cjs",
+    "test:e2e:android-team-media": "UNO_E2E_PLATFORM=Android UNO_E2E_MOBILE_VOICE=1 UNO_E2E_ANDROID_MIC_TRACK=1 UNO_E2E_MOBILE_CHAT=1 node e2e/mixed-mobile-team.cjs",
     "test:e2e:voice": "node e2e/team-voice.cjs",
     "test:e2e:voice-revoke": "UNO_E2E_VOICE_REVOKE=1 node e2e/team-voice.cjs"
   },

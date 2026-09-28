@@ -14,8 +14,18 @@ const platform = process.env.UNO_E2E_PLATFORM ?? 'mobile'
 const voiceEnabled = process.env.UNO_E2E_MOBILE_VOICE === '1'
 const chatEnabled = process.env.UNO_E2E_MOBILE_CHAT === '1'
 const publishVoice = process.env.UNO_E2E_ANDROID_MIC_TRACK === '1'
+const verifyRemoteAudio = process.env.UNO_E2E_MOBILE_REMOTE_AUDIO === '1'
+const voiceOnly = process.env.UNO_E2E_VOICE_ONLY === '1'
+const voiceOnlyHoldSeconds = Number(process.env.UNO_E2E_VOICE_ONLY_HOLD_SECONDS ?? '0')
 assert.ok(!publishVoice || (platform === 'Android' && voiceEnabled && chatEnabled),
   'Android microphone track check requires Android, voice and chat E2E flags')
+assert.ok(!verifyRemoteAudio || voiceEnabled,
+  'Mobile remote audio check requires the voice E2E flag')
+assert.ok(!voiceOnly || (voiceEnabled && verifyRemoteAudio),
+  'Voice-only E2E requires voice and remote audio verification')
+assert.ok(Number.isSafeInteger(voiceOnlyHoldSeconds) && voiceOnlyHoldSeconds >= 0
+  && voiceOnlyHoldSeconds <= 60 && (!voiceOnlyHoldSeconds || voiceOnly),
+'Voice-only hold must be 0 to 60 seconds and requires voice-only E2E')
 const users = ['Web A1', 'Web B1', 'Web A2'].map(label => ({
   label, email: `uno-mixed-${randomUUID()}@example.test`, password: `Mixed-${randomUUID()}-1!`,
 }))
@@ -72,6 +82,10 @@ function startMobile(roomCode) {
   if (voiceEnabled) args.push('--dart-define=UNO_LOCAL_MOBILE_TEAM_VOICE_E2E=true')
   if (chatEnabled) args.push('--dart-define=UNO_LOCAL_MOBILE_TEAM_CHAT_E2E=true')
   if (publishVoice) args.push('--dart-define=UNO_LOCAL_MOBILE_TEAM_PUBLISH_E2E=true')
+  if (verifyRemoteAudio) args.push('--dart-define=UNO_LOCAL_MOBILE_TEAM_REMOTE_AUDIO_E2E=true')
+  if (voiceOnly) args.push('--dart-define=UNO_LOCAL_MOBILE_TEAM_VOICE_ONLY_E2E=true')
+  if (voiceOnlyHoldSeconds) args.push(
+    `--dart-define=UNO_LOCAL_MOBILE_TEAM_VOICE_ONLY_HOLD_SECONDS=${voiceOnlyHoldSeconds}`)
   const child = spawn('flutter', args, { cwd: path.resolve(__dirname, '../../flutter'), env: process.env })
   const output = []
   for (const stream of [child.stdout, child.stderr]) {
@@ -147,14 +161,17 @@ async function webUiMove(page, view) {
 
 async function main() {
   const browser = await chromium.launch({ headless: true,
-    ...(publishVoice ? { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] } : {}) })
+    ...((publishVoice || verifyRemoteAudio)
+      ? { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] } : {}) })
   const contexts = []
   const pages = []
   const pageErrors = []
   let mobile
   try {
     for (const user of users) {
-      const context = await browser.newContext(publishVoice ? { permissions: ['microphone'] } : {})
+      const context = await browser.newContext(
+        publishVoice || verifyRemoteAudio ? { permissions: ['microphone'] } : {},
+      )
       contexts.push(context)
       const page = await context.newPage()
       pages.push(page)
@@ -272,8 +289,12 @@ async function main() {
         }
         assert.ok(mobile.output.some(line => line.includes('UNO_MOBILE_VOICE_PUBLISHING')),
           `Android did not publish microphone: ${mobile.output.slice(-30).join('\n')}`)
+      }
+      if (publishVoice || verifyRemoteAudio) {
         await b1.getByRole('button', { name: '加入队友语音' }).click()
         await b1.getByText('已加入 · 麦克风开启', { exact: false }).waitFor({ timeout: 20000 })
+      }
+      if (publishVoice) {
         await b1.waitForFunction(() => {
           const element = document.querySelector('.voice-audio audio')
           return element?.srcObject instanceof MediaStream
@@ -292,12 +313,20 @@ async function main() {
       assert.ok(mobile.output.some(line => line.includes('UNO_MOBILE_VOICE_LISTENING'))
         && mobile.output.some(line => line.includes('UNO_MOBILE_VOICE_LEFT')),
       `${platform} did not join and leave listen-only voice: ${mobile.output.slice(-30).join('\n')}`)
-      if (publishVoice) {
+      if (publishVoice || verifyRemoteAudio) {
         assert.ok(mobile.output.some(line => line.includes('UNO_MOBILE_VOICE_SUBSCRIBED')),
-          `Android did not subscribe to Web teammate audio: ${mobile.output.slice(-30).join('\n')}`)
+          `${platform} did not subscribe to Web teammate audio: ${mobile.output.slice(-30).join('\n')}`)
+      }
+      if (publishVoice) {
         await b1.waitForFunction(() => document.querySelectorAll('.voice-audio audio').length === 0,
           null, { timeout: 15000 })
       }
+    }
+    if (voiceOnly) {
+      await mobile.done
+      assert.deepEqual(pageErrors, [])
+      console.log(`PASS: ${platform} joined, subscribed to Web audio and left the local team voice room (${matchId}).`)
+      return
     }
     let webActed = false
     let mobileActed = false
@@ -338,9 +367,11 @@ async function main() {
       await page.getByText(`${winningTeam} 队赢得对局`, { exact: false }).waitFor({ timeout: 15000 })
     }
     await mobile.done
-    if (publishVoice) await b1.locator('.team-voice').waitFor({ state: 'detached', timeout: 15000 })
+    if (publishVoice || verifyRemoteAudio) {
+      await b1.locator('.team-voice').waitFor({ state: 'detached', timeout: 15000 })
+    }
     assert.deepEqual(pageErrors, [])
-    console.log(`PASS: four real identities, three Web browser seats and one ${platform} UI seat; both UIs act and settle; team histories agree${chatEnabled ? '; Web/App room and team chat exchanged with team isolation' : ''}${publishVoice ? '; Android and Web subscribed to each other’s audio tracks before Android left' : voiceEnabled ? `; ${platform} joined and left LiveKit listen-only without microphone capture` : ''} (${matchId}).`)
+    console.log(`PASS: four real identities, three Web browser seats and one ${platform} UI seat; both UIs act and settle; team histories agree${chatEnabled ? '; Web/App room and team chat exchanged with team isolation' : ''}${publishVoice ? '; Android and Web subscribed to each other’s audio tracks before Android left' : verifyRemoteAudio ? `; ${platform} subscribed to the Web teammate audio track while listen-only` : voiceEnabled ? `; ${platform} joined and left LiveKit listen-only without microphone capture` : ''} (${matchId}).`)
   } finally {
     if (mobile?.child.exitCode === null) mobile.child.kill('SIGTERM')
     await Promise.all(contexts.map(context => context.close()))

@@ -9,7 +9,15 @@ import 'voice_api.dart';
 import 'voice_device_permission.dart';
 import 'voice_transport.dart';
 
-enum TeamVoiceState { idle, joining, joined, muted, reconnecting, error }
+enum TeamVoiceState {
+  idle,
+  joining,
+  joined,
+  muted,
+  reconnecting,
+  leaving,
+  error,
+}
 
 class TeamVoicePanel extends StatefulWidget {
   const TeamVoicePanel({
@@ -77,7 +85,8 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
 
   void _sessionChanged() {
     if (widget.session.state != SessionState.authenticated &&
-        voiceState != TeamVoiceState.idle) {
+        voiceState != TeamVoiceState.idle &&
+        voiceState != TeamVoiceState.leaving) {
       unawaited(_leave());
     }
   }
@@ -87,7 +96,8 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
     if ((state == AppLifecycleState.hidden ||
             state == AppLifecycleState.paused ||
             state == AppLifecycleState.detached) &&
-        voiceState != TeamVoiceState.idle) {
+        voiceState != TeamVoiceState.idle &&
+        voiceState != TeamVoiceState.leaving) {
       unawaited(_leave(message: '已在后台退出语音，返回牌桌后可重新加入。'));
     }
   }
@@ -103,7 +113,7 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
   }
 
   void _onEvent(VoiceEvent event) {
-    if (!mounted) return;
+    if (!mounted || voiceState == TeamVoiceState.leaving) return;
     switch (event.kind) {
       case VoiceEventKind.reconnecting:
         setState(() => voiceState = TeamVoiceState.reconnecting);
@@ -265,12 +275,13 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
   }
 
   Future<void> _leave({String? message, bool failed = false}) async {
-    generation++;
+    if (voiceState == TeamVoiceState.leaving) return;
+    final current = ++generation;
     mutedByUser = false;
     if (mounted) {
       setState(() {
-        voiceState = failed ? TeamVoiceState.error : TeamVoiceState.idle;
-        busy = false;
+        voiceState = TeamVoiceState.leaving;
+        busy = true;
         speaking = '';
         playbackBlocked = false;
         remoteAudioConnected = false;
@@ -282,6 +293,13 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
       await transport.leave();
     } catch (_) {
       /* SDK disposal still runs in dispose */
+    } finally {
+      if (mounted && current == generation) {
+        setState(() {
+          voiceState = failed ? TeamVoiceState.error : TeamVoiceState.idle;
+          busy = false;
+        });
+      }
     }
   }
 
@@ -306,6 +324,7 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
     ].contains(voiceState);
     final status = switch (voiceState) {
       TeamVoiceState.joining => '正在连接语音…',
+      TeamVoiceState.leaving => '正在退出语音…',
       TeamVoiceState.joined => '已加入 · 麦克风开启',
       TeamVoiceState.muted => '已加入 · 麦克风关闭',
       TeamVoiceState.reconnecting => '语音正在重连…',

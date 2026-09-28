@@ -148,6 +148,20 @@ class LiveKitVoiceTransport implements VoiceTransport {
       } catch (_) {
         /* release capture despite listener failure */
       }
+      // Dispose remote playout tracks while signaling is still connected.
+      for (final participant in room.remoteParticipants.values.toList()) {
+        for (final publication
+            in participant.trackPublications.values.toList()) {
+          if (publication.kind != lk.TrackType.AUDIO) {
+            continue;
+          }
+          try {
+            await publication.unsubscribe();
+          } catch (_) {
+            /* disconnect still releases remote tracks */
+          }
+        }
+      }
       try {
         await room.localParticipant?.setMicrophoneEnabled(false);
       } catch (_) {

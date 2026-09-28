@@ -65,4 +65,14 @@ docker compose -p uno-package-0313-voice --env-file "$VOICE_ROOT/deploy/.env" \
 - Android API 36.1 模拟器与三名包内 Web 玩家完成四人 2v2，Web/App 房间及队伍文字双向互发、队伍隔离、双方 UI 出牌至终局、战绩一致；Web 与 Android 互相订阅到对方音轨，对局 `47ce6527-dde8-4b1a-aa1d-175d0276ffe4`。测试临时使用 `adb reverse` 映射 Gateway/Mailpit `63080/63025` 及媒体 TCP `7890/7891`，结束后已撤销。
 - iPhone 17 Pro / iOS 26.5 模拟器同样完成四人 2v2、双向文字、双方 UI 出牌、终局与战绩；iOS 客户端仅收听模式加入并退出 LiveKit，未申请麦克风，对局 `c4596630-2426-40fd-8a6a-422bcc556eef`。测试脚本没有核对 iOS 收到的远端音频样本。
 
-浏览器测试使用虚拟音频设备；移动端使用 Flutter 集成测试构建，产品代码与包一致。以上不证明真实扬声器听感、iOS 实际音轨订阅、真机麦克风、跨网 ICE/TURN、生产 TLS/WSS 或容量。独立语音栈没有覆盖服务重启时的媒体恢复。
+浏览器测试使用虚拟音频设备；移动端使用 Flutter 集成测试构建，产品代码与包一致。以上不证明真实扬声器听感、真机麦克风、跨网 ICE/TURN、生产 TLS/WSS 或容量。独立语音栈没有覆盖服务重启时的媒体恢复。
+
+## 源码修复后的 iOS 远端音轨补验
+
+上述 0.3.13 镜像栈保持原样运行；以下 Flutter App 使用当前源码重新构建，**修复尚未进入 0.3.13 发布包**。新增 Web 虚拟麦克风向 iOS 仅收听端持续发布音轨的测试。修复前，iOS 订阅后直接离会的完整流程和离会后空等 30 秒的最小流程多次发生 `SIGABRT`；系统崩溃报告的故障线程为 WebRTC worker，栈顶经过 `_ReportRPCTimeout`、`AURemoteIO::Initialize`、`AudioUnitInitialize`。先让 Web 停止发布并等待 iOS 收到退订事件，再让 iOS 离会的对照流程通过。该实验将风险缩到远端音频仍活跃时的清理顺序，不能单独证明系统音频超时的全部成因。
+
+App 离会时现先调用 LiveKit 的远端音轨 `unsubscribe()`，等音轨释放后再 `disconnect()` / `dispose()`。语音面板显示“正在退出语音”，直到异步清理完成才开放再次加入。修复后原场景的离会后 30 秒回归通过一次；包含 Web/App 双向文字、四人 2v2 双方 UI 出牌、终局和战绩一致的 iOS 远端音轨流程连续通过两次，对局 `3460fbbf-ad4e-445a-9fa8-7240e6a096d2`、`d7ed9f2a-f29c-4df8-af05-8f1b2b93c041`。这验证了 iOS 收到 LiveKit 远端音轨订阅事件及离会清理，仍未测量 iOS 扬声器输出的 PCM 样本或真机听感。
+
+同一源码的 Android API 36 模拟器回归亦通过：Web/Android 双向订阅音轨、双向房间及队伍文字、四人 2v2 双方出牌、终局与战绩一致，对局 `4958bf7f-c4de-4ed7-8805-e823bf201af1`。临时 `adb reverse` 映射已撤销。
+
+复现时设置本文件上方三个 `UNO_E2E_*` 服务地址及 `UNO_E2E_DEVICE_ID` 为启动的模拟器 ID；iOS 分别运行 `npm --prefix web run test:e2e:ios-voice-remote`、`npm --prefix web run test:e2e:ios-voice-cleanup`，Android 映射宿主机 `63080/63025/7890/7891` 端口后运行 `npm --prefix web run test:e2e:android-team-media`。本机 `xcode-select -p` 指向 Command Line Tools，Xcode 构建子进程没有保留外层的 `DEVELOPER_DIR`；iOS 测试时用临时 `PATH` 中的 `xcrun` 包装脚本为未设置该变量的进程指向 `/Applications/Xcode.app/Contents/Developer`，没有更改全局 Xcode 选择。
