@@ -19,7 +19,7 @@ flutter run
 
 访问与刷新凭证作为单个记录保存在 Android Keystore/iOS Keychain 支撑的 `flutter_secure_storage` 中；Android 禁用应用备份，避免恢复加密数据后密钥不匹配。启动时读取记录并向后端确认身份，过期时串行刷新并保存轮换后的整组凭证；401 清除已失效会话，网络故障保留凭证供重试。退出只有在服务端确认或已失效时才清除本地凭证。密码及邮件凭证只用于当前提交，不持久保存。正式设备上的安全存储和双端同一用户联调仍待验收，见 `../docs/verification-stage4-flutter.md`。
 
-未签名的 iOS Simulator 试玩包没有 Keychain 授权，普通启动时无法读写安全存储。打包脚本仅为这个 Debug 模拟器制品传入 `--dart-define=UNO_LOCAL_EPHEMERAL_SESSION=true`，让访问与刷新凭证只留在 App 进程内，退出进程后必须重新登录；Android 和未传此开关的 iOS 构建仍使用安全存储。这个模式仅用于本机试玩，不能充当签名真机包或验证会话持久化。
+未签名的 iOS Simulator 试玩包没有 Keychain 授权，普通启动时无法读写安全存储。打包脚本仅为这个 Debug 模拟器制品传入 `--dart-define=UNO_LOCAL_EPHEMERAL_SESSION=true`，让访问与刷新凭证、音效偏好只留在 App 进程内，退出进程后必须重新登录且音效设置会复位；Android 和未传此开关的 iOS 构建仍使用安全存储。这个模式仅用于本机试玩，不能充当签名真机包或验证会话持久化。
 
 Android 声明 INTERNET/RECORD_AUDIO 和语音路由所需网络/音频/蓝牙权限，iOS 声明 NSMicrophoneUsageDescription；声明权限不表示会自动录音。点击加入队友语音时，Android 12+ 才申请蓝牙连接权限，LiveKit 随后申请麦克风并开麦；蓝牙权限拒绝会提示，仍可尝试扬声器语音。退后台即退出语音，拒绝权限不会阻止游戏。真实权限、设备切换和媒体采集生命周期仍须设备验收。
 

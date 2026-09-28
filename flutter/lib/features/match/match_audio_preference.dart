@@ -5,6 +5,18 @@ abstract interface class MatchAudioPreference {
   Future<void> writeMuted(bool muted);
 }
 
+class EphemeralMatchAudioPreference implements MatchAudioPreference {
+  bool _muted = false;
+
+  @override
+  Future<bool> readMuted() async => _muted;
+
+  @override
+  Future<void> writeMuted(bool muted) async {
+    _muted = muted;
+  }
+}
+
 class SecureMatchAudioPreference implements MatchAudioPreference {
   SecureMatchAudioPreference([FlutterSecureStorage? storage])
     : _storage = storage ?? const FlutterSecureStorage();

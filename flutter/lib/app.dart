@@ -9,6 +9,7 @@ import 'features/auth/auth_api.dart';
 import 'features/auth/auth_session.dart';
 import 'features/lobby/lobby_page.dart';
 import 'features/match/match_api.dart';
+import 'features/match/match_audio_preference.dart';
 import 'features/match/match_page.dart';
 import 'features/room/room_preview_page.dart';
 import 'features/room/room_api.dart';
@@ -35,6 +36,7 @@ class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
   late final bool ownsSession;
   late final RoomApi rooms;
   late final MatchApi matches;
+  late final MatchAudioPreference audioPreference;
   WaitingRoom? activeRoom;
   String? activeMatchId;
   bool autoEnterMatch = true;
@@ -48,14 +50,19 @@ class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     ownsSession = widget.authSession == null;
+    final localEphemeralPreview =
+        _localEphemeralSession && kDebugMode && Platform.isIOS;
     session =
         widget.authSession ??
         AuthSession(
           api: AuthApi(),
-          store: _localEphemeralSession && kDebugMode && Platform.isIOS
+          store: localEphemeralPreview
               ? EphemeralTokenStore()
               : SecureTokenStore(),
         );
+    audioPreference = localEphemeralPreview
+        ? EphemeralMatchAudioPreference()
+        : SecureMatchAudioPreference();
     rooms = RoomApi(session: session);
     matches = MatchApi(session: session);
     session.addListener(_sessionChanged);
@@ -156,6 +163,7 @@ class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
               session: session,
               room: activeRoom!,
               matchId: activeMatchId!,
+              audioPreference: audioPreference,
               onBackToRoom: (finished) => setState(() {
                 activeMatchId = null;
                 autoEnterMatch = finished;
