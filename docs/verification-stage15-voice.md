@@ -33,6 +33,8 @@ Android API 36.1 `Medium_Phone_API_36.1` 模拟器增量：App 首次加入仅�
 
 2026-09-28 复测：原 Android 自动化仍需人工处理“附近设备”运行时权限，首次将文字与语音合并运行时卡在语音连接。`web/e2e/mixed-mobile-team.cjs` 现等 App 安装启动后，通过 ADB 仅给本地测试包授予 `BLUETOOTH_CONNECT`；未修改产品权限流程。API 36.1 模拟器（`emulator-5554`）在原有 `uno-stage17-check` Compose 栈上运行 `UNO_E2E_DEVICE_ID=emulator-5554 UNO_E2E_MOBILE_CHAT=1 UNO_E2E_MOBILE_VOICE=1 npm --prefix web run test:e2e:mixed-android-team` 通过：四个真实账号、Web/App 房间与队伍文字隔离、App 仅收听加入/退出、两端操作、2v2 结算和四份战绩一致；对局 ID `77a0ff3a-ea4d-492e-b103-967bb349b1b2`。本次模拟器以无窗口、无宿主音频模式运行，仍不证明 Android 音轨采集或实际可听。
 
+同日 iOS 复测：iPhone 17 Pro / iOS 26.5 模拟器运行 `UNO_E2E_DEVICE_ID=00AF3E75-A77A-4F3F-BCBF-FF3E12CD6BBC UNO_E2E_MOBILE_CHAT=1 UNO_E2E_MOBILE_VOICE=1 npm --prefix web run test:e2e:mixed-ios-team` 通过。三个 Web 账号与一个 iOS UI 账号完成同场 2v2、房间与队伍文字隔离、iOS 仅收听语音加入/退出、双方动作、结算和四份战绩；对局 ID `0ec6f9ea-5057-4038-9f33-82b4b51b3a5b`。本机全局 `xcode-select` 仍指向 CommandLineTools；首次只设置外层 `DEVELOPER_DIR` 时，`objective_c` 原生 hook 无法取得 SDK 路径。按 [stage4 的临时 `xcrun` 包装脚本](verification-stage4-flutter.md)在当前命令的 PATH 中补充 Xcode 选择后，最小复现和完整用例均通过，未修改系统全局设置。仍未发布或接收音轨，也未生成签名 IPA。
+
 媒体试验边界：同一模拟器上尝试 iOS 开麦时，面板曾返回权限拒绝；手动安装 Runner 后用 `simctl privacy grant microphone com.example.unoApp` 授权，模拟器 TCC 记录显示允许，但启用麦克风仍使 Runner 在系统 `AURemoteIO::Initialize` 超时处中止。仅收听状态下让 Web 队友发布音轨，也触发同类系统崩溃（本机诊断报告 `Runner-2026-09-24-141431.ips`、`Runner-2026-09-24-141920.ips`）。这些失败没有证明真机上的同一故障，也没有形成音频互听证据；必须在目标真机与可达媒体网络重新验证。
 
 - Android/iOS 真实设备上与 App、Web 队友双向听见声音，并确认非队友无法订阅；本机 `127.0.0.1` LiveKit 媒体地址不适合外部设备。

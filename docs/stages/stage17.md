@@ -48,3 +48,5 @@
 2026-09-28 双实例部署增量：从提交 `15ef055` 构建相同 Game 镜像的两个独立容器，连接同一 PostgreSQL V16。经真实随机账号、Mailpit、Gateway 和指定实例 WebSocket 验证跨容器文字、接管、HTTP 操作权、经典局、四人 2v2、结算与历史；命令、镜像标识和未覆盖范围见 [本地双 Game 容器联调](../verification-stage17-multi-instance.md)。生产负载均衡、容量、TLS/TURN 与真机仍待验收。
 
 同日单实例停止补验：在隔离栈中停止持有对局连接的 Game A，Game B 接管后保持私有状态并继续出牌，重复命令幂等，A 重启就绪；普通双实例联调复跑通过。脚本对重启后 Docker 动态端口重新发现，结果与限制见 [本地双 Game 容器联调](../verification-stage17-multi-instance.md)。
+
+同日从干净提交 `096a32e` 生成 `0.3.3-local-playtest`，Web、Maven 数据库集成、Flutter 检查与 Android debug 构建通过；归档/逐文件校验和与 APK ZIP 检查通过，包内 APK 在 API 36.1 模拟器安装并启动。见 [0.3.3 本地试玩包验收](../verification-stage17-local-playtest-0.3.3.md)。该归档仍没有 iOS IPA、正式签名、同版镜像或生产网络配置。

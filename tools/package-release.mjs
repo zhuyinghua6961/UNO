@@ -10,6 +10,10 @@ if (process.argv.length !== 3 || !label || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(
   throw new Error('Usage: node tools/package-release.mjs <unique-version-label>')
 }
 const services = ['gateway', 'identity-service', 'game-service']
+const includeIosSimulator = process.env.PACKAGE_IOS_SIMULATOR === 'true'
+if (includeIosSimulator && process.platform !== 'darwin') {
+  throw new Error('An iOS Simulator app can only be built on macOS with Xcode')
+}
 const output = join(root, 'release', label)
 const archive = join(root, 'release', `${label}.tar.gz`)
 const checksumFile = `${archive}.sha256`
@@ -42,10 +46,15 @@ run('dart', ['analyze', 'lib', 'test', 'integration_test'], join(root, 'flutter'
 run('flutter', ['test'], join(root, 'flutter'))
 run('flutter', ['build', 'apk', '--debug', '--no-pub',
   '--dart-define=API_BASE_URL=http://10.0.2.2:28080'], join(root, 'flutter'))
+if (includeIosSimulator) {
+  run('flutter', ['build', 'ios', '--simulator', '--no-codesign', '--no-pub',
+    '--dart-define=API_BASE_URL=http://127.0.0.1:28080'], join(root, 'flutter'))
+}
 requireCleanSource()
 await access(join(root, 'web/dist/index.html'))
 for (const service of services) await access(join(root, `backend/${service}/target/${service}-0.1.0-SNAPSHOT.jar`))
 await access(join(root, 'flutter/build/app/outputs/flutter-apk/app-debug.apk'))
+if (includeIosSimulator) await access(join(root, 'flutter/build/ios/iphonesimulator/Runner.app'))
 
 await mkdir(output)
 await cp(join(root, 'web/dist'), join(output, 'web'), { recursive: true })
@@ -56,6 +65,11 @@ for (const service of services) {
 await mkdir(join(output, 'flutter', 'android'), { recursive: true })
 await cp(join(root, 'flutter/build/app/outputs/flutter-apk/app-debug.apk'),
   join(output, 'flutter', 'android', 'uno-emulator-debug.apk'))
+if (includeIosSimulator) {
+  await mkdir(join(output, 'flutter', 'ios-simulator'), { recursive: true })
+  await cp(join(root, 'flutter/build/ios/iphonesimulator/Runner.app'),
+    join(output, 'flutter', 'ios-simulator', 'Runner.app'), { recursive: true })
+}
 await mkdir(join(output, 'deploy'))
 for (const file of ['README.md', 'compose.yaml', 'livekit.yaml', 'nginx.conf', '.env.example', 'backend.Dockerfile', 'web.Dockerfile']) {
   await cp(join(root, 'deploy', file), join(output, 'deploy', file))
@@ -69,10 +83,14 @@ const manifest = {
   validation: ['npm --prefix web test', 'npm --prefix web run build',
     'mvn -f backend/pom.xml -Pdatabase-it clean verify',
     'dart analyze lib test integration_test (flutter)', 'flutter test',
-    'flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://10.0.2.2:28080'],
-  included: ['web-static', 'backend-jars', 'android-emulator-debug-apk', 'deployment-source-reference'],
+    'flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://10.0.2.2:28080',
+    ...(includeIosSimulator ? [
+      'flutter build ios --simulator --no-codesign --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:28080',
+    ] : [])],
+  included: ['web-static', 'backend-jars', 'android-emulator-debug-apk',
+    ...(includeIosSimulator ? ['ios-simulator-app'] : []), 'deployment-source-reference'],
   excluded: ['flutter-ipa', 'release-signed-mobile-builds', 'docker-images', 'secrets'],
-  notes: 'Local preview only. The Android debug APK targets an emulator using the Compose gateway at 10.0.2.2:28080; it is not a phone or production installer. Dockerfiles require the original source repository. Browser/device end-to-end, signed mobile builds, and production deployment are separate gates.',
+  notes: `Local preview only. The Android debug APK targets an emulator using the Compose gateway at 10.0.2.2:28080; it is not a phone or production installer.${includeIosSimulator ? ' The unsigned Runner.app targets only an iOS Simulator and its localhost gateway; it is not an IPA or an iPhone installer.' : ''} Dockerfiles require the original source repository. Browser/device end-to-end, signed mobile builds, and production deployment are separate gates.`,
 }
 await writeFile(join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
 const sums = []

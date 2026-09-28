@@ -42,3 +42,5 @@ Flutter `livekit_client` 2.13.0 已接入；API 请求、主动加入、静音/�
 2026-09-24 Android 增量：首次蓝牙授权弹窗曾触发 `inactive`，语音面板误作退后台并退出；现只在 `hidden`、`paused`、`detached` 退出，长牌桌滚动离屏时保留语音面板状态。Android API 36.1 模拟器经系统蓝牙授权后，真实 LiveKit 仅收听加入、退出与 Web 混合 2v2 完赛通过。仍未验证 Android 音频采集、播放或真机互听；详见 [stage15 增量验收](../verification-stage15-voice.md)。
 
 2026-09-28 Android 补验：混合端自动化在 App 安装启动后通过 ADB 授予测试包蓝牙连接权限，避免系统弹窗使无人值守测试停在连接中；Web/App 双向文字、仅收听语音、双方出牌、2v2 结算与战绩在同场通过。详见 [stage15 增量验收](../verification-stage15-voice.md)。
+
+同日 iOS 补验：在 iOS 26.5 模拟器上，当前 Flutter 源码与三个 Web 玩家完成同样的文字、仅收听语音、双方动作及 2v2 结算/战绩验收；本机 Xcode 工具链选择仍需临时包装脚本。详见 [stage15 增量验收](../verification-stage15-voice.md)。
