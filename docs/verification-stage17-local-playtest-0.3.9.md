@@ -9,4 +9,12 @@
 
 首次打包尝试因本机 `xcode-select` 指向 CommandLineTools 而在 iOS 步骤失败；已加入提前执行 `xcodebuild -version` 的检查。成功打包使用当前命令的临时 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` 和 [既有 xcrun 包装](verification-stage4-flutter.md)，未更改全局 Xcode 选择。
 
-包内 Android/iOS 可执行文件与前版相同，这次没有重复安装或验证移动 App 的完整牌局。先前的 [Web 和模拟器综合矩阵](verification-stage18-0.3.7-candidate.md)、[同 schema 回退演练](verification-stage17-local-rollback-0.3.8.md)仍是相应证据；本版没有新增生产 TLS/TURN、签名真机包、跨网媒体或新迁移回退证明。
+## 包内普通 App 增量验收
+
+之后从同一 0.3.9 归档安装 Android debug APK 到 API 36.1 `emulator-5554`，连接本包的独立 `uno-package-039` 容器栈。包内 APK 固定访问 `10.0.2.2:28080`；本机模拟器无法直接访问 Docker Desktop 发布的回环端口，因此测试时在宿主机用临时 TCP 桥接 `127.0.0.1:28080 → 127.0.0.1:48080`，而包内 Gateway 实际发布在 `48080`。这是本机网络绕行，**不是包内自带的设备接入能力**。
+
+普通 App 完成测试账号登录、加入 Web 创建的房间、准备、接收实时牌面，并在同一经典对局 `caa4f612-e58a-4f65-afbe-94ec4125730d` 中通过 ADB 触控真实界面提交 **266 次**出牌、摸牌、UNO 与 +4 应对等操作。随后停止 App，让同一测试账号经 App API 自动补完剩余回合，以便验证终局和战绩；故不能声称这 26 轮全部由普通 App 界面操作。服务端在版本 2104 结算：APK 玩家 503 分胜、Web 玩家 447 分负，双方历史分别为 `WIN`/`LOSS`。重新启动未重装的普通 APK 后，账号页显示经典 1 胜 0 负、26 轮和两人成绩；[Android 战绩截图](evidence/stage18-android-apk-0.3.9-history.png)。调试期间的第一场对局因连续超时中断，历史按规则显示为中断、不计胜负。
+
+包内 iOS Simulator App 在 iPhone 17 Pro / iOS 26.5 模拟器上安装、启动，但账号页显示无法读取安全存储。模拟器 `securityd` 记录 `-34018`，指出应用缺少 `application-identifier` 或 `keychain-access-groups` 授权；该包使用 `--no-codesign`，**iOS 0.3.9 普通 App 登录与玩法未通过**。单独给包外复制品追加签名未能得到可启动且可读 Keychain 的制品。后续 [iOS 本地预览修复记录](verification-stage18-ios-ephemeral-preview.md)区分模拟器临时会话与正式签名要求。
+
+先前的 [Web 和模拟器综合矩阵](verification-stage18-0.3.7-candidate.md)、[同 schema 回退演练](verification-stage17-local-rollback-0.3.8.md)仍是相应证据；本版没有新增生产 TLS/TURN、签名真机包、跨网媒体或新迁移回退证明。

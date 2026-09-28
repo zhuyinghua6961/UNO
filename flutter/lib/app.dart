@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'features/auth/login_page.dart';
@@ -24,6 +26,9 @@ class UnoApp extends StatefulWidget {
 }
 
 class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
+  static const _localEphemeralSession = bool.fromEnvironment(
+    'UNO_LOCAL_EPHEMERAL_SESSION',
+  );
   int selectedPage = 0;
   GameMode mode = GameMode.classic;
   late final AuthSession session;
@@ -45,7 +50,12 @@ class _UnoAppState extends State<UnoApp> with WidgetsBindingObserver {
     ownsSession = widget.authSession == null;
     session =
         widget.authSession ??
-        AuthSession(api: AuthApi(), store: SecureTokenStore());
+        AuthSession(
+          api: AuthApi(),
+          store: _localEphemeralSession && kDebugMode && Platform.isIOS
+              ? EphemeralTokenStore()
+              : SecureTokenStore(),
+        );
     rooms = RoomApi(session: session);
     matches = MatchApi(session: session);
     session.addListener(_sessionChanged);

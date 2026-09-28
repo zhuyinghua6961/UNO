@@ -60,6 +60,25 @@ abstract class TokenStore {
   Future<void> clear();
 }
 
+/// Local unsigned iOS Simulator previews cannot use Keychain entitlements.
+/// This store deliberately loses the session when the app process exits.
+class EphemeralTokenStore implements TokenStore {
+  StoredTokens? _tokens;
+
+  @override
+  Future<StoredTokens?> read() async => _tokens;
+
+  @override
+  Future<void> write(StoredTokens tokens) async {
+    _tokens = tokens;
+  }
+
+  @override
+  Future<void> clear() async {
+    _tokens = null;
+  }
+}
+
 class SecureTokenStore implements TokenStore {
   SecureTokenStore([FlutterSecureStorage? storage])
     : _storage = storage ?? const FlutterSecureStorage();
@@ -276,7 +295,9 @@ class AuthSession extends ChangeNotifier {
   });
 
   Future<void> updateNickname(String nickname) => _run(() async {
-    final updated = await withAccess((token) => api.updateProfile(token, nickname));
+    final updated = await withAccess(
+      (token) => api.updateProfile(token, nickname),
+    );
     if (updated.id != user?.id) {
       throw const AuthFailure(502, 'INVALID_RESPONSE', '账号身份不一致，请重新登录。');
     }

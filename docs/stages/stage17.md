@@ -2,7 +2,7 @@
 
 [返回总索引](../README.md)
 
-- 状态：进行中（0.3.8 发布素材检查和同 schema 本地镜像回退已验收；生产网络、签名、CI 与迁移兼容回退待做）。
+- 状态：进行中（0.3.9 本地包及镜像、业务路由就绪门槛和同 schema 本地镜像回退已验收；生产网络、签名、CI 与迁移兼容回退待做）。
 - 前置依赖：stage14、stage15、stage16；基础环境准备可提前进行。
 - 目标：把完整功能部署到明确的测试环境，形成可复现的构建与交付过程。
 
@@ -62,3 +62,5 @@
 随后从修复提交 `1559785` 生成 [0.3.7 本地试玩包与镜像](../verification-stage17-local-playtest-0.3.7.md)。归档、247 个文件、离线镜像的校验和与 `docker load` 均通过；在独立解包目录生成新本地密钥和空数据库，用 `--no-build` 启动，完成账号、经典/2v2 整局、文字、浏览器语音撤销，并在 Game/Gateway 更换容器 IP 后复测。Android/iOS 包内应用已分别安装到模拟器并显示首页。仍缺生产网络、签名、真机音频、容量和兼容回滚。
 
 同日从提交 `42336ca` 生成 [0.3.8 包和镜像](../verification-stage17-local-playtest-0.3.8.md)，打包先从跟踪素材重建并核对 Web/Flutter 资源，旧文件会阻断发布；所有自动测试、双平台模拟器构建与 247 个包内文件校验通过。[同 schema 本地回退演练](../verification-stage17-local-rollback-0.3.8.md)使进行中经典局经历 0.3.7、0.3.8、再回 0.3.7，手牌和版本保留，终局战绩一致，停机后 V17 数据仍在。新迁移的兼容回退、失败发布和生产网络仍待完成。
+
+同日从提交 `02c0d0f` 生成 [0.3.9 包和镜像](../verification-stage17-local-playtest-0.3.9.md)。Identity/Game/Gateway/Web 的本地健康检查现在依次覆盖数据库和实际业务路由，`up --wait` 在故障时阻断；停 Game 后 Gateway readiness 返回 503 而 liveness 保持 200，重启后全部恢复健康。[就绪门槛故障注入](../verification-stage17-compose-readiness.md)和解包部署均已通过。生产媒体、SMTP、TLS/TURN 和自动恢复仍没有纳入这套门槛。
