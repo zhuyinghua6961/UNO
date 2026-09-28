@@ -7,6 +7,8 @@ enum VoiceEventKind {
   roomDeleted,
   speaking,
   playbackBlocked,
+  remoteAudioSubscribed,
+  remoteAudioUnsubscribed,
 }
 
 class VoiceEvent {

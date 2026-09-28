@@ -79,6 +79,16 @@ class LiveKitVoiceTransport implements VoiceTransport {
         if (_room == room && !room.canPlaybackAudio) {
           _events.add(const VoiceEvent(VoiceEventKind.playbackBlocked));
         }
+      })
+      ..on<lk.TrackSubscribedEvent>((event) {
+        if (_room == room && event.track is lk.RemoteAudioTrack) {
+          _events.add(const VoiceEvent(VoiceEventKind.remoteAudioSubscribed));
+        }
+      })
+      ..on<lk.TrackUnsubscribedEvent>((event) {
+        if (_room == room && event.track is lk.RemoteAudioTrack) {
+          _events.add(const VoiceEvent(VoiceEventKind.remoteAudioUnsubscribed));
+        }
       });
     try {
       await room.connect(grant.url, grant.token);

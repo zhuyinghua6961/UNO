@@ -8,7 +8,7 @@
 
 - 已有可构建的三端骨架、素材、状态接口、通信权限基础、16 个骨架测试和开发归档。
 - GitHub 私有仓库 `zhuyinghua6961/UNO` 已创建并关联 origin；2026-09-07 按用户授权进行首次本地提交（以 git log 为准），未推送，三个分支的名称和用途仍未确认。
-- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9–stage15进行中（stage13/14 的撤销换房已本机验收，人工听感仍待验收）、stage16经典/团队战绩与昵称进行中、stage17本地容器增量进行中、stage18验收矩阵进行中。**Web 分别与 Android/iOS 模拟器完成四人 2v2 整局和房间/队伍文字互发；本机浏览器双向收到虚拟麦克风音频样本。Flutter 双平台模拟器的仅收听信令已验收，真实麦克风互听与真机弱网仍待验收。
+- **stage1部分完成、stage2已完成（本地）、stage3技术项已实现但保留登录渠道确认、stage4部分完成、stage5部分完成、stage6部分完成、stage7部分完成、stage8已完成（本地验收）、stage9–stage15进行中（stage13/14 的撤销换房已本机验收，人工听感仍待验收）、stage16经典/团队战绩与昵称进行中、stage17本地容器增量进行中、stage18验收矩阵进行中。**Web 分别与 Android/iOS 模拟器完成四人 2v2 整局和房间/队伍文字互发；本机浏览器双向收到虚拟麦克风音频样本。Android/Web 模拟器双向音轨订阅、iOS 模拟器仅收听信令已验收；真实麦克风互听与真机弱网仍待验收。
 - stage1 的工程约定和复现指南已补充，产品规则/登录渠道/三个分支仍待确认；stage2 按 [工程基线](engineering-baseline.md) 中的明确依赖例外推进。
 - Docker Hub 网络阻碍与 Flutter 分析命令差异见 [骨架验收记录](verification.md)；本地容器栈的后续实测见 [stage17 增量验收](verification-stage17-container.md)。
 

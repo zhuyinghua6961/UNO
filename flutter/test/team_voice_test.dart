@@ -208,6 +208,12 @@ void main() {
       expect(transport.joinMicrophones, [false]);
       expect(transport.mic, false);
       expect(find.text('已加入 · 麦克风关闭'), findsOneWidget);
+      transport.emit(VoiceEventKind.remoteAudioSubscribed);
+      await tester.pump();
+      expect(find.text('已接入队友音轨'), findsOneWidget);
+      transport.emit(VoiceEventKind.remoteAudioUnsubscribed);
+      await tester.pump();
+      expect(find.text('已接入队友音轨'), findsNothing);
       await tester.tap(find.text('打开麦克风'));
       await tester.pump();
       expect(transport.micCalls, [true]);

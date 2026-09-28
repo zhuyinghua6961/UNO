@@ -15,6 +15,7 @@ import 'package:uno_app/features/room/room_chat.dart';
 
 const enabled = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_E2E');
 const voiceEnabled = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_VOICE_E2E');
+const publishVoice = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_PUBLISH_E2E');
 const chatEnabled = bool.fromEnvironment('UNO_LOCAL_MOBILE_TEAM_CHAT_E2E');
 const apiBase = String.fromEnvironment('API_BASE_URL');
 const roomCode = String.fromEnvironment('UNO_TEAM_ROOM_CODE');
@@ -425,6 +426,47 @@ void main() {
         throw TestFailure('mobile voice did not join; visible labels: $labels');
       }
       debugPrint('UNO_MOBILE_VOICE_LISTENING');
+      if (publishVoice) {
+        await _tap(tester, find.text('打开麦克风'));
+        await _waitFor(
+          tester,
+          () => find
+              .text('已加入 · 麦克风开启', skipOffstage: false)
+              .evaluate()
+              .isNotEmpty,
+          'published mobile microphone track',
+          attempts: 240,
+        );
+        debugPrint('UNO_MOBILE_VOICE_PUBLISHING');
+        final confirmation = 'UNO_AUDIO_SUBSCRIBED_$roomCode';
+        var confirmed = false;
+        for (var attempt = 0; attempt < 240; attempt++) {
+          final messages = await rooms.messages(
+            room.id,
+            scope: 'TEAM',
+            latest: true,
+          );
+          if (messages.items.any((item) => item.content == confirmation)) {
+            confirmed = true;
+            break;
+          }
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 250)),
+          );
+        }
+        expect(
+          confirmed,
+          isTrue,
+          reason: 'Web teammate must confirm remote audio subscription',
+        );
+        await _waitFor(
+          tester,
+          () => find.text('已接入队友音轨', skipOffstage: false).evaluate().isNotEmpty,
+          'subscribed Web teammate audio track',
+          attempts: 160,
+        );
+        debugPrint('UNO_MOBILE_VOICE_SUBSCRIBED');
+      }
       await _tap(tester, find.text('退出语音'));
       await _waitFor(
         tester,

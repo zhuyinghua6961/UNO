@@ -2,7 +2,7 @@
 
 [返回总索引](../README.md)
 
-- 状态：进行中；Flutter LiveKit 接入、仅收听、自动化生命周期检查与 Android/iOS 调试编译已完成；Android/iOS 模拟器信令已接通，真机互听待验收。
+- 状态：进行中；Flutter LiveKit 接入、仅收听、自动化生命周期检查与 Android/iOS 调试编译已完成；Android/Web 模拟器双向音轨订阅已验收，iOS 模拟器仅收听信令已接通，真机互听待验收。
 - 前置依赖：stage9、stage13；跨端互通验收依赖 stage14。
 - 目标：App 队友语音可用，并完成 Web/App 混合队伍的互听验证。
 
@@ -44,3 +44,5 @@ Flutter `livekit_client` 2.13.0 已接入；API 请求、主动加入、静音/�
 2026-09-28 Android 补验：混合端自动化在 App 安装启动后通过 ADB 授予测试包蓝牙连接权限，避免系统弹窗使无人值守测试停在连接中；Web/App 双向文字、仅收听语音、双方出牌、2v2 结算与战绩在同场通过。详见 [stage15 增量验收](../verification-stage15-voice.md)。
 
 同日 iOS 补验：在 iOS 26.5 模拟器上，当前 Flutter 源码与三个 Web 玩家完成同样的文字、仅收听语音、双方动作及 2v2 结算/战绩验收；本机 Xcode 工具链选择仍需临时包装脚本。详见 [stage15 增量验收](../verification-stage15-voice.md)。
+
+同日 Android/Web 音轨补验：可选混合端 E2E 在 Android 模拟器上验证 App 开麦发布音轨、Web 同队订阅；Web 虚拟麦克风开麦后 App SDK 收到远端音轨订阅事件，退出后远端音频元素清除。两端仍完成文字和 2v2 整局。模拟器没有宿主麦克风输入，未验证实际可听音频；iOS 音轨和真机互听仍待验收。命令与对局 ID 见 [stage15 增量验收](../verification-stage15-voice.md)。

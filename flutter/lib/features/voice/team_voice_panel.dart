@@ -42,6 +42,7 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
   bool available = false;
   bool busy = false;
   bool playbackBlocked = false;
+  bool remoteAudioConnected = false;
   String speaking = '';
   String error = '';
   String notice = '';
@@ -122,6 +123,10 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
         setState(() => speaking = event.detail);
       case VoiceEventKind.playbackBlocked:
         setState(() => playbackBlocked = true);
+      case VoiceEventKind.remoteAudioSubscribed:
+        setState(() => remoteAudioConnected = true);
+      case VoiceEventKind.remoteAudioUnsubscribed:
+        setState(() => remoteAudioConnected = false);
     }
   }
 
@@ -144,6 +149,7 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
       busy = true;
       speaking = '';
       playbackBlocked = false;
+      remoteAudioConnected = false;
     });
     try {
       await transport.leave();
@@ -182,6 +188,7 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
       voiceState = TeamVoiceState.joining;
       error = '';
       notice = '';
+      remoteAudioConnected = false;
     });
     try {
       final bluetoothReady =
@@ -266,6 +273,7 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
         busy = false;
         speaking = '';
         playbackBlocked = false;
+        remoteAudioConnected = false;
         error = '';
         if (message != null) notice = message;
       });
@@ -352,6 +360,9 @@ class _TeamVoicePanelState extends State<TeamVoicePanel>
             ),
             const SizedBox(height: 7),
             Text('$status${speaking.isEmpty ? '' : ' · 正在说话：$speaking'}'),
+            if (remoteAudioConnected &&
+                voiceState != TeamVoiceState.reconnecting)
+              const Text('已接入队友音轨'),
             if (notice.isNotEmpty) Text(notice),
             if (error.isNotEmpty)
               Text(

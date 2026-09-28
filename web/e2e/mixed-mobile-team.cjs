@@ -13,6 +13,9 @@ const deviceId = process.env.UNO_E2E_DEVICE_ID ?? process.env.UNO_E2E_SIMULATOR_
 const platform = process.env.UNO_E2E_PLATFORM ?? 'mobile'
 const voiceEnabled = process.env.UNO_E2E_MOBILE_VOICE === '1'
 const chatEnabled = process.env.UNO_E2E_MOBILE_CHAT === '1'
+const publishVoice = process.env.UNO_E2E_ANDROID_MIC_TRACK === '1'
+assert.ok(!publishVoice || (platform === 'Android' && voiceEnabled && chatEnabled),
+  'Android microphone track check requires Android, voice and chat E2E flags')
 const users = ['Web A1', 'Web B1', 'Web A2'].map(label => ({
   label, email: `uno-mixed-${randomUUID()}@example.test`, password: `Mixed-${randomUUID()}-1!`,
 }))
@@ -67,6 +70,7 @@ function startMobile(roomCode) {
     `--dart-define=UNO_TEAM_ROOM_CODE=${roomCode}`]
   if (voiceEnabled) args.push('--dart-define=UNO_LOCAL_MOBILE_TEAM_VOICE_E2E=true')
   if (chatEnabled) args.push('--dart-define=UNO_LOCAL_MOBILE_TEAM_CHAT_E2E=true')
+  if (publishVoice) args.push('--dart-define=UNO_LOCAL_MOBILE_TEAM_PUBLISH_E2E=true')
   const child = spawn('flutter', args, { cwd: path.resolve(__dirname, '../../flutter'), env: process.env })
   const output = []
   for (const stream of [child.stdout, child.stderr]) {
@@ -96,6 +100,12 @@ async function grantAndroidVoicePermission(mobile) {
         'com.example.uno_app', 'android.permission.BLUETOOTH_CONNECT'], { encoding: 'utf8' })
       assert.equal(granted.status, 0,
         `grant Android test Bluetooth permission: ${granted.error?.message ?? granted.stderr}`)
+      if (publishVoice) {
+        const microphone = spawnSync(adb, ['-s', deviceId, 'shell', 'pm', 'grant',
+          'com.example.uno_app', 'android.permission.RECORD_AUDIO'], { encoding: 'utf8' })
+        assert.equal(microphone.status, 0,
+          `grant Android test microphone permission: ${microphone.error?.message ?? microphone.stderr}`)
+      }
       return
     }
     await delay(500)
@@ -131,14 +141,15 @@ async function webUiMove(page, view) {
 }
 
 async function main() {
-  const browser = await chromium.launch({ headless: true })
+  const browser = await chromium.launch({ headless: true,
+    ...(publishVoice ? { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] } : {}) })
   const contexts = []
   const pages = []
   const pageErrors = []
   let mobile
   try {
     for (const user of users) {
-      const context = await browser.newContext()
+      const context = await browser.newContext(publishVoice ? { permissions: ['microphone'] } : {})
       contexts.push(context)
       const page = await context.newPage()
       pages.push(page)
@@ -248,6 +259,26 @@ async function main() {
       await page.getByRole('heading', { name: '双人组牌桌' }).waitFor()
     }
     if (voiceEnabled) {
+      if (publishVoice) {
+        for (let attempt = 0; attempt < 180; attempt++) {
+          if (mobile.failure) throw mobile.failure
+          if (mobile.output.some(line => line.includes('UNO_MOBILE_VOICE_PUBLISHING'))) break
+          await delay(500)
+        }
+        assert.ok(mobile.output.some(line => line.includes('UNO_MOBILE_VOICE_PUBLISHING')),
+          `Android did not publish microphone: ${mobile.output.slice(-30).join('\n')}`)
+        await b1.getByRole('button', { name: '加入队友语音' }).click()
+        await b1.getByText('已加入 · 麦克风开启', { exact: false }).waitFor({ timeout: 20000 })
+        await b1.waitForFunction(() => {
+          const element = document.querySelector('.voice-audio audio')
+          return element?.srcObject instanceof MediaStream
+            && element.srcObject.getAudioTracks().some(track => track.readyState === 'live')
+        }, null, { timeout: 20000 })
+        const confirmed = await mutate(b1, `/api/rooms/${room.id}/messages`, {
+          clientMessageId: randomUUID(), channel: 'TEAM', content: `UNO_AUDIO_SUBSCRIBED_${room.code}`,
+        })
+        assert.equal(confirmed.status, 200, 'Web teammate confirmed remote Android audio track')
+      }
       for (let attempt = 0; attempt < 180; attempt++) {
         if (mobile.failure) throw mobile.failure
         if (mobile.output.some(line => line.includes('UNO_MOBILE_VOICE_LEFT'))) break
@@ -256,6 +287,12 @@ async function main() {
       assert.ok(mobile.output.some(line => line.includes('UNO_MOBILE_VOICE_LISTENING'))
         && mobile.output.some(line => line.includes('UNO_MOBILE_VOICE_LEFT')),
       `${platform} did not join and leave listen-only voice: ${mobile.output.slice(-30).join('\n')}`)
+      if (publishVoice) {
+        assert.ok(mobile.output.some(line => line.includes('UNO_MOBILE_VOICE_SUBSCRIBED')),
+          `Android did not subscribe to Web teammate audio: ${mobile.output.slice(-30).join('\n')}`)
+        await b1.waitForFunction(() => document.querySelectorAll('.voice-audio audio').length === 0,
+          null, { timeout: 15000 })
+      }
     }
     let webActed = false
     let mobileActed = false
@@ -303,8 +340,9 @@ async function main() {
       await page.getByText(`${winningTeam} 队赢得对局`, { exact: false }).waitFor({ timeout: 15000 })
     }
     await mobile.done
+    if (publishVoice) await b1.locator('.team-voice').waitFor({ state: 'detached', timeout: 15000 })
     assert.deepEqual(pageErrors, [])
-    console.log(`PASS: four real identities, three Web browser seats and one ${platform} UI seat; both UIs act and settle; team histories agree${chatEnabled ? '; Web/App room and team chat exchanged with team isolation' : ''}${voiceEnabled ? `; ${platform} joined and left LiveKit listen-only without microphone capture` : ''} (${matchId}).`)
+    console.log(`PASS: four real identities, three Web browser seats and one ${platform} UI seat; both UIs act and settle; team histories agree${chatEnabled ? '; Web/App room and team chat exchanged with team isolation' : ''}${publishVoice ? '; Android and Web subscribed to each other’s audio tracks before Android left' : voiceEnabled ? `; ${platform} joined and left LiveKit listen-only without microphone capture` : ''} (${matchId}).`)
   } finally {
     if (mobile?.child.exitCode === null) mobile.child.kill('SIGTERM')
     await Promise.all(contexts.map(context => context.close()))
