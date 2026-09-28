@@ -10,6 +10,7 @@ import 'package:uno_app/features/auth/auth_api.dart';
 import 'package:uno_app/features/auth/auth_session.dart';
 import 'package:uno_app/features/match/match_api.dart';
 import 'package:uno_app/features/match/match_models.dart';
+import 'package:uno_app/features/match/match_page.dart';
 import 'package:uno_app/features/room/room_api.dart';
 
 const enabled = bool.fromEnvironment('UNO_LOCAL_IOS_E2E');
@@ -113,6 +114,31 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.pump();
 }
 
+void _background(WidgetTester tester) {
+  for (final state in [
+    AppLifecycleState.inactive,
+    AppLifecycleState.hidden,
+    AppLifecycleState.paused,
+  ]) {
+    tester.binding.handleAppLifecycleStateChanged(state);
+  }
+}
+
+void _foreground(WidgetTester tester) {
+  for (final state in [
+    AppLifecycleState.hidden,
+    AppLifecycleState.inactive,
+    AppLifecycleState.resumed,
+  ]) {
+    tester.binding.handleAppLifecycleStateChanged(state);
+  }
+}
+
+int _tableVersion(WidgetTester tester) {
+  final table = tester.state(find.byType(MatchPage)) as dynamic;
+  return (table.state?.view.version as int?) ?? -1;
+}
+
 Future<http.Response> _submit(
   AuthSession session,
   String matchId,
@@ -202,13 +228,14 @@ Map<String, Object?> _automaticAction(MatchView view) {
 }
 
 Future<MatchState> _finishMatch(
+  WidgetTester tester,
   String matchId,
   AuthSession hostSession,
   AuthSession guestSession,
   MatchApi hostMatches,
   MatchApi guestMatches,
 ) async {
-  for (var actionNumber = 0; actionNumber < 2500; actionNumber++) {
+  for (var actionNumber = 0; actionNumber < 5000; actionNumber++) {
     final publicState = await hostMatches.state(matchId);
     if (publicState.status == 'ENDED') return publicState;
     expect(publicState.status, 'PLAYING');
@@ -223,14 +250,22 @@ Future<MatchState> _finishMatch(
         : await guestMatches.state(matchId);
     final action = _automaticAction(privateState.view);
     final response = await _submit(session, matchId, privateState, action);
-    if (response.statusCode == 409) continue;
+    if (response.statusCode == 409) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      continue;
+    }
     expect(
       response.statusCode,
       200,
       reason: 'automatic action ${action['type']}: ${response.body}',
     );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 25)),
+    );
   }
-  throw TestFailure('classic match did not finish within 2500 actions');
+  throw TestFailure('classic match did not finish within 5000 actions');
 }
 
 void main() {
@@ -299,11 +334,22 @@ void main() {
 
       await _tap(tester, find.text('大厅').last);
       await _tap(tester, find.text('创建好友房'));
-      await _waitFor(
-        tester,
-        () => find.text('等待室').evaluate().isNotEmpty,
-        'waiting room',
-      );
+      try {
+        await _waitFor(
+          tester,
+          () => find.text('等待室').evaluate().isNotEmpty,
+          'waiting room',
+        );
+      } catch (_) {
+        final messages = tester
+            .widgetList<Text>(find.byType(Text))
+            .map((text) => text.data ?? '')
+            .where((message) => RegExp('失败|暂|错误|等待|创建|稍后|连接').hasMatch(message))
+            .take(12)
+            .toList();
+        debugPrint('UNO_IOS_ROOM messages=$messages');
+        rethrow;
+      }
       final room = await hostRooms.current();
       expect(room, isNotNull);
       var guestRoom = await guestRooms.join(room!.code);
@@ -326,6 +372,7 @@ void main() {
       );
 
       final matchId = (await hostMatches.current(room.id))!.matchId;
+      debugPrint('UNO_IOS_PHASE match-started');
       for (var attempt = 0; attempt < 6; attempt++) {
         final state = await guestMatches.state(matchId);
         final actor = state.view.players[state.view.currentSeat].userId;
@@ -372,14 +419,129 @@ void main() {
         isTrue,
         reason: 'iOS UI action must reach the real game service',
       );
+      debugPrint('UNO_IOS_PHASE first-ui-action');
+
+      // Pausing closes the App socket. Advance the same match while it is
+      // backgrounded, then prove its visible table catches up on resume.
+      final beforePause = await hostMatches.state(matchId);
+      _background(tester);
+      final actorId =
+          beforePause.view.players[beforePause.view.currentSeat].userId;
+      final backgroundSession = actorId == hostSession.user!.id
+          ? hostSession
+          : guestSession;
+      final backgroundState = actorId == hostSession.user!.id
+          ? beforePause
+          : await guestMatches.state(matchId);
+      final backgroundAction = _automaticAction(backgroundState.view);
+      http.Response? backgroundResponse;
+      for (var attempt = 0; attempt < 30; attempt++) {
+        backgroundResponse = await _submit(
+          backgroundSession,
+          matchId,
+          backgroundState,
+          backgroundAction,
+        );
+        if (backgroundResponse.statusCode != 409) break;
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)),
+        );
+      }
+      expect(
+        backgroundResponse?.statusCode,
+        200,
+        reason: 'background action: ${backgroundResponse?.body}',
+      );
+      final afterPause = await hostMatches.state(matchId);
+      expect(afterPause.view.version, beforePause.view.version + 1);
+      debugPrint('UNO_IOS_PHASE background-action');
+
+      _foreground(tester);
+      try {
+        await _waitFor(
+          tester,
+          () =>
+              find.text('实时连接').evaluate().isNotEmpty &&
+              _tableVersion(tester) >= afterPause.view.version,
+          'resumed table with background action',
+        );
+      } catch (_) {
+        final table = tester.state(find.byType(MatchPage)) as dynamic;
+        final server = await hostMatches.state(matchId);
+        debugPrint(
+          'UNO_IOS_RECOVERY status=${table.status} ui=${_tableVersion(tester)} '
+          'server=${server.view.version} error=${table.error} '
+          'session=${hostSession.state}',
+        );
+        rethrow;
+      }
+      final latestAfterResume = await hostMatches.state(matchId);
+      await _waitFor(
+        tester,
+        () => _tableVersion(tester) >= latestAfterResume.view.version,
+        'resumed table with current server version',
+      );
+      expect(
+        find.textContaining(
+          '你的手牌 · ${latestAfterResume.view.ownHand.length} 张',
+        ),
+        findsOneWidget,
+      );
+      debugPrint('UNO_IOS_PHASE resumed-snapshot');
+
+      for (var attempt = 0; attempt < 6; attempt++) {
+        final state = await guestMatches.state(matchId);
+        final actor = state.view.players[state.view.currentSeat].userId;
+        if (actor == hostSession.user!.id) break;
+        expect(actor, guestSession.user!.id);
+        await _guestMove(guestSession, matchId, state);
+      }
+      final beforeResumedAction = await hostMatches.state(matchId);
+      expect(
+        beforeResumedAction
+            .view
+            .players[beforeResumedAction.view.currentSeat]
+            .userId,
+        hostSession.user!.id,
+      );
+      final resumedAction = switch (beforeResumedAction.view.phase) {
+        'TURN' => find.text('摸 1 张'),
+        'AFTER_DRAW' => find.text('不出刚摸的牌 · 结束回合'),
+        'INITIAL_WILD_COLOR' => find.text('红色'),
+        'DRAW_FOUR_RESPONSE' => find.text('接受 · 摸 4 张'),
+        _ => throw TestFailure(
+          'unexpected resumed phase ${beforeResumedAction.view.phase}',
+        ),
+      };
+      await _waitFor(
+        tester,
+        () => resumedAction.evaluate().isNotEmpty,
+        'resumed turn control',
+      );
+      await _tap(tester, resumedAction);
+      await _waitFor(
+        tester,
+        () => _tableVersion(tester) > beforeResumedAction.view.version,
+        'resumed UI action acknowledgment',
+      );
+      final afterResumedAction = await hostMatches.state(matchId);
+      expect(
+        afterResumedAction.view.version,
+        beforeResumedAction.view.version + 1,
+      );
+      debugPrint('UNO_IOS_PHASE resumed-ui-action');
+
+      _background(tester);
 
       final finished = await _finishMatch(
+        tester,
         matchId,
         hostSession,
         guestSession,
         hostMatches,
         guestMatches,
       );
+      debugPrint('UNO_IOS_PHASE match-finished');
       expect(finished.view.phase, 'MATCH_OVER');
       final hostHistory = await hostMatches.history();
       final guestHistory = await guestMatches.history();
@@ -390,6 +552,7 @@ void main() {
         {'WIN', 'LOSS'},
       );
 
+      _foreground(tester);
       await tester.pump(const Duration(seconds: 1));
       await tester.scrollUntilVisible(
         find.textContaining('赢得了对局'),

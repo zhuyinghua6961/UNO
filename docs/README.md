@@ -148,6 +148,7 @@
 - [stage18 0.3.10 候选增量矩阵](verification-stage18-0.3.10-candidate.md)：iOS 本机模拟器包内试玩及仍未达到的签名真机与发布门槛。
 - [stage18 0.3.11 候选增量矩阵](verification-stage18-0.3.11-candidate.md)：包内 iOS 音效修复、独立解包整局与真机发布缺口。
 - [stage18 0.3.12 候选增量矩阵](verification-stage18-0.3.12-candidate.md)：浏览器自定义端口和断网恢复，以及仍缺的真机发布门槛。
+- [stage12 iOS 前后台恢复补验](verification-stage12-ios-lifecycle.md)：模拟器真实牌桌暂停、权威动作、恢复后 UI 出牌和结算；系统级切网仍待验收。
 - [stage18 iOS 模拟器临时会话验收](verification-stage18-ios-ephemeral-preview.md)：未签名包的 Keychain 错误、Debug 试玩修复和正式签名边界。
 - [stage18 安全与 V17 语音撤销补验](verification-stage18-security-v17.md)：房外账号拒绝、私有手牌、断开后的旧令牌撤销和双平台混合端复测。
 - [stage17 隔离备份恢复演练](verification-stage17-backup-restore.md)：两服务库的压缩备份、校验、新库恢复与数据核对。

@@ -10,4 +10,6 @@
 | 玩法与战绩 | 同版隔离栈完成经典、四人 2v2 整局、文字隔离和战绩 | 本版移动普通界面整局；跨网真实队友音频 |
 | iOS/Android | Android APK 与 iOS Simulator App 构建通过；移动二进制哈希与 0.3.11 相同 | Android/iOS 真机签名、iOS Keychain 持久会话、设备音轨、安装升级 |
 
+包生成后又用当前源码的 iOS 模拟器集成测试补验了真实牌桌前后台恢复与第二次 UI 动作，见 [stage12 iOS 恢复记录](verification-stage12-ios-lifecycle.md)。这不改变 0.3.12 包的源码提交或普通 App 验收范围；未限速 API 自动操作曾出现一次身份核验 503，容量和长期可靠性仍待测量。
+
 具体命令、端口、哈希和边界见 [0.3.12 包及隔离栈验收](verification-stage17-local-playtest-0.3.12.md)。没有 Apple Developer 团队和目标 iPhone；stage18 保持进行中。
