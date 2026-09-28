@@ -77,7 +77,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml up --build -d --wai
 
 浏览器打开 `http://localhost:8088`；仅本机可访问。详见 `deploy/README.md`。此配置不是公网生产部署方案。
 
-最新校验的 [0.3.9 本地试玩包](docs/verification-stage17-local-playtest-0.3.9.md) 含 Web、后端 JAR、Android 模拟器 debug APK、iOS Simulator App 和本地 Compose 配置；[离线镜像包](release/0.3.9-local-playtest-images/images.tar.gz) 单独提供。包来自干净提交，打包脚本会运行 Web、Maven 数据库集成和 Flutter 测试与构建。包内 Android 普通 APK 已完成登录、入房、数百次界面操作及终局战绩显示；余下回合由 API 补完。**0.3.9 包内未签名 iOS App 因 Keychain 授权缺失无法登录**，后续模拟器试玩修复见 [记录](docs/verification-stage18-ios-ephemeral-preview.md)。它不是签名真机版本；真实设备语音与生产部署仍需单独验收。部署与镜像导入步骤见 [本地部署说明](deploy/README.md)。
+最新校验的 [0.3.10 本地试玩包](docs/verification-stage17-local-playtest-0.3.10.md) 含 Web、后端 JAR、Android 模拟器 debug APK、iOS Simulator App 和本地 Compose 配置；[同源码离线镜像包](release/0.3.10-local-playtest-images/images.tar.gz) 单独提供。包来自干净提交，打包脚本运行 Web、Maven 数据库集成和 Flutter 测试与构建；独立解包栈完成经典及 2v2 整局。包内 iOS 普通模拟器 App 已注册、登录、开局并收到摸牌确认；它使用仅供 Debug 试玩的进程内会话，重启后需重新登录，仍不是签名真机版本。此前 [0.3.9 Android 普通 APK](docs/verification-stage17-local-playtest-0.3.9.md) 已完成数百次界面动作及终局战绩显示，剩余回合由 API 补完。真实设备语音与生产部署仍需单独验收，详见 [候选矩阵](docs/verification-stage18-0.3.10-candidate.md)和[本地部署说明](deploy/README.md)。
 
 ## 设计与 Git
 

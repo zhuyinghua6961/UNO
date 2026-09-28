@@ -2,7 +2,7 @@
 
 [返回总索引](../README.md)
 
-- 状态：进行中（0.3.9 本地包及镜像、业务路由就绪门槛和同 schema 本地镜像回退已验收；生产网络、签名、CI 与迁移兼容回退待做）。
+- 状态：进行中（0.3.10 本地包及镜像、独立解包整局、业务路由就绪门槛和同 schema 本地镜像回退已验收；生产网络、签名、CI 与迁移兼容回退待做）。
 - 前置依赖：stage14、stage15、stage16；基础环境准备可提前进行。
 - 目标：把完整功能部署到明确的测试环境，形成可复现的构建与交付过程。
 
@@ -64,3 +64,5 @@
 同日从提交 `42336ca` 生成 [0.3.8 包和镜像](../verification-stage17-local-playtest-0.3.8.md)，打包先从跟踪素材重建并核对 Web/Flutter 资源，旧文件会阻断发布；所有自动测试、双平台模拟器构建与 247 个包内文件校验通过。[同 schema 本地回退演练](../verification-stage17-local-rollback-0.3.8.md)使进行中经典局经历 0.3.7、0.3.8、再回 0.3.7，手牌和版本保留，终局战绩一致，停机后 V17 数据仍在。新迁移的兼容回退、失败发布和生产网络仍待完成。
 
 同日从提交 `02c0d0f` 生成 [0.3.9 包和镜像](../verification-stage17-local-playtest-0.3.9.md)。Identity/Game/Gateway/Web 的本地健康检查现在依次覆盖数据库和实际业务路由，`up --wait` 在故障时阻断；停 Game 后 Gateway readiness 返回 503 而 liveness 保持 200，重启后全部恢复健康。[就绪门槛故障注入](../verification-stage17-compose-readiness.md)和解包部署均已通过。生产媒体、SMTP、TLS/TURN 和自动恢复仍没有纳入这套门槛。
+
+同日从提交 `2b594f5` 生成 [0.3.10 包和镜像](../verification-stage17-local-playtest-0.3.10.md)。打包脚本现从锁文件安装 Web 依赖，并在选定完整 Xcode 下重建 iOS Swift 插件链接；归档 234 个文件和四镜像校验通过。独立解包栈完成账号、文字、经典和 2v2 整局。包内普通 iOS Simulator App 也完成登录、开局和服务端确认的摸牌，但使用进程内临时会话；正式签名、真机与生产媒体仍缺。

@@ -14,8 +14,11 @@
 
 从工作区构建候选执行 `dart analyze lib test integration_test` 无问题，`flutter test test/auth_test.dart` 7 项通过，`flutter build ios --simulator --no-codesign --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:28080 --dart-define=UNO_LOCAL_EPHEMERAL_SESSION=true` 成功。普通安装后用随机邮箱经本地 Mailpit 验证，在 App 账号页登录、显示昵称/战绩，创建经典双人房 `KNGFS25CFP`、调整人数、等待另一测试账号准备、在 App 开局并接收实时牌面。第二次测试局 `b9b5bd19-931f-4782-a5de-9073538dabdc` 中，普通 App 点击摸牌后界面显示“操作已由服务器确认”，手牌从 8 张变为 9 张。重新启动 App 后回到未登录状态，符合临时会话设计。第一局因测试暂停和连续超时中断；第二局在确认摸牌后结束客户端，均未计为 iOS 普通 App 整局通过。对局界面的音效偏好仍会显示安全存储不可用提示，本次使用默认设置。
 
+## 包内复验
+
+已从干净提交生成 [0.3.10 本地试玩包](verification-stage17-local-playtest-0.3.10.md)，安装**包内** iOS App 并经普通界面完成注册、验证、登录、开房、开局和服务端确认的摸牌；进程重启后回到未登录状态。这把先前的工作区修复候选提升为本机模拟器包的实际验收。
+
 ## 仍需完成
 
-- 从干净提交重新生成包含此开关的试玩包，安装**包内** iOS App 再验收；当前工作区构建仅证明修复候选。
 - 确认正式包名、Apple 开发团队、签名及授权配置，用真正的 Keychain 会话在目标 iPhone 上验证登录、重启恢复、升级与退出。
 - 在包内普通 iOS App 上完成整局、结算、文字、音轨和网络切换测试。临时会话仅覆盖本机模拟器试玩，不代表这些门槛已通过。
