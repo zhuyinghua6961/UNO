@@ -18,6 +18,8 @@ Web 默认 `http://localhost:8088`，Gateway 默认 `http://localhost:28080`；J
 
 已生成本地试玩包时，可以从已校验的包构建并保存离线镜像：`node tools/build-local-images.mjs <包名>`。在当前机器运行 `docker load -i release/<包名>-images/images.tar.gz`，核对镜像 manifest 中的架构、源码提交和 `tag`。合并 `compose.images-local.yaml`，设置 `UNO_LOCAL_IMAGE_TAG` 为该 `tag`，使用 `up --no-build -d --wait`，可避免部署时再次编译源码。新包还附带本地 Compose、PostgreSQL 初始化 SQL 和 `tools/init-local-env.mjs`，可从解包目录运行。额外合并 `compose.auth-local.yaml`、`compose.voice-local.yaml` 并启用 `voice` profile 可测试账号和本机媒体；端口不能与另一套 LiveKit 栈冲突。[镜像包及容器地址变更验收](../docs/verification-stage17-image-bundle-dns.md)记录了同版运行与故障复测。此流程只供本机测试，不包含生产 TLS/TURN、密钥托管或注册表发布。
 
+若本机已导入两个带 manifest 的版本镜像，可运行 `node tools/smoke-local-rollback.mjs 0.3.7-local-playtest 0.3.8-local-playtest`，在隔离数据库中验证进行中牌局升级、回退、结算和战绩。脚本成功后停止容器但保留数据库卷；它只证明这两个版本的同 schema 回退，发布新迁移前须另行核对兼容性。见 [实际回退演练](../docs/verification-stage17-local-rollback-0.3.8.md)。
+
 ```sh
 docker compose --env-file deploy/.env -f deploy/compose.yaml logs --tail=100
 docker compose --env-file deploy/.env -f deploy/compose.yaml down

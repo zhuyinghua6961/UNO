@@ -26,4 +26,6 @@ macOS 完整 Xcode 环境可设置 `PACKAGE_IOS_SIMULATOR=true`，让同一脚�
 
 同日生成的 `0.3.7-local-playtest` 来自 `1559785bc1255345e951e325f23b0617d0773091`，试玩归档 SHA-256 为 `36b9ee21a1c523d78e4e15a9a503d8411dbfcf3820adfbce4cfe91a6d06f5a4b`，`linux/arm64` 离线镜像归档 SHA-256 为 `4832913ac36a40e352ac98933571e6a670f381c35b12176a179b392420dfc527`。已从独立解包目录用 `--no-build` 启动并完成 Web 整局、文字和本机浏览器语音验收；包内 Android/iOS 应用已在模拟器安装启动。[详细记录](../docs/verification-stage17-local-playtest-0.3.7.md)说明其非正式签名和未完成项。
 
+同日生成的 `0.3.8-local-playtest` 来自 `42336ca5b33468178a9fdbcc7f6c728c817d1767`，试玩归档 SHA-256 为 `cca160170ac55fc01f88c1be778776fd4e72bfe50f453f78a61f0d160d1376d9`，`linux/arm64` 离线镜像归档 SHA-256 为 `b2493a6fa6613e82803b0767f83f2b8ae6b4994a9c34473e29edbaff365f192c`。打包会拒绝残留的非受控素材文件；镜像参与了进行中牌局的升级与回退演练。见 [包验收](../docs/verification-stage17-local-playtest-0.3.8.md)和 [回退记录](../docs/verification-stage17-local-rollback-0.3.8.md)。
+
 移动端归档约定：`<version>/flutter/android/` 存明确标记用途的 APK/AAB，`<version>/flutter/ios-simulator/` 存可选的模拟器 App，`<version>/flutter/ios/` 留给经用户签名的 IPA。Android debug 包和 release 包必须区分；签名密钥永远不放本目录。发布版本号以 manifest 为准，现阶段 JAR 内部仍为 0.1.0-SNAPSHOT。
