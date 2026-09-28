@@ -113,31 +113,35 @@ async function grantAndroidVoicePermission(mobile) {
   throw new Error('Android test app did not start before Bluetooth permission grant')
 }
 
-function automaticAction(view) {
-  const action = { protocolVersion: 1, commandId: randomUUID(), expectedVersion: view.version }
-  if (view.phase === 'INITIAL_WILD_COLOR') return { ...action, type: 'CHOOSE_INITIAL_COLOR', chosenColor: 'RED' }
-  if (view.phase === 'DRAW_FOUR_RESPONSE') return { ...action, type: 'ACCEPT_DRAW_FOUR' }
-  if (view.phase === 'ROUND_OVER') return { ...action, type: 'NEXT_ROUND' }
-  if (view.phase !== 'TURN' && view.phase !== 'AFTER_DRAW') throw new Error(`unexpected phase ${view.phase}`)
-  const top = view.topCard
-  const playable = view.ownHand.find(card => (view.phase !== 'AFTER_DRAW' || card.id === view.drawnCardId)
-    && (card.color === null || card.color === view.activeColor ||
-      (top.color !== null && card.kind === top.kind && (card.kind !== 'NUMBER' || card.number === top.number))))
-  if (!playable) return { ...action, type: view.phase === 'TURN' ? 'DRAW' : 'PASS' }
-  return { ...action, type: 'PLAY', cardId: playable.id,
-    ...(playable.color === null ? { chosenColor: 'RED' } : {}), callUno: view.ownHand.length === 2 }
-}
-
 async function webUiMove(page, view) {
   await page.getByText('实时连接', { exact: true }).waitFor({ timeout: 15000 })
-  const before = view.version
-  if (view.phase === 'TURN') await page.getByRole('button', { name: '摸 1 张' }).click()
-  else if (view.phase === 'AFTER_DRAW') await page.getByRole('button', { name: '不出刚摸的牌 · 结束回合' }).click()
-  else if (view.phase === 'INITIAL_WILD_COLOR') await page.locator('.match-controls .color-choices').getByRole('button', { name: '红色' }).click()
-  else if (view.phase === 'DRAW_FOUR_RESPONSE') await page.getByRole('button', { name: '接受 · 摸 4 张' }).click()
-  else throw new Error(`unexpected Web UI phase ${view.phase}`)
+  await page.waitForFunction(version => Number(document.querySelector('.live-match')?.dataset.version) >= version,
+    view.version, { timeout: 15000 })
+  if (view.phase === 'INITIAL_WILD_COLOR') {
+    await page.locator('.match-controls .color-choices').getByRole('button', { name: '红色' }).click()
+  } else if (view.phase === 'DRAW_FOUR_RESPONSE') {
+    await page.getByRole('button', { name: '接受 · 摸 4 张' }).click()
+  } else {
+    const top = view.topCard
+    const playable = card => card.color === null || card.color === view.activeColor
+      || (top.color !== null && card.kind === top.kind
+        && (card.kind !== 'NUMBER' || card.number === top.number))
+    const index = view.phase === 'AFTER_DRAW'
+      ? view.ownHand.findIndex(card => card.id === view.drawnCardId)
+      : view.ownHand.findIndex(playable)
+    if (index < 0) {
+      await page.getByRole('button', { name: view.phase === 'TURN'
+        ? '摸 1 张' : '不出刚摸的牌 · 结束回合' }).click()
+    } else {
+      const card = view.ownHand[index]
+      await page.locator('.hand-card').nth(index).click()
+      if (card.color === null) await page.locator('.color-choices .red').click()
+      if (view.ownHand.length === 2) await page.locator('.uno-check input').check()
+      await page.getByRole('button', { name: '打出选中的牌' }).click()
+    }
+  }
   await page.waitForFunction(version => Number(document.querySelector('.live-match')?.dataset.version) > version,
-    before, { timeout: 15000 })
+    view.version, { timeout: 15000 })
 }
 
 async function main() {
@@ -316,16 +320,9 @@ async function main() {
         continue
       }
       const actor = pages[seat]
-      if (!webActed) {
-        await webUiMove(actor, publicState.view)
-        webActed = true
-        continue
-      }
       const state = (await read(actor, `/api/matches/${matchId}/state`)).body
-      const action = automaticAction(state.view)
-      const result = await mutate(actor, `/api/matches/${matchId}/commands`, action)
-      if (result.status === 409) continue
-      assert.equal(result.status, 200, `action ${action.type}: ${JSON.stringify(result.body)} from ${actor.url()}`)
+      await webUiMove(actor, state.view)
+      webActed = true
     }
     assert.equal(ended, true, 'team match did not finish')
     assert.equal(webActed, true, 'a Web UI turn was not submitted')

@@ -35,4 +35,4 @@ Web/App 正式开麦界面、录音、视频会议、全房间语音和生产公
 
 ## 完成记录
 
-已记录在 [stage13–14 语音增量验收](../verification-stage13-14-voice.md)。V11 会话复核与房间换代在本机真实 LiveKit 环境通过；轮询延迟、跨网络、规模与真实设备仍待综合验收。
+已记录在 [stage13–14 语音增量验收](../verification-stage13-14-voice.md)。V11 会话复核与房间换代在本机真实 LiveKit 环境通过；V17 补上已发令牌但已断开媒体连接的会话撤销检查，隔离栈升级与真实浏览器撤销恢复通过，见 [stage18 安全补验](../verification-stage18-security-v17.md)。轮询延迟、跨网络、规模与真实设备仍待综合验收。

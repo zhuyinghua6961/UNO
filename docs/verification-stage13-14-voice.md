@@ -20,6 +20,7 @@
 6. 隔离的 `uno-stage17-check` Compose 栈原有 PostgreSQL 卷直接升级 game-service 镜像，Flyway 从 V9 迁移到 V10；网关 `bootstrap` 保持账号、房间、牌局、文字、语音功能开启。本机测试账号服务的速率限制表仅在隔离栈内为重复自动化运行清空过。
 7. 2026-09-24 在同一隔离栈升级 Identity、Game、Web 镜像，Flyway 从 V10 迁移到 V11。`AuthIT`、`VoiceServiceIT`、`GameDatabaseIT` 验证内部批量会话核验、吊销后代次轮换、身份服务不可用时关闭在场房间及旧代次清理。`npm --prefix web run test:e2e:voice-revoke` 使用四个真实账号和 LiveKit：A1 Web 会话登出后，旧连接释放麦克风；仍有效且已静音的 A2 自动进入新房间，未重新调用 `getUserMedia`；重放 A1 尚未到期的 JWT 不能看到新房间的队友。`npm --prefix web run test:e2e:voice` 再次通过完整终局/旧令牌清理回归。Web 78 项测试和生产构建通过。重复自动化触发账号 IP 限流后，仅清空隔离栈的测试限流记录再执行。
 8. 2026-09-28 浏览器双向音频补验：`web/e2e/team-voice.cjs` 在同队 A1、A2 均加入后，从各自订阅的远端 `MediaStream` 用 Web Audio 取 PCM 时域样本，分别确认均方根幅度大于 0.001；B1 所在对手房间没有对应音轨。`npm --prefix web run test:e2e:voice` 与 `npm --prefix web run test:e2e:voice-revoke` 在原有本地 `uno-stage17-check` LiveKit 测试栈均通过，分别覆盖整局/终局清理及会话吊销/旧令牌隔离。这证明虚拟麦克风样本双向到达浏览器，未测真实扬声器听感。
+9. 同日 V17 补验：发现已撤销会话若先断开媒体房间，V11 只看在场参与者会漏掉其旧 JWT。服务端现登记当前代次已发令牌的会话并持续复核，升级旧数据时主动换代；真实浏览器撤销恢复、房外账号拒绝和对手手牌隔离再次通过。V16 起对局 WebSocket 拥有出牌权时 HTTP 不能绕过，语音整局脚本已改为 Web 界面操作。详见 [stage18 安全补验](verification-stage18-security-v17.md)。
 
 ## 尚未达到 stage13/14 验收的项目
 

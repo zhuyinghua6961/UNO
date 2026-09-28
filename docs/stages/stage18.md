@@ -40,3 +40,5 @@
 2026-09-28 已建立 [0.3.4 本地试玩包综合验收矩阵](../verification-stage18-0.3.4-candidate.md)，列出源码、包与 Web/Android/iOS 分项证据及缺口。实际构建的归档、Android debug APK 和 iOS Simulator App 见 [0.3.4 本地试玩包验收](../verification-stage17-local-playtest-0.3.4.md)。这是内测候选的差距清单，仍待正式签名、同版镜像、目标环境、真机与发布授权。
 
 同日更新为 [0.3.5 候选矩阵](../verification-stage18-0.3.5-candidate.md)：Android/Web 双向音轨订阅用例已通过；同一源码提交的新版归档、双平台模拟器安装启动、文件校验见 [0.3.5 包验收](../verification-stage17-local-playtest-0.3.5.md)。真实听感、iOS 音轨、签名包和目标网络仍是未通过项。
+
+同日 [安全与 V17 语音撤销补验](../verification-stage18-security-v17.md)增加房外真实账号的房间、牌局、文字、出牌和语音令牌拒绝检查，以及对手手牌视图检查。修复已发令牌但已断开媒体连接时的会话撤销漏检；隔离栈升级、真实浏览器撤销恢复、Android/iOS 混合端整局通过。尚未覆盖完整生产安全、真机弱网、跨网媒体和容量矩阵。

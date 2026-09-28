@@ -95,6 +95,36 @@ async function remoteAudioRms(page) {
   })
 }
 
+async function webUiMove(page, view) {
+  await page.waitForFunction(version => Number(document.querySelector('.live-match')?.dataset.version) >= version,
+    view.version, { timeout: 15000 })
+  if (view.phase === 'INITIAL_WILD_COLOR') {
+    await page.locator('.match-controls .color-choices').getByRole('button', { name: '红色' }).click()
+  } else if (view.phase === 'DRAW_FOUR_RESPONSE') {
+    await page.getByRole('button', { name: '接受 · 摸 4 张' }).click()
+  } else {
+    const top = view.topCard
+    const playable = card => card.color === null || card.color === view.activeColor
+      || (top.color !== null && card.kind === top.kind
+        && (card.kind !== 'NUMBER' || card.number === top.number))
+    const index = view.phase === 'AFTER_DRAW'
+      ? view.ownHand.findIndex(card => card.id === view.drawnCardId)
+      : view.ownHand.findIndex(playable)
+    if (index < 0) {
+      await page.getByRole('button', { name: view.phase === 'TURN'
+        ? '摸 1 张' : '不出刚摸的牌 · 结束回合' }).click()
+    } else {
+      const card = view.ownHand[index]
+      await page.locator('.hand-card').nth(index).click()
+      if (card.color === null) await page.locator('.color-choices .red').click()
+      if (view.ownHand.length === 2) await page.locator('.uno-check input').check()
+      await page.getByRole('button', { name: '打出选中的牌' }).click()
+    }
+  }
+  await page.waitForFunction(version => Number(document.querySelector('.live-match')?.dataset.version) > version,
+    view.version, { timeout: 15000 })
+}
+
 async function main() {
   const browser = await chromium.launch({ headless: true,
     args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] })
@@ -159,6 +189,65 @@ async function main() {
     const started = await mutate(a1, `/api/rooms/${room.body.id}/start`, { expectedVersion: room.body.version })
     assert.equal(started.status, 200)
     const matchId = started.body.matchId
+    const outsiderContext = await browser.newContext()
+    contexts.push(outsiderContext)
+    const outsider = await outsiderContext.newPage()
+    const outsiderUser = {
+      email: `uno-outsider-${randomUUID()}@example.test`, password: `Outsider-${randomUUID()}-1!`,
+    }
+    await outsider.goto(origin)
+    assert.equal((await mutate(outsider, '/api/auth/register', {
+      ...outsiderUser, nickname: '旁观者',
+    })).status, 202)
+    assert.equal((await mutate(outsider, '/api/auth/verify-email', {
+      token: await verificationToken(outsiderUser.email),
+    })).status, 204)
+    assert.equal((await mutate(outsider, '/api/auth/login', outsiderUser)).status, 200)
+    for (const endpoint of [
+      `/api/rooms/${room.body.id}`, `/api/matches/${matchId}/state`,
+      `/api/rooms/${room.body.id}/messages?channel=ROOM`,
+      `/api/rooms/${room.body.id}/messages?channel=TEAM`,
+    ]) {
+      const response = await outsider.evaluate(async url => {
+        const result = await fetch(url, { credentials: 'same-origin' })
+        return { status: result.status, body: await result.text() }
+      }, endpoint)
+      assert.ok([403, 404].includes(response.status), `outsider read ${endpoint}: ${response.status}`)
+    }
+    const outsiderGrant = await mutate(outsider, '/api/voice/token', { matchId })
+    assert.ok([403, 404].includes(outsiderGrant.status), `outsider voice grant: ${outsiderGrant.status}`)
+    assert.ok(!outsiderGrant.body?.token, 'outsider received a media token')
+    const [a1State, b1State] = await Promise.all([a1, b1].map(page => page.evaluate(async id => {
+      const response = await fetch(`/api/matches/${id}/state`, { credentials: 'same-origin' })
+      if (!response.ok) throw new Error(`participant state: ${response.status}`)
+      return response.json()
+    }, matchId)))
+    const forgedMove = await mutate(outsider, `/api/matches/${matchId}/commands`, {
+      protocolVersion: 1, commandId: randomUUID(), expectedVersion: a1State.view.version,
+      type: 'DRAW',
+    })
+    assert.ok([403, 404].includes(forgedMove.status), `outsider match command: ${forgedMove.status}`)
+    const afterForgery = await a1.evaluate(async id =>
+      (await fetch(`/api/matches/${id}/state`, { credentials: 'same-origin' })).json(), matchId)
+    assert.equal(afterForgery.view.version, a1State.view.version, 'forged move changed the match')
+    const stateFields = new Set(['deadlineAt', 'interruptionReason', 'status', 'view'])
+    const viewFields = new Set([
+      'activeColor', 'canRespondToDrawFour', 'currentSeat', 'direction', 'discardCount',
+      'drawCount', 'drawnCardId', 'ownHand', 'phase', 'players', 'roundNumber',
+      'roundPoints', 'roundWinnerSeat', 'rulesVersion', 'topCard', 'unoVulnerableSeat', 'version',
+    ])
+    for (const [owner, other] of [[a1State, b1State], [b1State, a1State]]) {
+      assert.ok(owner.view.ownHand.length >= 7)
+      assert.ok(Object.keys(other).every(key => stateFields.has(key)),
+        'match response added an unreviewed field')
+      assert.ok(Object.keys(other.view).every(key => viewFields.has(key)),
+        'player view added an unreviewed field')
+      const visibleHand = new Set(other.view.ownHand.map(card => card.id))
+      for (const card of owner.view.ownHand) {
+        assert.ok(!visibleHand.has(card.id), 'another player received a private card ID')
+      }
+    }
+    console.log('PASS: outsider cannot read room, match or chat, move, or obtain voice token; opponent card IDs stay private.')
     for (const page of [a1, a2, b1]) {
       await page.goto(`${origin}/matches/${matchId}`)
       await page.getByRole('button', { name: '加入队友语音' }).waitFor({ timeout: 15000 })
@@ -244,6 +333,10 @@ async function main() {
       const actorPage = pages[publicState.view.currentSeat]
       const actorState = await actorPage.evaluate(async id => (await fetch(`/api/matches/${id}/state`)).json(), matchId)
       const view = actorState.view
+      if (publicState.view.currentSeat !== 3) {
+        await webUiMove(actorPage, view)
+        continue
+      }
       const action = { protocolVersion: 1, commandId: randomUUID(), expectedVersion: view.version }
       if (view.phase === 'INITIAL_WILD_COLOR') {
         action.type = 'CHOOSE_INITIAL_COLOR'

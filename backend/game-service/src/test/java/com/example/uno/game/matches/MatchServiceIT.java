@@ -58,7 +58,7 @@ class MatchServiceIT {
 
     @BeforeEach
     void empty() { jdbc.update("TRUNCATE game.match_socket_ownership, game.voice_cleanup, "
-            + "game.voice_token_issuance, game.match_commands, "
+            + "game.voice_issued_sessions, game.voice_token_issuance, game.match_commands, "
             + "game.match_players, game.matches, game.room_members, game.rooms"); }
 
     @Test

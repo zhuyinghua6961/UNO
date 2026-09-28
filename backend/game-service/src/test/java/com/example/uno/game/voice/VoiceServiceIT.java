@@ -66,7 +66,7 @@ class VoiceServiceIT {
     @BeforeEach
     void reset() {
         jdbc.update("TRUNCATE game.match_socket_ownership, game.voice_cleanup, "
-                + "game.voice_token_issuance, game.match_commands, "
+                + "game.voice_issued_sessions, game.voice_token_issuance, game.match_commands, "
                 + "game.match_players, game.matches, game.room_members, game.rooms");
         media = new FakeMedia();
         sessions = new FakeSessions();
@@ -227,6 +227,32 @@ class VoiceServiceIT {
         jdbc.update("UPDATE game.voice_token_issuance SET requested_at = now() - INTERVAL '5 seconds' WHERE match_id = ?", matchId);
         assertEquals(VoiceService.roomName(matchId, nextGeneration, "A"),
                 claims(voice.issue(matchId, teammate).token()).path("video").path("room").asText());
+    }
+
+    @Test
+    void revokedIssuedSessionRotatesAfterParticipantHasDisconnected() {
+        GameIdentity a = player("A");
+        GameIdentity teammate = player("A2");
+        UUID matchId = startTeam(a, player("B"), teammate, player("B2"));
+        UUID oldGeneration = jdbc.queryForObject("SELECT voice_generation FROM game.matches WHERE id = ?",
+                UUID.class, matchId);
+        voice.issue(matchId, a);
+        voice.issue(matchId, teammate);
+        assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM game.voice_issued_sessions "
+                + "WHERE match_id = ? AND voice_generation = ?", Integer.class, matchId, oldGeneration));
+
+        // Both media participants have left; their unexpired grants still name the old room.
+        voice.reviewConnectedSessions();
+        assertEquals(oldGeneration, jdbc.queryForObject("SELECT voice_generation FROM game.matches WHERE id = ?",
+                UUID.class, matchId));
+        sessions.revoked.add(a.sessionId());
+        jdbc.update("UPDATE game.matches SET voice_reviewed_at = now() - INTERVAL '10 seconds' WHERE id = ?", matchId);
+        voice.reviewConnectedSessions();
+
+        assertNotEquals(oldGeneration, jdbc.queryForObject("SELECT voice_generation FROM game.matches WHERE id = ?",
+                UUID.class, matchId));
+        assertTrue(media.deleted.contains(VoiceService.roomName(matchId, oldGeneration, "A")));
+        assertTrue(media.deleted.contains(VoiceService.roomName(matchId, oldGeneration, "B")));
     }
 
     @Test

@@ -29,11 +29,11 @@ class GameDatabaseIT {
         for (int restart = 0; restart < 2; restart++) {
             try (var application = startService()) {
                 var jdbc = application.getBean(JdbcTemplate.class);
-                assertEquals(16, jdbc.queryForObject(
+                assertEquals(17, jdbc.queryForObject(
                         "SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class));
                 assertEquals(1, jdbc.queryForObject(
                         "SELECT count(*) FROM information_schema.schemata WHERE schema_name = 'game'", Integer.class));
-                assertEquals(12, jdbc.queryForObject(
+                assertEquals(13, jdbc.queryForObject(
                         "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'game'", Integer.class));
                 assertNull(jdbc.queryForObject("SELECT to_regclass('accounts')", String.class));
             }

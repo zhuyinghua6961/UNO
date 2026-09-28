@@ -105,6 +105,20 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.pump();
 }
 
+Future<void> _tapWhenReady(
+  WidgetTester tester,
+  Finder finder,
+  String label,
+) async {
+  await _waitFor(
+    tester,
+    () => finder.evaluate().isNotEmpty,
+    label,
+    attempts: 80,
+  );
+  await _tap(tester, finder);
+}
+
 bool _playable(MatchView view, MatchCard card) {
   if (card.color == null || card.color == view.activeColor) return true;
   final top = view.topCard;
@@ -113,55 +127,80 @@ bool _playable(MatchView view, MatchCard card) {
       (card.kind != 'NUMBER' || card.number == top.number);
 }
 
-Map<String, Object?> _automaticAction(MatchView view) {
-  switch (view.phase) {
-    case 'INITIAL_WILD_COLOR':
-      return {'type': 'CHOOSE_INITIAL_COLOR', 'chosenColor': 'RED'};
-    case 'DRAW_FOUR_RESPONSE':
-      return {'type': 'ACCEPT_DRAW_FOUR'};
-    case 'TURN':
-    case 'AFTER_DRAW':
-      for (final card in view.ownHand) {
-        if (view.phase == 'AFTER_DRAW' && card.id != view.drawnCardId) continue;
-        if (!_playable(view, card)) continue;
-        return {
-          'type': 'PLAY',
-          'cardId': card.id,
-          if (card.color == null) 'chosenColor': 'RED',
-          'callUno': view.ownHand.length == 2,
-        };
-      }
-      return {'type': view.phase == 'TURN' ? 'DRAW' : 'PASS'};
-    default:
-      throw TestFailure('unexpected mobile automatic phase ${view.phase}');
+Future<void> _mobileUiMove(WidgetTester tester, MatchView view) async {
+  if (view.phase == 'INITIAL_WILD_COLOR') {
+    await _tapWhenReady(
+      tester,
+      find.widgetWithText(ChoiceChip, '红色', skipOffstage: false),
+      'initial color choice',
+    );
+    return;
   }
-}
-
-Future<void> _submit(
-  AuthSession session,
-  String matchId,
-  MatchState state,
-) async {
-  final response = await session.withAccess(
-    (token) => http.post(
-      Uri.parse('$apiBase/api/matches/$matchId/commands'),
-      headers: {
-        'X-UNO-Client': 'APP',
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'protocolVersion': 1,
-        'commandId': _id(),
-        'expectedVersion': state.view.version,
-        ..._automaticAction(state.view),
-      }),
-    ),
+  if (view.phase == 'DRAW_FOUR_RESPONSE') {
+    await _tapWhenReady(
+      tester,
+      find.text('接受 · 摸 4 张', skipOffstage: false),
+      'draw-four response',
+    );
+    return;
+  }
+  if (view.phase != 'TURN' && view.phase != 'AFTER_DRAW') {
+    throw TestFailure('unexpected mobile turn phase ${view.phase}');
+  }
+  final card = view.ownHand
+      .where(
+        (item) =>
+            (view.phase != 'AFTER_DRAW' || item.id == view.drawnCardId) &&
+            _playable(view, item),
+      )
+      .firstOrNull;
+  if (card == null) {
+    await _tapWhenReady(
+      tester,
+      find.text(
+        view.phase == 'TURN' ? '摸 1 张' : '不出刚摸的牌 · 结束回合',
+        skipOffstage: false,
+      ),
+      'draw or pass control',
+    );
+    return;
+  }
+  final cardFinder = find.byKey(
+    ValueKey('card-${card.id}'),
+    skipOffstage: false,
   );
-  expect(
-    response.statusCode,
-    200,
-    reason: 'mobile automatic turn: ${response.body}',
+  if (cardFinder.evaluate().isEmpty) {
+    await _tapWhenReady(
+      tester,
+      find.text('同步最新状态', skipOffstage: false),
+      'sync match control',
+    );
+  }
+  await _waitFor(
+    tester,
+    () => cardFinder.evaluate().isNotEmpty,
+    'current hand card ${card.id}',
+    attempts: 80,
+  );
+  await _tap(tester, cardFinder);
+  if (card.color == null) {
+    await _tapWhenReady(
+      tester,
+      find.widgetWithText(ChoiceChip, '红色', skipOffstage: false),
+      'wild color choice',
+    );
+  }
+  if (view.ownHand.length == 2) {
+    await _tapWhenReady(
+      tester,
+      find.text('出牌时喊 UNO', skipOffstage: false),
+      'UNO checkbox',
+    );
+  }
+  await _tapWhenReady(
+    tester,
+    find.text('打出选中的牌', skipOffstage: false),
+    'play card control',
   );
 }
 
@@ -491,16 +530,7 @@ void main() {
       );
       if (state.view.players[state.view.currentSeat].userId ==
           session.user!.id) {
-        final action = switch (state.view.phase) {
-          'TURN' => find.text('摸 1 张'),
-          'AFTER_DRAW' => find.text('不出刚摸的牌 · 结束回合'),
-          'INITIAL_WILD_COLOR' => find.text('红色'),
-          'DRAW_FOUR_RESPONSE' => find.text('接受 · 摸 4 张'),
-          _ => throw TestFailure(
-            'unexpected mobile turn phase ${state.view.phase}',
-          ),
-        };
-        await _tap(tester, action);
+        await _mobileUiMove(tester, state.view);
         for (var check = 0; check < 40; check++) {
           final next = await matchApi.state(matchId);
           if (next.view.version > state.view.version) {
@@ -529,7 +559,14 @@ void main() {
       if (state.status == 'PLAYING' &&
           state.view.players[state.view.currentSeat].userId ==
               session.user!.id) {
-        await _submit(session, matchId, state);
+        await _mobileUiMove(tester, state.view);
+        for (var check = 0; check < 40; check++) {
+          final next = await matchApi.state(matchId);
+          if (next.view.version > state.view.version) break;
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 250)),
+          );
+        }
       }
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 250)),

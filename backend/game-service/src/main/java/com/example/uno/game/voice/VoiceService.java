@@ -55,6 +55,10 @@ public class VoiceService {
         media.ensureRoom(roomName);
         VoiceSeat stillAllowed = allowedSeat(matchId, identity.userId());
         if (!seat.equals(stillAllowed)) throw VoiceFailure.notFound();
+        jdbc.update("INSERT INTO game.voice_issued_sessions(match_id, voice_generation, session_id, issued_at) "
+                        + "VALUES (?, ?, ?, ?) ON CONFLICT (match_id, voice_generation, session_id) "
+                        + "DO UPDATE SET issued_at = EXCLUDED.issued_at",
+                matchId, seat.generation(), identity.sessionId(), Timestamp.from(now));
         Instant expiresAt = now.plusSeconds(60).isBefore(identity.expiresAt())
                 ? now.plusSeconds(60) : identity.expiresAt();
         AccessToken token = new AccessToken(settings.apiKey(), settings.apiSecret());
@@ -83,10 +87,14 @@ public class VoiceService {
                 Timestamp.from(now.minusSeconds(5)));
         for (ActiveMatch match : due) {
             try {
+                Set<UUID> issued = new HashSet<>(jdbc.query(
+                        "SELECT session_id FROM game.voice_issued_sessions "
+                                + "WHERE match_id = ? AND voice_generation = ?",
+                        (rs, row) -> rs.getObject(1, UUID.class), match.id(), match.generation()));
                 List<VoiceMedia.Participant> participants = new java.util.ArrayList<>();
                 participants.addAll(media.participants(roomName(match.id(), match.generation(), "A")));
                 participants.addAll(media.participants(roomName(match.id(), match.generation(), "B")));
-                Set<UUID> observed = new HashSet<>();
+                Set<UUID> observed = new HashSet<>(issued);
                 boolean invalidMetadata = false;
                 for (VoiceMedia.Participant participant : participants) {
                     try { observed.add(UUID.fromString(participant.metadata())); }
@@ -96,8 +104,8 @@ public class VoiceService {
                 try {
                     active = sessions.activeIds(observed);
                 } catch (GameAuthFailure failure) {
-                    // If active participants cannot be verified, end their current room.
-                    if (!participants.isEmpty()) rotate(match, now);
+                    // An issued token may reconnect even after its participant leaves.
+                    if (!observed.isEmpty() || !participants.isEmpty()) rotate(match, now);
                     continue;
                 }
                 if (invalidMetadata || !active.containsAll(observed)) {
