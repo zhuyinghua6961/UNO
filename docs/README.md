@@ -139,6 +139,7 @@
 - [stage17 0.3.11 本地试玩包验收](verification-stage17-local-playtest-0.3.11.md)：同源码包/镜像、独立解包整局及包内 iOS 普通 App 出牌和音效修复。
 - [stage17 0.3.12 本地试玩包验收](verification-stage17-local-playtest-0.3.12.md)：自定义端口浏览器注册、断网恢复、同版包/镜像及独立解包整局。
 - [stage17 0.3.13 本地试玩包验收](verification-stage17-local-playtest-0.3.13.md)：内部鉴权共享额度修复、同版包/镜像、独立空库整局与 iOS 模拟器恢复。
+- [stage17 GitHub Actions 验证流水线](verification-stage17-ci.md)：Web、后端、Android 常规检查与手动 iOS 模拟器构建；远端 Runner 待验收。
 - [stage17 本地镜像回退验收](verification-stage17-local-rollback-0.3.8.md)：进行中牌局跨两个镜像版本切换、回退、结算及停机后 V17 数据核对。
 - [stage18 0.3.4 候选验收矩阵](verification-stage18-0.3.4-candidate.md)：逐项列出 Web/Android/iOS 当前证据和仍未达到的发布门槛。
 - [stage18 0.3.5 候选验收矩阵](verification-stage18-0.3.5-candidate.md)：上一版本地试玩能力与目标真机发布门槛的对照。
