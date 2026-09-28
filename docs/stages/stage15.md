@@ -46,3 +46,5 @@ Flutter `livekit_client` 2.13.0 已接入；API 请求、主动加入、静音/�
 同日 iOS 补验：在 iOS 26.5 模拟器上，当前 Flutter 源码与三个 Web 玩家完成同样的文字、仅收听语音、双方动作及 2v2 结算/战绩验收；本机 Xcode 工具链选择仍需临时包装脚本。详见 [stage15 增量验收](../verification-stage15-voice.md)。
 
 同日 Android/Web 音轨补验：可选混合端 E2E 在 Android 模拟器上验证 App 开麦发布音轨、Web 同队订阅；Web 虚拟麦克风开麦后 App SDK 收到远端音轨订阅事件，退出后远端音频元素清除。两端仍完成文字和 2v2 整局。模拟器没有宿主麦克风输入，未验证实际可听音频；iOS 音轨和真机互听仍待验收。命令与对局 ID 见 [stage15 增量验收](../verification-stage15-voice.md)。
+
+同日 V17 服务端升级后，Android/Web 双向音轨与 iOS 仅收听两条混合端整局再次通过；Web/App 全部牌局动作由各自界面发起，不借 HTTP 绕过已连接的 WebSocket。对局 ID 与未覆盖范围见 [stage15 增量验收](../verification-stage15-voice.md)。

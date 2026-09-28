@@ -39,6 +39,8 @@ Android API 36.1 `Medium_Phone_API_36.1` 模拟器增量：App 首次加入仅�
 
 上述双向检查证明 LiveKit 在 Android/Web 间建立、订阅并撤销了音轨。该模拟器没有启用宿主音频输入，Android 麦克风输入可能全为零；Flutter 侧也没有测量解码后的音频样本。因此不能据此声称 App/Web 玩家实际听到了声音。iOS 模拟器音频崩溃与真机互听仍是独立待验项；这些新改动也不包含在先前 `0.3.4-local-playtest` 归档中。
 
+同日 V17 后复测：Web 与 Flutter 集成测试均改为通过各自已连接的牌桌界面出牌，符合新版 WebSocket 出牌所有权。Android API 36.1 模拟器在真实本地 LiveKit 中再次通过 App/Web 双向音轨订阅、房间与队伍文字、双方界面操作、2v2 结算与战绩，对局 ID `bd7f29bb-6d8e-437b-9b4a-ec7256d6c1b5`；iPhone 17 Pro / iOS 26.5 模拟器再次通过仅收听信令、文字、双方界面操作、结算和战绩，对局 ID `1e55a964-9b50-417c-8070-ad06900fa403`。两项命令及 V17 安全结果见 [stage18 补验](verification-stage18-security-v17.md)。仍不构成 iOS 音轨或真机可听的证据。
+
 媒体试验边界：同一模拟器上尝试 iOS 开麦时，面板曾返回权限拒绝；手动安装 Runner 后用 `simctl privacy grant microphone com.example.unoApp` 授权，模拟器 TCC 记录显示允许，但启用麦克风仍使 Runner 在系统 `AURemoteIO::Initialize` 超时处中止。仅收听状态下让 Web 队友发布音轨，也触发同类系统崩溃（本机诊断报告 `Runner-2026-09-24-141431.ips`、`Runner-2026-09-24-141920.ips`）。这些失败没有证明真机上的同一故障，也没有形成音频互听证据；必须在目标真机与可达媒体网络重新验证。
 
 - Android/iOS 真实设备上与 App、Web 队友双向听见声音，并确认非队友无法订阅；本机 `127.0.0.1` LiveKit 媒体地址不适合外部设备。
