@@ -39,7 +39,12 @@ function run(command, args, cwd = root) {
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed`)
 }
 requireCleanSource()
-if (includeIosSimulator) run('xcodebuild', ['-version'])
+if (includeIosSimulator) {
+  run('xcodebuild', ['-version'])
+  // The iOS Swift package links are generated for the selected Xcode. A prior
+  // pub get under Command Line Tools can leave them absent or pointing nowhere.
+  run('flutter', ['pub', 'get'], join(root, 'flutter'))
+}
 run('node', ['tools/sync-assets.mjs'])
 run('npm', ['--prefix', 'web', 'test'])
 run('npm', ['--prefix', 'web', 'run', 'build'])
@@ -88,7 +93,9 @@ const manifest = {
   stage: 'local-preview-not-production',
   sourceCommit: revision,
   sourceDirty: false,
-  validation: ['npm --prefix web test', 'npm --prefix web run build',
+  validation: [...(includeIosSimulator ? [
+    'xcodebuild -version', 'flutter pub get (flutter; full Xcode selected)',
+  ] : []), 'npm --prefix web test', 'npm --prefix web run build',
     'mvn -f backend/pom.xml -Pdatabase-it clean verify',
     'dart analyze lib test integration_test (flutter)', 'flutter test',
     'flutter build apk --debug --no-pub --dart-define=API_BASE_URL=http://10.0.2.2:28080',
