@@ -72,20 +72,12 @@ flutter run
 
 ```sh
 node tools/init-local-env.mjs
-docker compose --env-file deploy/.env -f deploy/compose.yaml up --build -d
+docker compose --env-file deploy/.env -f deploy/compose.yaml up --build -d --wait
 ```
 
 浏览器打开 `http://localhost:8088`；仅本机可访问。详见 `deploy/README.md`。此配置不是公网生产部署方案。
 
-```sh
-node tools/package-release.mjs 0.2.0-local
-```
-
-发布脚本要求干净的已提交工作区，自动运行 Web 测试/构建和 Maven `clean verify`，并把该次构建归档，拒绝复用旧产物。数据库集成、设备/浏览器端到端与真机验收是独立门槛。当前归档不包含 APK/IPA 或 Docker 镜像。
-
-`0.2.0-local` 仅是新版本号示例；实际发布前需指定尚未使用的版本号并执行数据库集成测试，本轮未运行该打包命令。
-
-已有 `release/0.1.0-scaffold.tar.gz` 是数据库接入前的历史制品，本轮未重新发布或覆盖；新数据库配置不适用于把该旧包当成新版本运行。
+最新校验的 [0.3.9 本地试玩包](docs/verification-stage17-local-playtest-0.3.9.md) 含 Web、后端 JAR、Android 模拟器 debug APK、iOS Simulator App 和本地 Compose 配置；[离线镜像包](release/0.3.9-local-playtest-images/images.tar.gz) 单独提供。包来自干净提交，打包脚本会运行 Web、Maven 数据库集成和 Flutter 测试与构建。它不是签名真机版本；浏览器/设备端到端、真实设备语音与生产部署仍需单独验收。部署与镜像导入步骤见 [本地部署说明](deploy/README.md)。
 
 ## 设计与 Git
 

@@ -133,12 +133,15 @@
 - [stage17 镜像包与容器地址变更验收](verification-stage17-image-bundle-dns.md)：从镜像包复现代理旧 IP 故障，修复并强制换址复测。
 - [stage17 0.3.7 本地试玩包验收](verification-stage17-local-playtest-0.3.7.md)：同源码包和离线镜像在独立解包目录启动、整局/语音/换址复测，以及双平台模拟器包安装。
 - [stage17 0.3.8 本地试玩包验收](verification-stage17-local-playtest-0.3.8.md)：受控素材重建、同源码包/镜像校验及与上一版移动可执行文件比对。
+- [stage17 Compose 就绪门槛验收](verification-stage17-compose-readiness.md)：真实路由探针、Game/Identity 停服和恢复时的健康状态。
+- [stage17 0.3.9 本地试玩包验收](verification-stage17-local-playtest-0.3.9.md)：包内 Compose 的账号栈启动、业务烟测和正式包镜像故障注入。
 - [stage17 本地镜像回退验收](verification-stage17-local-rollback-0.3.8.md)：进行中牌局跨两个镜像版本切换、回退、结算及停机后 V17 数据核对。
 - [stage18 0.3.4 候选验收矩阵](verification-stage18-0.3.4-candidate.md)：逐项列出 Web/Android/iOS 当前证据和仍未达到的发布门槛。
 - [stage18 0.3.5 候选验收矩阵](verification-stage18-0.3.5-candidate.md)：上一版本地试玩能力与目标真机发布门槛的对照。
 - [stage18 0.3.6 候选验收矩阵](verification-stage18-0.3.6-candidate.md)：当前版本的跨端、安全与发布门槛对照。
 - [stage18 0.3.7 候选验收矩阵](verification-stage18-0.3.7-candidate.md)：同源码包和镜像的本地可玩证据、移动包与正式发布缺口。
 - [stage18 0.3.8 候选增量矩阵](verification-stage18-0.3.8-candidate.md)：素材完整性、同 schema 回退和剩余真机发布缺口。
+- [stage18 0.3.9 候选增量矩阵](verification-stage18-0.3.9-candidate.md)：部署就绪证据与尚未完成的真机发布门槛。
 - [stage18 安全与 V17 语音撤销补验](verification-stage18-security-v17.md)：房外账号拒绝、私有手牌、断开后的旧令牌撤销和双平台混合端复测。
 - [stage17 隔离备份恢复演练](verification-stage17-backup-restore.md)：两服务库的压缩备份、校验、新库恢复与数据核对。
 - [Flutter账号增量验收](verification-stage4-flutter.md)：自动测试、原生构建与未完成的设备/跨端验证。
