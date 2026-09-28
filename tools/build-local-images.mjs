@@ -2,7 +2,6 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { access, copyFile, cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
@@ -61,7 +60,7 @@ await access(join(packageDir, 'web', 'index.html'))
 
 const tag = `${label}-${packageManifest.sourceCommit.slice(0, 12)}`
 const services = ['gateway', 'identity-service', 'game-service', 'web']
-const stage = await mkdtemp(join(tmpdir(), `uno-images-${label}-`))
+const stage = await mkdtemp(join(root, 'release', `.build-images-${label}-`))
 try {
   const context = join(stage, 'context')
   await mkdir(join(context, 'backend'), { recursive: true })

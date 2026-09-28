@@ -39,6 +39,7 @@ function run(command, args, cwd = root) {
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed`)
 }
 requireCleanSource()
+run('node', ['tools/sync-assets.mjs'])
 run('npm', ['--prefix', 'web', 'test'])
 run('npm', ['--prefix', 'web', 'run', 'build'])
 run('mvn', ['-f', 'backend/pom.xml', '-Pdatabase-it', 'clean', 'verify'])

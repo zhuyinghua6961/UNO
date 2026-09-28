@@ -1,6 +1,6 @@
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const assets = join(root, 'assets')
@@ -22,4 +22,35 @@ const notices = [
 ].join('\n\n')
 await writeFile(join(webAssets, 'THIRD_PARTY_NOTICES.txt'), notices)
 await writeFile(join(mobileAssets, 'THIRD_PARTY_NOTICES.txt'), notices)
+
+async function files(directory) {
+  const result = new Map()
+  async function visit(current) {
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      const path = join(current, entry.name)
+      if (entry.isDirectory()) await visit(path)
+      else if (entry.isFile()) result.set(relative(directory, path), await readFile(path))
+      else throw new Error(`Unsupported generated asset: ${path}`)
+    }
+  }
+  await visit(directory)
+  return result
+}
+
+async function verifyGenerated(expectedDirectory, generatedDirectory) {
+  const expected = await files(expectedDirectory)
+  expected.set('THIRD_PARTY_NOTICES.txt', Buffer.from(notices))
+  const actual = await files(generatedDirectory)
+  if (actual.size !== expected.size) {
+    throw new Error(`Generated assets contain stale or missing files: ${generatedDirectory}`)
+  }
+  for (const [name, bytes] of expected) {
+    if (!actual.get(name)?.equals(bytes)) {
+      throw new Error(`Generated asset differs from tracked source: ${join(generatedDirectory, name)}`)
+    }
+  }
+}
+
+await verifyGenerated(join(assets, 'ready'), webAssets)
+await verifyGenerated(join(assets, 'ready/cards'), mobileAssets)
 console.log('Synced selected local assets to web and Flutter, including license notices.')
