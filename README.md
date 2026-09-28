@@ -84,8 +84,8 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml up --build -d --wai
 - 分阶段实现总索引：[stage1–stage18](docs/README.md)，每阶段任务、依赖、验收和进度统一在这里维护。
 - 最新设计：`docs/architecture-v0.2.md`
 - 协议计划及实现状态：`docs/contracts/README.md`
-- 分支绑定待确认：`docs/git-and-release.md`
+- 分支策略：`docs/git-and-release.md`
 - 游戏术语：`CONTEXT.md`
 - 当前验收记录：`docs/verification.md`
 
-已于 2026-09-06 创建 GitHub 私有仓库 `zhuyinghua6961/UNO`，本地已初始化 Git 并关联 origin。2026-09-07 按用户授权进行首次本地提交，提交记录以 `git log` 为准；未推送代码，未创建三个业务分支。仍需确认三个分支名及对应关系，不要把整个 monorepo 的分支直接理解成三个独立目录版本。
+已于 2026-09-06 创建 GitHub 私有仓库 `zhuyinghua6961/UNO`，本地已初始化 Git 并关联 origin；提交记录以 `git log` 为准，尚未推送。2026-09-28 确认采用 `master` 加功能分支，CI 覆盖所有分支；各分支均包含完整 monorepo，不按三个业务目录拆分。
