@@ -128,7 +128,9 @@
 - [stage17 本地预览包验收](verification-stage17-preview-package.md)：干净提交构建、清单、校验和与未覆盖的发布门槛。
 - [stage17 本地试玩包验收](verification-stage17-local-playtest.md)：包含 Android 模拟器 APK 的归档、全量构建检查和设备安装启动证据。
 - [stage17 0.3.4 本地试玩包验收](verification-stage17-local-playtest-0.3.4.md)：同一归档包含 Android debug APK 与 iOS Simulator App，两个平台的安装启动及校验记录。
+- [stage17 0.3.5 本地试玩包验收](verification-stage17-local-playtest-0.3.5.md)：同源码的 Android/Web 双向音轨增量、双平台模拟器包安装启动及归档校验。
 - [stage18 0.3.4 候选验收矩阵](verification-stage18-0.3.4-candidate.md)：逐项列出 Web/Android/iOS 当前证据和仍未达到的发布门槛。
+- [stage18 0.3.5 候选验收矩阵](verification-stage18-0.3.5-candidate.md)：本地试玩能力与目标真机发布门槛的最新对照。
 - [stage17 隔离备份恢复演练](verification-stage17-backup-restore.md)：两服务库的压缩备份、校验、新库恢复与数据核对。
 - [Flutter账号增量验收](verification-stage4-flutter.md)：自动测试、原生构建与未完成的设备/跨端验证。
 - [工程基线与未决事项](engineering-baseline.md)：约定、前置决策、环境差异和复现路径。
