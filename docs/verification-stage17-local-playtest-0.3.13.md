@@ -7,6 +7,7 @@
 - 打包从锁文件安装 Web 依赖，94 项 Web 测试及生产构建、Maven `database-it` 全量构建、Dart 静态分析、33 项 Flutter 测试、Android debug APK 和未签名 iOS Simulator App 构建通过。Maven 跨服务 12 项测试通过；LiveKit 媒体集成测试跳过 1 项。移动端产品代码未改，APK 与 iOS `App.framework/App` 哈希仍分别为 `22bcc6543f43694f5a10081b3c547a974a0eded3340bacba255de0716be4e0ee`、`23fe9bd5f56a3889e42879076061ce2f6376d623ab4ffe903c16a8515eda0085`。
 - 从包内生成随机本地密钥，使用同版镜像在空数据库卷启动独立 Compose 栈 `uno-package-0313`。Web 为 `127.0.0.1:61088`，Gateway 为 `127.0.0.1:61080`，Mailpit 为 `127.0.0.1:61025`；六个服务经 `up --no-build -d --wait` 全部健康。网关路由和未登录拒绝检查通过。
 - 对该栈运行 `SMOKE_FULL_MATCH=true SMOKE_TEAM_MATCH=true` 的真实账号烟测：注册、邮件验证、登录、房间双向文字、经典整局、四人 2v2 整局、队伍文字隔离及双方战绩一致性均通过。iPhone 17 Pro 模拟器另对同一栈运行 `integration_test/local_ios_play_test.dart`，界面登录开局、前后台恢复、恢复后再次出牌、结算并开启第二局，1 项通过，约 86 秒；此项是测试构建的 App，不能等同于包内普通 App 完整 UI 整局。
+- 对同一栈以一个真实 App 会话执行 8 路并发的 1200 次 `GET /api/system/session`，全部返回 200；本机测得中位数 5 毫秒、P95 10 毫秒、最大 20 毫秒。仅为本机短时检查，不代表长期容量或跨网延迟。
 
 修复前，在独立 0.3.12 栈将原内部共享计数置为 9999 后，第二次有效会话返回 503 `AUTH_UNAVAILABLE`。修复后同一脚本的两次有效会话均返回 200，旧计数保持 9999；跨服务测试还验证无效服务凭证超额返回 429 时，有效 Game 会话继续返回 200。这证明共享额度这一故障机制已经消除；此前偶发 503 是否还存在超时或其他原因，仍需更长时间的负载观测。
 
