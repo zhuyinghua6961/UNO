@@ -20,9 +20,11 @@ export function connectMatchSocket(matchId: string, handlers: MatchSocketHandler
   let attempts = 0
   let generation = 0
   let subscribed = false
+  let terminal = false
 
   function connect() {
-    if (stopped) return
+    if (stopped || terminal) return
+    if (!navigator.onLine) { handlers.status('disconnected'); return }
     const current = ++generation
     subscribed = false
     handlers.status('connecting')
@@ -60,10 +62,12 @@ export function connectMatchSocket(matchId: string, handlers: MatchSocketHandler
       socket = null
       subscribed = false
       if (event.code === 4001 && event.reason === 'TAKEN_OVER') {
+        terminal = true
         handlers.status('taken_over')
         return
       }
       if (event.code === 1008 && event.reason !== 'RATE_LIMITED') {
+        terminal = true
         handlers.status('unauthorized')
         return
       }
@@ -76,10 +80,32 @@ export function connectMatchSocket(matchId: string, handlers: MatchSocketHandler
     if (stopped) return
     handlers.status('disconnected')
     clearTimeout(retry)
+    if (!navigator.onLine) return
     const delay = Math.min(5000, 500 * 2 ** Math.min(attempts++, 4))
     retry = setTimeout(connect, delay)
   }
 
+  function onOffline() {
+    if (stopped || terminal) return
+    generation++
+    subscribed = false
+    clearTimeout(retry)
+    retry = undefined
+    const peer = socket
+    socket = null
+    peer?.close()
+    handlers.status('disconnected')
+  }
+
+  function onOnline() {
+    if (stopped || terminal || socket) return
+    clearTimeout(retry)
+    retry = undefined
+    connect()
+  }
+
+  window.addEventListener('offline', onOffline)
+  window.addEventListener('online', onOnline)
   connect()
   return {
     send(command: MatchCommand): boolean {
@@ -92,6 +118,8 @@ export function connectMatchSocket(matchId: string, handlers: MatchSocketHandler
       generation++
       subscribed = false
       clearTimeout(retry)
+      window.removeEventListener('offline', onOffline)
+      window.removeEventListener('online', onOnline)
       socket?.close()
       socket = null
     },

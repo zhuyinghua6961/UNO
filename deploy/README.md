@@ -14,6 +14,8 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml up --build -d --wai
 
 Web 默认 `http://localhost:8088`，Gateway 默认 `http://localhost:28080`；Java 内部进程不发布宿主端口。端口已被占用时修改 deploy/.env，不要终止其他项目的进程。
 
+启用 `compose.auth-local.yaml` 时，默认浏览器 Origin 会跟随 `WEB_PORT`，只允许本机 `localhost` 与 `127.0.0.1` 的该端口。若经别的主机名或代理访问，需显式设置 `AUTH_ALLOWED_ORIGINS` 为实际可信来源；端口变化后重建 Identity 和 Game 容器使设置生效。
+
 `--wait` 现在要求 PostgreSQL、Identity、Game、Gateway 和 Web 依次通过健康检查。Identity/Game 检查包含数据库的 readiness；Gateway 还检查两个下游的 readiness 以及经自身路由的 bootstrap/auth 状态；Web 检查首页和经 Nginx 代理的两条业务路由。Gateway 的 liveness 只反映自身进程。默认配置的账号和玩法仍关闭，健康通过后还须核对 bootstrap/status 功能标志并跑业务烟测。若启动失败，运行 `docker compose --env-file deploy/.env -f deploy/compose.yaml ps` 并查看对应容器日志与健康检查输出；不要把容器处于 `running` 当成业务可用。[就绪门槛实测](../docs/verification-stage17-compose-readiness.md)记录了隔离栈和故障注入结果。
 
 构建需要拉取基础镜像和 Maven/npm 依赖。后端镜像共享 BuildKit Maven 缓存，加快三个服务的连续构建；镜像内跳过测试，提交前仍须独立运行 Maven 测试。网络代理应按本机 Docker/包管理器配置，不把个人代理地址硬编码进镜像或仓库。若 Docker Hub 令牌服务不可达，可在可信镜像源预取相同官方标签并在本机核对后重新标记；[容器栈增量验收](../docs/verification-stage17-container.md)记录了一次实际构建。

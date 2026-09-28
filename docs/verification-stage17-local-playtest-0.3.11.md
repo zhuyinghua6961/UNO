@@ -7,6 +7,8 @@
 - 打包中的 Web 93 项测试/构建、Maven 数据库集成 profile、Dart 静态分析、Flutter 33 项测试、Android debug APK 与 iOS Simulator App 构建全部通过。
 - 用包内 Compose 文件、新生成的随机本地密钥、同版镜像在空数据库卷启动 `uno-package-0311`，`up --no-build -d --wait` 等到 PostgreSQL、Identity、Game、Gateway、Web、Mailpit 全 healthy。对独立解包栈运行 `SMOKE_FULL_MATCH=true SMOKE_TEAM_MATCH=true node tools/smoke-auth-chat.mjs`：真实账号注册/验证、App 登录、双向房间文字、经典和四人 2v2 整局、双方战绩及队伍文字隔离均通过。该栈未开启 LiveKit，因此不是语音验收。
 
+补充发现：上述隔离栈用了自定义 Web 端口 `58088`，但 0.3.11 包内 `compose.auth-local.yaml` 默认只允许 `8088` 的浏览器 Origin。App API 烟测没有浏览器 Origin，因此没有暴露该问题；未经显式设置 `AUTH_ALLOWED_ORIGINS` 时，0.3.11 在 `58088` 的浏览器注册不可用。后续源码已修复，0.3.11 包本身不随文档更新。
+
 ## 包内普通 iOS App
 
 在 iPhone 17 Pro / iOS 26.5 模拟器安装**0.3.11 归档内** `Runner.app`，连接原本机测试 Gateway `127.0.0.1:28080`。普通界面登录、建立双人经典房 `Q9SGLDZX7E`、另一测试客户端入房准备、房主开局；牌桌不再显示 0.3.10 的音效偏好 Keychain 告警。点击静音后按钮改为“开启音效”，返回等待室再进入仍保持静音。在房间 `0ba7842b-6ae8-4d29-bcfe-efbf95a192d0` 的对局中，普通界面打出“蓝色反转”后显示“操作已由服务器确认”，方向变为逆时针、手牌 7→6。没有让这场普通 iOS 界面对局打到终局，不能据此声称包内 iOS 整局通过。

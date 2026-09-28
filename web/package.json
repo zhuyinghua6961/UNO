@@ -12,6 +12,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "test:e2e:classic": "node e2e/classic-match.cjs",
+    "test:e2e:network": "node e2e/network-recovery.cjs",
     "test:e2e:mixed-mobile-team": "node e2e/mixed-mobile-team.cjs",
     "test:e2e:mixed-ios-team": "UNO_E2E_PLATFORM=iOS node e2e/mixed-mobile-team.cjs",
     "test:e2e:mixed-android-team": "UNO_E2E_PLATFORM=Android node e2e/mixed-mobile-team.cjs",

@@ -65,6 +65,36 @@ describe('match WebSocket transport', () => {
     transport.close()
   })
 
+  it('drops a live socket on browser offline and resubscribes on online', () => {
+    vi.useFakeTimers()
+    const peers: FakeSocket[] = []
+    const statuses: MatchSocketStatus[] = []
+    const received: number[] = []
+    const transport = connectMatchSocket(matchId, {
+      status: value => statuses.push(value), snapshot: value => received.push(value.view.version),
+      acknowledged: () => {}, rejected: () => {}, error: () => {},
+    }, () => { const peer = new FakeSocket(); peers.push(peer); return peer as unknown as WebSocket })
+    peers[0]!.open()
+    peers[0]!.message({ protocolVersion: 1, type: 'MATCH_SNAPSHOT', matchId, ...snapshot })
+    window.dispatchEvent(new Event('offline'))
+    expect(statuses.at(-1)).toBe('disconnected')
+    expect(peers[0]!.readyState).toBe(WebSocket.CLOSED)
+    expect(transport.send({ protocolVersion: 1, commandId: 'lost', expectedVersion: 4, type: 'DRAW' })).toBe(false)
+    peers[0]!.message({ protocolVersion: 1, type: 'MATCH_SNAPSHOT', matchId, ...snapshot })
+    expect(received).toEqual([4])
+    vi.advanceTimersByTime(10000)
+    expect(peers).toHaveLength(1)
+    window.dispatchEvent(new Event('online'))
+    expect(peers).toHaveLength(2)
+    peers[1]!.open()
+    expect(JSON.parse(peers[1]!.sent[0]!)).toMatchObject({ type: 'SUBSCRIBE', matchId })
+    peers[1]!.message({ protocolVersion: 1, type: 'MATCH_SNAPSHOT', matchId, ...snapshot })
+    expect(statuses.at(-1)).toBe('connected')
+    transport.close()
+    window.dispatchEvent(new Event('online'))
+    expect(peers).toHaveLength(2)
+  })
+
   it('retries rate-limit policy closes but stops when the session is invalid', () => {
     vi.useFakeTimers()
     const peers: FakeSocket[] = []
