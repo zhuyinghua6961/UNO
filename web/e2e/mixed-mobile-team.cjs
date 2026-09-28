@@ -1,4 +1,4 @@
-// Run against the isolated local auth/voice Compose stack and a booted mobile simulator.
+// Run against an isolated local auth-enabled Compose stack and a booted mobile simulator.
 const { chromium } = require('playwright')
 const { randomUUID } = require('node:crypto')
 const { spawn, spawnSync } = require('node:child_process')
@@ -67,6 +67,7 @@ function startMobile(roomCode) {
   assert.ok(deviceId, 'pass UNO_E2E_DEVICE_ID')
   const args = ['test', 'integration_test/local_mobile_team_play_test.dart', '-d', deviceId,
     '--dart-define=UNO_LOCAL_MOBILE_TEAM_E2E=true', `--dart-define=API_BASE_URL=${apiOrigin}`,
+    `--dart-define=MAILPIT_BASE_URL=${mailpit}`,
     `--dart-define=UNO_TEAM_ROOM_CODE=${roomCode}`]
   if (voiceEnabled) args.push('--dart-define=UNO_LOCAL_MOBILE_TEAM_VOICE_E2E=true')
   if (chatEnabled) args.push('--dart-define=UNO_LOCAL_MOBILE_TEAM_CHAT_E2E=true')
