@@ -11,6 +11,7 @@ import 'package:uno_app/features/auth/auth_session.dart';
 import 'package:uno_app/features/match/match_api.dart';
 import 'package:uno_app/features/match/match_models.dart';
 import 'package:uno_app/features/match/match_page.dart';
+import 'package:uno_app/features/match/match_socket.dart';
 import 'package:uno_app/features/room/room_api.dart';
 
 const enabled = bool.fromEnvironment('UNO_LOCAL_IOS_E2E');
@@ -137,6 +138,11 @@ void _foreground(WidgetTester tester) {
 int _tableVersion(WidgetTester tester) {
   final table = tester.state(find.byType(MatchPage)) as dynamic;
   return (table.state?.view.version as int?) ?? -1;
+}
+
+bool _tableConnected(WidgetTester tester) {
+  final table = tester.state(find.byType(MatchPage)) as dynamic;
+  return table.status == MatchSocketStatus.connected;
 }
 
 Future<http.Response> _submit(
@@ -266,6 +272,84 @@ Future<MatchState> _finishMatch(
     );
   }
   throw TestFailure('classic match did not finish within 5000 actions');
+}
+
+Future<void> _playCardFromUi(
+  WidgetTester tester,
+  String matchId,
+  AuthSession hostSession,
+  AuthSession guestSession,
+  MatchApi hostMatches,
+  MatchApi guestMatches,
+) async {
+  for (var attempt = 0; attempt < 80; attempt++) {
+    final state = await hostMatches.state(matchId);
+    expect(state.status, 'PLAYING');
+    final actor = state.view.players[state.view.currentSeat].userId;
+    if (actor == guestSession.user!.id) {
+      await _guestMove(
+        guestSession,
+        matchId,
+        await guestMatches.state(matchId),
+      );
+      continue;
+    }
+    expect(actor, hostSession.user!.id);
+    final view = state.view;
+    final available = view.ownHand.where(
+      (card) =>
+          (view.phase != 'AFTER_DRAW' || card.id == view.drawnCardId) &&
+          _playable(view, card),
+    );
+    if ((view.phase != 'TURN' && view.phase != 'AFTER_DRAW') ||
+        available.isEmpty) {
+      final response = await _submit(
+        hostSession,
+        matchId,
+        state,
+        _automaticAction(view),
+      );
+      if (response.statusCode == 409) continue;
+      expect(response.statusCode, 200, reason: response.body);
+      continue;
+    }
+    final card = available.first;
+    await _waitFor(
+      tester,
+      () => _tableConnected(tester) && _tableVersion(tester) >= view.version,
+      'live table before selecting a playable card',
+    );
+    await tester.scrollUntilVisible(
+      find.text('经典牌桌'),
+      -300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.scrollUntilVisible(
+      find.textContaining('你的手牌'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump();
+    final cardControl = find.byKey(ValueKey('card-${card.id}'));
+    expect(cardControl, findsOneWidget);
+    await _tap(tester, cardControl);
+    if (card.color == null) await _tap(tester, find.text('红色'));
+    if (view.ownHand.length == 2) {
+      await _tap(tester, find.text('出牌时喊 UNO'));
+    }
+    await _tap(tester, find.text('打出选中的牌'));
+    await _waitFor(
+      tester,
+      () => _tableVersion(tester) > view.version,
+      'card play acknowledgment',
+    );
+    final after = await hostMatches.state(matchId);
+    expect(after.view.version, view.version + 1);
+    expect(after.view.ownHand.length, view.ownHand.length - 1);
+    debugPrint('UNO_IOS_PHASE card-ui-play');
+    return;
+  }
+  throw TestFailure('no playable iOS UI card found within 80 actions');
 }
 
 void main() {
@@ -461,7 +545,7 @@ void main() {
         await _waitFor(
           tester,
           () =>
-              find.text('实时连接').evaluate().isNotEmpty &&
+              _tableConnected(tester) &&
               _tableVersion(tester) >= afterPause.view.version,
           'resumed table with background action',
         );
@@ -530,6 +614,15 @@ void main() {
         beforeResumedAction.view.version + 1,
       );
       debugPrint('UNO_IOS_PHASE resumed-ui-action');
+
+      await _playCardFromUi(
+        tester,
+        matchId,
+        hostSession,
+        guestSession,
+        hostMatches,
+        guestMatches,
+      );
 
       _background(tester);
 
