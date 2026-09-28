@@ -2,7 +2,7 @@
 
 [返回总索引](../README.md)
 
-- 状态：进行中（0.3.10 本地包及镜像、独立解包整局、业务路由就绪门槛和同 schema 本地镜像回退已验收；生产网络、签名、CI 与迁移兼容回退待做）。
+- 状态：进行中（0.3.11 本地包及镜像、独立解包整局、业务路由就绪门槛和同 schema 本地镜像回退已验收；生产网络、签名、CI 与迁移兼容回退待做）。
 - 前置依赖：stage14、stage15、stage16；基础环境准备可提前进行。
 - 目标：把完整功能部署到明确的测试环境，形成可复现的构建与交付过程。
 
@@ -66,3 +66,5 @@
 同日从提交 `02c0d0f` 生成 [0.3.9 包和镜像](../verification-stage17-local-playtest-0.3.9.md)。Identity/Game/Gateway/Web 的本地健康检查现在依次覆盖数据库和实际业务路由，`up --wait` 在故障时阻断；停 Game 后 Gateway readiness 返回 503 而 liveness 保持 200，重启后全部恢复健康。[就绪门槛故障注入](../verification-stage17-compose-readiness.md)和解包部署均已通过。生产媒体、SMTP、TLS/TURN 和自动恢复仍没有纳入这套门槛。
 
 同日从提交 `2b594f5` 生成 [0.3.10 包和镜像](../verification-stage17-local-playtest-0.3.10.md)。打包脚本现从锁文件安装 Web 依赖，并在选定完整 Xcode 下重建 iOS Swift 插件链接；归档 234 个文件和四镜像校验通过。独立解包栈完成账号、文字、经典和 2v2 整局。包内普通 iOS Simulator App 也完成登录、开局和服务端确认的摸牌，但使用进程内临时会话；正式签名、真机与生产媒体仍缺。
+
+同日从提交 `afa7c53` 生成 [0.3.11 包和镜像](../verification-stage17-local-playtest-0.3.11.md)，将 iOS Debug 临时音效偏好入包。包内普通模拟器 App 登录、开局、出牌和音效切换通过；四个同源码镜像从独立空库完成经典/2v2 整局和战绩。正式设备与生产网络门槛仍缺。

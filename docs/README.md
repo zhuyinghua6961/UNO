@@ -136,6 +136,7 @@
 - [stage17 Compose 就绪门槛验收](verification-stage17-compose-readiness.md)：真实路由探针、Game/Identity 停服和恢复时的健康状态。
 - [stage17 0.3.9 本地试玩包验收](verification-stage17-local-playtest-0.3.9.md)：包内 Compose 故障注入、Android 普通 APK 的界面操作与战绩，以及 iOS Keychain 缺口。
 - [stage17 0.3.10 本地试玩包验收](verification-stage17-local-playtest-0.3.10.md)：锁定依赖重建、同源码镜像与解包整局，以及包内 iOS 普通 App 登录和摸牌。
+- [stage17 0.3.11 本地试玩包验收](verification-stage17-local-playtest-0.3.11.md)：同源码包/镜像、独立解包整局及包内 iOS 普通 App 出牌和音效修复。
 - [stage17 本地镜像回退验收](verification-stage17-local-rollback-0.3.8.md)：进行中牌局跨两个镜像版本切换、回退、结算及停机后 V17 数据核对。
 - [stage18 0.3.4 候选验收矩阵](verification-stage18-0.3.4-candidate.md)：逐项列出 Web/Android/iOS 当前证据和仍未达到的发布门槛。
 - [stage18 0.3.5 候选验收矩阵](verification-stage18-0.3.5-candidate.md)：上一版本地试玩能力与目标真机发布门槛的对照。
@@ -144,6 +145,7 @@
 - [stage18 0.3.8 候选增量矩阵](verification-stage18-0.3.8-candidate.md)：素材完整性、同 schema 回退和剩余真机发布缺口。
 - [stage18 0.3.9 候选增量矩阵](verification-stage18-0.3.9-candidate.md)：部署就绪、Android 包内玩法增量和 iOS 普通 App 缺口。
 - [stage18 0.3.10 候选增量矩阵](verification-stage18-0.3.10-candidate.md)：iOS 本机模拟器包内试玩及仍未达到的签名真机与发布门槛。
+- [stage18 0.3.11 候选增量矩阵](verification-stage18-0.3.11-candidate.md)：包内 iOS 音效修复、独立解包整局与真机发布缺口。
 - [stage18 iOS 模拟器临时会话验收](verification-stage18-ios-ephemeral-preview.md)：未签名包的 Keychain 错误、Debug 试玩修复和正式签名边界。
 - [stage18 安全与 V17 语音撤销补验](verification-stage18-security-v17.md)：房外账号拒绝、私有手牌、断开后的旧令牌撤销和双平台混合端复测。
 - [stage17 隔离备份恢复演练](verification-stage17-backup-restore.md)：两服务库的压缩备份、校验、新库恢复与数据核对。

@@ -15,4 +15,4 @@
 
 ## 范围与清理
 
-0.3.10 的 Android 包已构建但未重新进行完整普通 APK 界面验收；上一版 [0.3.9 Android 操作与战绩证据](verification-stage17-local-playtest-0.3.9.md)不能冒充本版结果。正式签名、真机互听、跨网弱网、生产 TLS/TURN、容量和新版本回滚仍未通过。Android 模拟器测试所用的临时 `28080`/`49000` 桥接已停止，原 `uno-stage17-check` Gateway 已恢复并返回 bootstrap；0.3.9 隔离栈已停机保留数据，0.3.10 隔离栈暂保留在本机供试玩。
+0.3.10 的 Android 包已构建但未重新进行完整普通 APK 界面验收；上一版 [0.3.9 Android 操作与战绩证据](verification-stage17-local-playtest-0.3.9.md)不能冒充本版结果。正式签名、真机互听、跨网弱网、生产 TLS/TURN、容量和新版本回滚仍未通过。Android 模拟器测试所用的临时 `28080`/`49000` 桥接已停止，原 `uno-stage17-check` Gateway 已恢复并返回 bootstrap；0.3.9 隔离栈已停机保留数据，0.3.10 隔离栈在完成验收后执行 `down` 并保留数据卷，由 [0.3.11 独立栈](verification-stage17-local-playtest-0.3.11.md)接替本机试玩端口。
