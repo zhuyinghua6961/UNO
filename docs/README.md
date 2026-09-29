@@ -142,6 +142,7 @@
 - [stage17 0.3.14 本地试玩包验收](verification-stage17-local-playtest-0.3.14.md)：iOS 远端语音离会修复、同版包/镜像、独立语音栈与双平台混合端整局。
 - [stage17 0.3.15 本地试玩包验收](verification-stage17-local-playtest-0.3.15.md)：首屏好友房入口、同版包/镜像、独立栈整局及 Android 普通包局内出牌。
 - [stage17 0.3.16 本地试玩包验收](verification-stage17-local-playtest-0.3.16.md)：首回合小屏操作区、同版包/镜像、独立空库整局及 Android 普通包摸牌。
+- [stage17 0.3.17 本地试玩包验收](verification-stage17-local-playtest-0.3.17.md)：操作区可见桌面牌与倒计时、同版包/镜像及独立空库整局。
 - [stage17 GitHub Actions 验证流水线](verification-stage17-ci.md)：Web、后端、Android 常规检查与手动 iOS 模拟器构建；远端 Runner 待验收。
 - [stage17 本地镜像回退验收](verification-stage17-local-rollback-0.3.8.md)：进行中牌局跨两个镜像版本切换、回退、结算及停机后 V17 数据核对。
 - [stage18 0.3.4 候选验收矩阵](verification-stage18-0.3.4-candidate.md)：逐项列出 Web/Android/iOS 当前证据和仍未达到的发布门槛。
@@ -158,6 +159,7 @@
 - [stage18 0.3.14 候选增量矩阵](verification-stage18-0.3.14-candidate.md)：新版可玩范围、跨端语音证据与正式发布剩余门槛。
 - [stage18 0.3.15 候选增量矩阵](verification-stage18-0.3.15-candidate.md)：Android 普通包局内操作证据和剩余整局、真机及发布门槛。
 - [stage18 0.3.16 候选增量矩阵](verification-stage18-0.3.16-candidate.md)：小屏牌桌修复、同版可玩范围及剩余正式发布门槛。
+- [stage18 0.3.17 候选增量矩阵](verification-stage18-0.3.17-candidate.md)：紧凑牌桌信息、同版可玩范围及远端 CI 和发布门槛。
 - [stage18 本机容量基线](verification-stage18-capacity-baseline.md)：同版栈会话请求和并行整局的本机结果、资源采样与边界；不代表生产容量。
 - [stage12 iOS 前后台恢复补验](verification-stage12-ios-lifecycle.md)：模拟器真实牌桌暂停、权威动作、恢复后 UI 出牌和结算；系统级切网仍待验收。
 - [stage18 iOS 模拟器临时会话验收](verification-stage18-ios-ephemeral-preview.md)：未签名包的 Keychain 错误、Debug 试玩修复和正式签名边界。

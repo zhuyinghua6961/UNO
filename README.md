@@ -77,7 +77,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml up --build -d --wai
 
 浏览器打开 `http://localhost:8088`；仅本机可访问。详见 `deploy/README.md`。此配置不是公网生产部署方案。
 
-最新校验的 [0.3.16 本地试玩包](docs/verification-stage17-local-playtest-0.3.16.md) 含 Web、后端 JAR、Android 模拟器 debug APK、iOS Simulator App 和本地 Compose 配置；[同源码离线镜像包](release/0.3.16-local-playtest-images/images.tar.gz) 单独提供。Android 大厅首屏可建好友房，小屏牌桌首个己方回合自动显示手牌和操作区；独立空库栈的真实账号经典/2v2 整局、文字与语音授权烟测通过。普通 Android APK 已验证登录、建房、开局和界面摸牌，但整局与结算尚未通过；0.3.14 普通 iOS 模拟器 App 已完成经典整局。真实设备听感、正式签名和生产部署仍待验收；iOS Debug 包使用进程内会话，重启后需重新登录。证据与门槛见 [0.3.16 候选矩阵](docs/verification-stage18-0.3.16-candidate.md)及[本地部署说明](deploy/README.md)。
+最新校验的 [0.3.17 本地试玩包](docs/verification-stage17-local-playtest-0.3.17.md) 含 Web、后端 JAR、Android 模拟器 debug APK、iOS Simulator App 和本地 Compose 配置；[同源码离线镜像包](release/0.3.17-local-playtest-images/images.tar.gz) 单独提供。Android 大厅首屏可建好友房，小屏牌桌自动显示手牌和操作区，操作区同时显示桌面牌、当前颜色、回合与倒计时；独立空库栈的真实账号经典/2v2 整局、文字与语音授权烟测通过。普通 Android APK 已验证登录、建房、开局和局内操作，但整局与结算尚未通过；0.3.14 普通 iOS 模拟器 App 已完成经典整局。真实设备听感、正式签名和生产部署仍待验收；iOS Debug 包使用进程内会话，重启后需重新登录。证据与门槛见 [0.3.17 候选矩阵](docs/verification-stage18-0.3.17-candidate.md)及[本地部署说明](deploy/README.md)。
 
 ## 设计与 Git
 
