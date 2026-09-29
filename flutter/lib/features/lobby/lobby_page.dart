@@ -21,6 +21,38 @@ class LobbyPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        Text('今天，怎么玩？', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 14),
+        for (final option in GameMode.values)
+          Card(
+            color: mode == option ? const Color(0xffe8eddd) : Colors.white,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 10,
+              ),
+              leading: Icon(
+                option == GameMode.classic
+                    ? Icons.style_outlined
+                    : Icons.group_outlined,
+              ),
+              title: Text(option.label),
+              subtitle: Text(
+                option == GameMode.classic
+                    ? '2–6 人 · 真实经典对局'
+                    : '4 人 2v2 · 实时对局与队伍文字',
+              ),
+              trailing: Icon(
+                mode == option
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_off,
+              ),
+              onTap: () => onModeChanged(option),
+            ),
+          ),
+        const SizedBox(height: 16),
+        ?roomEntry,
+        const SizedBox(height: 28),
         Container(
           padding: const EdgeInsets.all(25),
           decoration: BoxDecoration(
@@ -71,38 +103,6 @@ class LobbyPage extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 28),
-        Text('今天，怎么玩？', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 14),
-        for (final option in GameMode.values)
-          Card(
-            color: mode == option ? const Color(0xffe8eddd) : Colors.white,
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 10,
-              ),
-              leading: Icon(
-                option == GameMode.classic
-                    ? Icons.style_outlined
-                    : Icons.group_outlined,
-              ),
-              title: Text(option.label),
-              subtitle: Text(
-                option == GameMode.classic
-                    ? '2–6 人 · 真实经典对局'
-                    : '4 人 2v2 · 实时对局与队伍文字',
-              ),
-              trailing: Icon(
-                mode == option
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_off,
-              ),
-              onTap: () => onModeChanged(option),
-            ),
-          ),
-        const SizedBox(height: 16),
-        ?roomEntry,
         const Text(
           '经典局与 2v2 都可开桌，房间/队伍文字可用。牌桌预览仅供体验；队友语音可在 2v2 牌桌主动开启。',
           style: TextStyle(fontSize: 12, color: Colors.black54),

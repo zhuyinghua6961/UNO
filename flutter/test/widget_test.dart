@@ -5,9 +5,20 @@ import 'package:uno_app/features/room/room_preview_page.dart';
 import 'package:uno_app/shared/game_mode.dart';
 
 void main() {
-  testWidgets('Lobby exposes an honest scaffold preview', (tester) async {
+  testWidgets('Lobby shows real room entry before the optional preview', (
+    tester,
+  ) async {
     await tester.pumpWidget(const UnoApp());
-    expect(find.text('好朋友，\n就差你这一张。'), findsOneWidget);
+    final entry = find.text('登录后创建或加入好友房。');
+    expect(entry, findsOneWidget);
+    expect(tester.getTopLeft(entry).dy, lessThan(600));
+    await tester.scrollUntilVisible(
+      find.text('看看牌桌'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.text('看看牌桌'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('看看牌桌'));
     await tester.pumpAndSettle();
     expect(find.text('经典自由局 · 布局预览'), findsOneWidget);
