@@ -24,5 +24,6 @@
 | [master 自动 push](https://github.com/zhuyinghua6961/UNO/actions/runs/36527844503) | `1ee82bb` | Web、后端、Android 通过；整栈中的浏览器客方在房主已准备但尚未刷新到客方界面时点击准备，等待超时。`c1094af` 使测试等客方看到房主状态后再操作。 |
 | [浏览器同步功能分支自动 push](https://github.com/zhuyinghua6961/UNO/actions/runs/36528793370) | `c1094af` | Web、后端、整栈、Android 四项通过；iOS 按 push 工作流设计跳过。 |
 | [master 自动 push 复验](https://github.com/zhuyinghua6961/UNO/actions/runs/36529535222) | `c1094af` | Web、后端、整栈、Android 四项通过；iOS 按 push 工作流设计跳过。 |
+| [0.3.18 验收文档 master 自动 push](https://github.com/zhuyinghua6961/UNO/actions/runs/36531009035) | `dc543b4` | Web、后端、整栈、Android 四项通过；iOS 按 push 工作流设计跳过。 |
 
 远端 Runner 的依赖下载、Docker/Testcontainers、Playwright、Android SDK 与 iOS 构建已实际跑通。`master` 和功能分支在修正后均有自动 push 全绿记录；同一产品源码 `1ee82bb` 的功能分支手动运行也覆盖远端 iOS Simulator。此工作流尚不生成可发布制品，也未完成依赖/秘密扫描、分支保护、镜像仓库和正式签名。

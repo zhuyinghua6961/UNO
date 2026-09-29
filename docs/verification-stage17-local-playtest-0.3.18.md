@@ -21,4 +21,8 @@
 
 与包同一 Flutter/Game 源码的集成测试 App 在上述同版栈完成登录、建房、开局、服务端确认的界面操作、前后台恢复、经典整局结算及再次开局。该集成测试 App 与归档内普通 APK 不是同一二进制文件；普通 APK 已验证开局与结算后战绩展示，**由普通 APK 双方界面全程操作直到结算仍未验收**。
 
+## iOS 模拟器界面范围
+
+将本包普通 `Runner.app` 安装到 iPhone 17 Pro / iOS 26.5 模拟器并从主屏搜索启动。App 用上述 Android 玩家账号登录同一独立栈；[iOS 战绩截图](evidence/stage18-ios-ordinary-0.3.18-shared-result.png)显示同一 19 轮、371:508 的经典局结果。大厅也识别账号仍在房间 `2VSR7PU8WX`，提供“回到等待室”入口。截图 SHA-256：`16dd8bf6bac3aa69097aac8dbd08ff41e94eaeb06ef473c5dc519590b1abfcc0`。这验证同版普通 iOS 模拟器包启动、跨端账号登录及房间/战绩读取；本次没有在该普通包内重新进行完整界面牌局。
+
 同源码远端 CI 状态另见 [GitHub Actions 验证记录](verification-stage17-ci.md)。本包为本机预览，不含签名 IPA/Android release 包；尚无 Apple Developer 团队和目标 iPhone。目标真机、正式 Keychain、跨网 ICE/TURN 与 TLS/WSS、真实扬声器/麦克风、正式容量目标、目标环境部署和发布授权均未通过。
