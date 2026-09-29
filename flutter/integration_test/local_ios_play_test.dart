@@ -417,7 +417,15 @@ void main() {
       expect(find.text('我的账号'), findsOneWidget);
 
       await _tap(tester, find.text('大厅').last);
-      await _tap(tester, find.text('创建好友房'));
+      final createRoom = find.widgetWithText(FilledButton, '创建好友房');
+      await _waitFor(
+        tester,
+        () =>
+            createRoom.evaluate().isNotEmpty &&
+            tester.widget<FilledButton>(createRoom).onPressed != null,
+        'enabled create-room control',
+      );
+      await _tap(tester, createRoom);
       try {
         await _waitFor(
           tester,
@@ -471,7 +479,7 @@ void main() {
       );
       await _waitFor(
         tester,
-        () => find.text('实时连接').evaluate().isNotEmpty,
+        () => find.text('实时连接', skipOffstage: false).evaluate().isNotEmpty,
         'live game socket',
       );
       final action = switch (before.view.phase) {

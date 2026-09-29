@@ -79,7 +79,7 @@ class _RoomEntryPanelState extends State<RoomEntryPanel> {
     } catch (failure) {
       if (mounted) setState(() => error = '$failure');
     } finally {
-      busy = false;
+      if (mounted) setState(() => busy = false);
     }
   }
 

@@ -49,6 +49,17 @@ async function state(page, matchId) {
   }, matchId)
 }
 
+async function ready(page, label) {
+  await page.getByRole('button', { name: '准备', exact: true }).click()
+  try {
+    await page.getByRole('button', { name: '取消准备' }).waitFor({ timeout: 15000 })
+  } catch (failure) {
+    const alert = await page.locator('.room-alert').allTextContents()
+    const members = await page.locator('.member-list').textContent()
+    throw new Error(`${label} did not become ready; alerts=${JSON.stringify(alert)} members=${members}`, { cause: failure })
+  }
+}
+
 async function act(page, matchId) {
   const before = await state(page, matchId)
   const { phase, version } = before.view
@@ -80,11 +91,9 @@ async function main() {
     await pages[1].waitForURL(new RegExp(`/rooms/${roomId}$`))
     await pages[0].getByRole('button', { name: '刷新', exact: true }).click()
     await pages[0].waitForFunction(() => document.querySelectorAll('.member-list li').length === 2)
-    await pages[0].getByRole('button', { name: '准备', exact: true }).click()
-    await pages[0].getByRole('button', { name: '取消准备' }).waitFor()
+    await ready(pages[0], 'host')
     await pages[1].getByRole('button', { name: '刷新', exact: true }).click()
-    await pages[1].getByRole('button', { name: '准备', exact: true }).click()
-    await pages[1].getByRole('button', { name: '取消准备' }).waitFor()
+    await ready(pages[1], 'guest')
     await pages[0].getByRole('button', { name: '刷新', exact: true }).click()
     await pages[0].waitForFunction(() => { const button = [...document.querySelectorAll('button')].find(el => el.textContent?.trim() === '开始对局'); return button && !button.disabled })
     await pages[0].getByRole('button', { name: '开始对局' }).click()

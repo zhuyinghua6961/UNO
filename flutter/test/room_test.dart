@@ -25,6 +25,73 @@ class RoomTokenStore implements TokenStore {
 }
 
 void main() {
+  testWidgets('room creation becomes available after current-room lookup', (
+    tester,
+  ) async {
+    final client = MockClient((request) async {
+      if (request.url.path == '/api/auth/status') {
+        return http.Response(
+          jsonEncode({
+            'service': 'identity-service',
+            'loginAvailable': true,
+            'registrationAvailable': true,
+          }),
+          200,
+        );
+      }
+      if (request.url.path == '/api/users/me') {
+        return http.Response(
+          jsonEncode({
+            'id': 'c4d75d7d-117c-45e3-a289-8e38a2fed8cc',
+            'email': 'a@example.com',
+            'nickname': 'Alice',
+          }),
+          200,
+        );
+      }
+      if (request.url.path == '/api/rooms/current') {
+        return http.Response('', 204);
+      }
+      return http.Response('', 404);
+    });
+    final auth = AuthApi(client: client, baseUrl: 'http://localhost:29080');
+    final session = AuthSession(
+      api: auth,
+      store: RoomTokenStore(),
+      now: () => DateTime.utc(2026, 9, 23),
+    );
+    await session.initialize();
+    final rooms = RoomApi(
+      session: session,
+      client: client,
+      baseUrl: 'http://localhost:29080',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RoomEntryPanel(
+            api: rooms,
+            session: session,
+            mode: GameMode.classic,
+            onOpen: (_) {},
+            onLogin: () {},
+            onPendingInvite: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '创建好友房'))
+          .onPressed,
+      isNotNull,
+    );
+    await tester.pumpWidget(const SizedBox());
+    rooms.close();
+    session.dispose();
+  });
+
   testWidgets('guest keeps an invitation code while moving to login', (
     tester,
   ) async {
