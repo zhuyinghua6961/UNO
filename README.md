@@ -77,7 +77,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml up --build -d --wai
 
 浏览器打开 `http://localhost:8088`；仅本机可访问。详见 `deploy/README.md`。此配置不是公网生产部署方案。
 
-最新校验的 [0.3.14 本地试玩包](docs/verification-stage17-local-playtest-0.3.14.md) 含 Web、后端 JAR、Android 模拟器 debug APK、iOS Simulator App 和本地 Compose 配置；[同源码离线镜像包](release/0.3.14-local-playtest-images/images.tar.gz) 单独提供。本版修复 iOS 收到队友音轨后退出语音时的清理顺序。干净提交构建、归档校验、模拟器普通包安装启动和独立空库栈的经典/2v2/浏览器语音通过；Web 分别与 iOS、Android 测试 App 完成带语音的跨端 2v2。移动普通安装包的完整界面整局、真实设备听感与生产部署仍待验收；iOS Debug 包使用进程内会话，重启后需重新登录。证据与门槛见 [0.3.14 候选矩阵](docs/verification-stage18-0.3.14-candidate.md)及[本地部署说明](deploy/README.md)。
+最新校验的 [0.3.15 本地试玩包](docs/verification-stage17-local-playtest-0.3.15.md) 含 Web、后端 JAR、Android 模拟器 debug APK、iOS Simulator App 和本地 Compose 配置；[同源码离线镜像包](release/0.3.15-local-playtest-images/images.tar.gz) 单独提供。Android 大厅的模式与好友房入口已移到首屏；独立空库栈的真实账号经典/2v2 整局、文字与语音授权烟测通过。普通 Android APK 已验证登录、建房、开局及界面出牌，但整局与结算尚未通过；上一版普通 iOS 模拟器 App 已完成经典整局。真实设备听感、正式签名和生产部署仍待验收；iOS Debug 包使用进程内会话，重启后需重新登录。证据与门槛见 [0.3.15 候选矩阵](docs/verification-stage18-0.3.15-candidate.md)及[本地部署说明](deploy/README.md)。
 
 ## 设计与 Git
 
