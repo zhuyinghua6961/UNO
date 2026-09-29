@@ -61,13 +61,15 @@ public class ChatService {
                 Long.class, roomId, channel);
         if (sequence == null) throw new IllegalStateException("Chat sequence allocation failed");
         UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO game.chat_messages(id, room_id, channel, sequence, sender_user_id, "
+        Timestamp savedCreatedAt = jdbc.queryForObject(
+                "INSERT INTO game.chat_messages(id, room_id, channel, sequence, sender_user_id, "
                         + "sender_nickname, client_message_id, content, created_at, expires_at) "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING created_at",
+                Timestamp.class,
                 id, roomId, channel, sequence, identity.userId(), member.nickname(), clientMessageId,
                 content, Timestamp.from(now), Timestamp.from(now.plus(RETENTION)));
         return new ChatItem(id, roomId, channel, sequence, identity.userId(), member.nickname(),
-                clientMessageId, content, now, false);
+                clientMessageId, content, savedCreatedAt.toInstant(), false);
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)

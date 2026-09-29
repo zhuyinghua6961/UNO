@@ -611,6 +611,7 @@ class MatchServiceIT {
         assertEquals(UnoState.Phase.DRAW_FOUR_RESPONSE, played.view().phase());
         long seconds = java.time.Duration.between(Instant.now(), played.deadlineAt()).toSeconds();
         assertTrue(seconds >= 6 && seconds <= 8);
+        assertEquals(played.deadlineAt(), matches.snapshot(matchId, actor).deadlineAt());
         GameIdentity responder = actor == host ? guest : host;
         int handBefore = matches.state(matchId, responder).ownHand().size();
         jdbc.update("UPDATE game.matches SET deadline_at = ? WHERE id = ?",

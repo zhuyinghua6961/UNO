@@ -80,8 +80,10 @@ public class MatchService {
                 : rules.start(members.stream().map(Member::userId).toList(), dealerSeat);
         UUID matchId = UUID.randomUUID();
         Instant deadline = newDeadline(initial.phase());
-        jdbc.update("INSERT INTO game.matches(id, room_id, mode, state, rules_version, version, snapshot, deadline_at) "
-                        + "VALUES (?, ?, ?, 'PLAYING', ?, ?, CAST(? AS jsonb), ?)",
+        Timestamp savedDeadline = jdbc.queryForObject(
+                "INSERT INTO game.matches(id, room_id, mode, state, rules_version, version, snapshot, deadline_at) "
+                        + "VALUES (?, ?, ?, 'PLAYING', ?, ?, CAST(? AS jsonb), ?) RETURNING deadline_at",
+                Timestamp.class,
                 matchId, roomId, room.mode(), ClassicUno.RULES_VERSION, initial.version(),
                 json.writeValueAsString(initial.snapshot()), timestamp(deadline));
         for (int seat = 0; seat < members.size(); seat++) jdbc.update(
@@ -90,7 +92,8 @@ public class MatchService {
                 "TEAM_2V2".equals(room.mode()) ? (seat % 2 == 0 ? "A" : "B") : null);
         jdbc.update("UPDATE game.rooms SET state = 'PLAYING', version = version + 1, expires_at = ? WHERE id = ?",
                 Timestamp.from(clock.instant().plus(ROOM_LIFETIME)), roomId);
-        return new MatchStart(matchId, rules.view(initial, identity.userId()), room.version() + 1, deadline, "PLAYING");
+        return new MatchStart(matchId, rules.view(initial, identity.userId()), room.version() + 1,
+                instant(savedDeadline), "PLAYING");
     }
 
     @Transactional(readOnly = true)
@@ -169,10 +172,10 @@ public class MatchService {
             throw MatchFailure.rule(violation.code().name());
         }
         Instant deadline = nextDeadline(match.deadlineAt(), after.phase(), event);
-        persist(matchId, match.roomId(), identity.userId(), input.commandId(), requestPayload,
+        Instant savedDeadline = persist(matchId, match.roomId(), identity.userId(), input.commandId(), requestPayload,
                 after, event, outcome, drawn, evidence, deadline, "PLAYER");
         return new CommandResult(input.commandId(), false, after.version(), rules.view(after, identity.userId()),
-                event, outcome, drawn, evidence, deadline,
+                event, outcome, drawn, evidence, savedDeadline,
                 after.phase() == UnoState.Phase.MATCH_OVER ? "ENDED" : "PLAYING");
     }
 
@@ -289,12 +292,14 @@ public class MatchService {
         return "TEAM_2V2".equals(mode) ? teamRules.apply(state, command) : rules.apply(state, command);
     }
 
-    private void persist(UUID matchId, UUID roomId, UUID actor, UUID commandId, String requestPayload,
+    private Instant persist(UUID matchId, UUID roomId, UUID actor, UUID commandId, String requestPayload,
             UnoState after, String event, String outcome, Map<Integer, Integer> drawn,
             List<UnoCard> evidence, Instant deadline, String source) {
         List<Integer> evidenceIds = evidence.stream().map(UnoCard::id).toList();
-        jdbc.update("UPDATE game.matches SET version = ?, snapshot = CAST(? AS jsonb), state = ?, "
-                        + "ended_at = CAST(? AS timestamptz), deadline_at = ? WHERE id = ?",
+        Timestamp savedDeadline = jdbc.queryForObject(
+                "UPDATE game.matches SET version = ?, snapshot = CAST(? AS jsonb), state = ?, "
+                        + "ended_at = CAST(? AS timestamptz), deadline_at = ? WHERE id = ? RETURNING deadline_at",
+                Timestamp.class,
                 after.version(), json.writeValueAsString(after.snapshot()),
                 after.phase() == UnoState.Phase.MATCH_OVER ? "ENDED" : "PLAYING",
                 after.phase() == UnoState.Phase.MATCH_OVER ? Timestamp.from(clock.instant()) : null,
@@ -312,6 +317,7 @@ public class MatchService {
             jdbc.update("UPDATE game.rooms SET expires_at = GREATEST(expires_at, ?) WHERE id = ?",
                     Timestamp.from(clock.instant().plus(ROOM_LIFETIME)), roomId);
         }
+        return instant(savedDeadline);
     }
 
     private void finishRoom(UUID matchId, UUID roomId) {
