@@ -63,7 +63,7 @@ void main() {
   testWidgets(
     'table submits one selected card with UNO, applies ACK, ignores stale view and cleans up',
     (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1200, 1800));
+      await tester.binding.setSurfaceSize(const Size(420, 620));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final session = AuthSession(
         api: AuthApi(
@@ -128,6 +128,15 @@ void main() {
       );
       await tester.pump();
       expect(find.text('你的手牌 · 2 张 · 0 分'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        tester.getTopLeft(find.text('你的手牌 · 2 张 · 0 分')).dy,
+        greaterThan(0),
+      );
+      expect(tester.getBottomLeft(find.text('打出选中的牌')).dy, lessThan(620));
+      await tester.binding.setSurfaceSize(const Size(1200, 1800));
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       final cardSize = tester.getSize(find.byKey(const ValueKey('card-2')));
       expect(cardSize.height, greaterThan(0));

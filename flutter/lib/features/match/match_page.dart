@@ -39,6 +39,8 @@ class MatchPage extends StatefulWidget {
 }
 
 class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
+  final GlobalKey _controlsCardKey = GlobalKey();
+  bool focusedControls = false;
   MatchState? state;
   MatchSocketStatus status = MatchSocketStatus.connecting;
   MatchTransport? socket;
@@ -146,6 +148,7 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
     final current = ++generation;
     socket?.close();
     socket = null;
+    focusedControls = false;
     setState(() {
       state = null;
       status = MatchSocketStatus.connecting;
@@ -243,6 +246,21 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
       }
       state = next;
     });
+    if (!focusedControls && state?.status == 'PLAYING' && myTurn) {
+      focusedControls = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final target = _controlsCardKey.currentContext;
+        if (mounted && target != null) {
+          unawaited(
+            Scrollable.ensureVisible(
+              target,
+              alignment: 0.45,
+              duration: const Duration(milliseconds: 250),
+            ),
+          );
+        }
+      });
+    }
   }
 
   Future<void> _sync({bool clearError = true}) async {
@@ -711,6 +729,7 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 12),
             Card(
+              key: _controlsCardKey,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
