@@ -93,6 +93,8 @@ async function main() {
     await pages[0].waitForFunction(() => document.querySelectorAll('.member-list li').length === 2)
     await ready(pages[0], 'host')
     await pages[1].getByRole('button', { name: '刷新', exact: true }).click()
+    await pages[1].locator('.member-list li').filter({ hasText: 'NetworkHost' })
+      .getByText('已准备').waitFor()
     await ready(pages[1], 'guest')
     await pages[0].getByRole('button', { name: '刷新', exact: true }).click()
     await pages[0].waitForFunction(() => { const button = [...document.querySelectorAll('button')].find(el => el.textContent?.trim() === '开始对局'); return button && !button.disabled })
