@@ -739,7 +739,11 @@ class _MatchPageState extends State<MatchPage> with WidgetsBindingObserver {
                       '本回合操作',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
-                    Text(pending == null ? '结果以服务器返回为准。' : '等待服务器确认…'),
+                    if (state?.status == 'PLAYING')
+                      Text(
+                        '桌面 ${current.topCard.label} · 生效${_colorName(current.activeColor)} · $turn${secondsLeft == null ? '' : ' · $secondsLeft 秒'}',
+                      ),
+                    if (pending != null) const Text('等待服务器确认…'),
                     const SizedBox(height: 10),
                     _controls(current),
                     if (evidence.isNotEmpty) ...[

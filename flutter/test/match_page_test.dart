@@ -134,6 +134,14 @@ void main() {
         tester.getTopLeft(find.text('你的手牌 · 2 张 · 0 分')).dy,
         greaterThan(0),
       );
+      final tableContext = find.textContaining('桌面 红色 1 · 生效红色 · 轮到你 · ');
+      expect(tableContext, findsOneWidget);
+      expect(
+        tester.widget<Text>(tableContext).data,
+        matches(RegExp(r'· \d+ 秒$')),
+      );
+      expect(tester.getTopLeft(tableContext).dy, greaterThan(0));
+      expect(tester.getBottomLeft(tableContext).dy, lessThan(620));
       expect(tester.getBottomLeft(find.text('打出选中的牌')).dy, lessThan(620));
       await tester.binding.setSurfaceSize(const Size(1200, 1800));
       await tester.pump();
